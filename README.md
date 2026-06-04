@@ -7,6 +7,7 @@ Standalone ShawQ advertising dashboard for the June 3 campaign launch window. It
 - Meta delivery: frequency, CPM, reach, spend, and ad set change markers.
 - Budget/change markers: dark red dots are reserved for budget or bid edits; red dots are other ad set edits.
 - Business metrics: Shopify revenue, Meta spend converted to USD daily, CAC, and ROAS.
+- Live sale monitor: polls Shopify for the latest paid order and plays a browser chime after sound is enabled.
 - Product leadership: Shopify product units sold and product revenue.
 - Ads leadership: one overall Meta rollup per ad across all countries with CTR (all), add to cart, initiated checkout, purchases, spend, and ROAS.
 - Country coverage: Meta country performance and Shopify product mix by country.
@@ -93,8 +94,11 @@ Endpoints:
 GET /health
 GET /api/data/adset-radar.json
 GET /api/data/shopify-products.json
+GET /api/shopify/latest-sale
 GET /api/refresh
 ```
+
+The live sale sound requires one browser click on `Enable sound`; browsers block automatic audio until the user has interacted with the page.
 
 Manual refresh requires:
 

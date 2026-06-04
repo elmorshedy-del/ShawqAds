@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { CalendarDays, Gauge, RefreshCw, Search } from 'lucide-react';
+import { BellRing, CalendarDays, RefreshCw, Search, Volume2, VolumeX } from 'lucide-react';
 import { compact, money, pct, slug } from './lib/format.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
+
+const SALE_POLL_MS = 30000;
 
 function fallbackData() {
   const dates = Array.from({ length: 32 }, (_, i) => {
@@ -100,6 +102,14 @@ async function fetchJsonWithFallback(apiPath, staticPath, fallbackFactory) {
   return fallbackFactory();
 }
 
+async function fetchLatestSale() {
+  const res = await fetch('/api/shopify/latest-sale', { cache: 'no-store' });
+  const text = await res.text();
+  const payload = text ? JSON.parse(text) : {};
+  if (!res.ok) throw new Error(payload.error || `Shopify sale monitor ${res.status}`);
+  return payload;
+}
+
 function aggregateRows(adsets) {
   const byDate = new Map();
   adsets.forEach((adset) => {
@@ -128,6 +138,23 @@ function delta(cur, base) { return base ? ((cur - base) / base) * 100 : 0; }
 function shortLabel(value, max = 28) {
   const text = String(value || '');
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+function countryFlag(code) {
+  const cc = String(code || '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(cc)) return '•';
+  return [...cc].map((char) => String.fromCodePoint(127397 + char.charCodeAt(0))).join('');
+}
+function saleMoney(sale) {
+  const currency = sale?.currency || 'USD';
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(sale?.total_price || 0));
+  } catch {
+    return money.format(Number(sale?.total_price || 0));
+  }
+}
+function saleTime(value) {
+  if (!value) return 'No timestamp';
+  return new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 function enrichAdset(adset, march) {
@@ -251,6 +278,29 @@ function mergeBusinessRows(metaDaily, shopifyDaily) {
   });
 }
 
+function accountDailyFromAdRows(rows) {
+  const byDate = new Map();
+  (rows || []).forEach((row) => {
+    const cur = byDate.get(row.date) || { date: row.date, spend_usd: 0, spend_try: 0, impressions: 0, reach: 0, purchases: 0, purchase_value_usd: 0 };
+    cur.spend_usd += Number(row.spend_usd || 0);
+    cur.spend_try += Number(row.spend_try || 0);
+    cur.impressions += Number(row.impressions || 0);
+    cur.reach += Number(row.reach || 0);
+    cur.purchases += Number(row.purchases || 0);
+    cur.purchase_value_usd += Number(row.purchase_value_usd || 0);
+    byDate.set(row.date, cur);
+  });
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function BusinessMetricTable({ rows, active }) {
+  const label = { revenue: 'Revenue', spend: 'Spend', cac: 'CAC', roas: 'ROAS' }[active] || 'Revenue';
+  return <section className="metric-detail">
+    <div><b>{label} daily detail</b><span>Business cards use Shopify revenue/orders and full-account Meta spend, not the USA-only frequency dataset.</span></div>
+    <div className="table-wrap compact-table"><table><thead><tr><th>Date</th><th>Revenue</th><th>Meta spend</th><th>Orders</th><th>CAC</th><th>ROAS</th></tr></thead><tbody>{rows.map((r) => <tr key={r.date} className={`focus-${active}`}><td><b>{r.date}</b></td><td>{money.format(r.revenue_usd || 0)}</td><td>{money.format(r.spend_usd || 0)}</td><td>{r.orders || 0}</td><td>{r.orders ? money.format(r.cac) : 'n/a'}</td><td>{r.roas ? `${r.roas.toFixed(2)}x` : 'n/a'}</td></tr>)}</tbody></table></div>
+  </section>;
+}
+
 function businessChartOption(rows) {
   return {
     color: ['#0b766c', '#c85b2f', '#1d64d8', '#a40013'],
@@ -335,8 +385,24 @@ function Card({ title, value, sub, deltaValue, tone, rows, metric, color }) {
   return <section className="metric-card"><div className="metric-copy"><span>{title}</span><strong>{value}</strong><small>{sub}</small><em className={tone}>{deltaValue}</em></div><div className="spark"><ReactECharts option={sparkOption(rows, metric, color)} style={{ height: 72 }} /></div></section>;
 }
 
-function FinanceCard({ title, value, sub, tone = 'neutral' }) {
-  return <section className={`finance-card ${tone}`}><span>{title}</span><strong>{value}</strong><small>{sub}</small></section>;
+function FinanceCard({ title, value, sub, tone = 'neutral', active, onClick }) {
+  return <button type="button" className={`finance-card ${tone} ${active ? 'active' : ''}`} onClick={onClick}><span>{title}</span><strong>{value}</strong><small>{sub}</small></button>;
+}
+
+function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
+  const sale = monitor.sale;
+  const statusText = monitor.status === 'live' ? 'Live Shopify sales monitor' : monitor.status === 'checking' ? 'Checking Shopify sales' : 'Sale monitor paused';
+  const detail = sale ? `${sale.name} · ${saleMoney(sale)} · ${sale.item_count || 0} item${Number(sale.item_count || 0) === 1 ? '' : 's'}` : 'Waiting for the next paid order';
+  return <section className={`sale-monitor ${monitor.fresh ? 'fresh' : ''}`}>
+    <div className="sale-main">
+      <span className={`sale-dot ${monitor.status === 'live' ? 'on' : ''}`} />
+      <div><b><BellRing size={15} />{monitor.fresh ? 'New Shopify sale' : statusText}</b><small>{detail}</small>{sale?.product_title ? <em>{sale.product_title}</em> : null}</div>
+    </div>
+    <div className="sale-actions">
+      <small>{monitor.checkedAt ? `Checked ${saleTime(monitor.checkedAt)}` : monitor.error || 'Starting monitor'}</small>
+      <button type="button" className={soundEnabled ? 'sound-on' : ''} onClick={onEnableSound}>{soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}{soundEnabled ? 'Sound on' : 'Enable sound'}</button>
+    </div>
+  </section>;
 }
 
 function CoverageStrip({ coverage }) {
@@ -364,7 +430,7 @@ function OverallProducts({ products }) {
   return <div className="overall-products"><div><b>Total products sold overall</b><span>Actual Shopify product names, not families</span></div><div className="overall-product-list">{(products || []).slice(0, 9).map((p) => <small key={p.product}><span>{p.product}</span><b>{p.units}</b></small>)}</div></div>;
 }
 
-function LeadershipTables({ products, ads, countries }) {
+function LeadershipTables({ products, ads }) {
   return <section className="leadership-tables">
     <div className="mini-table">
       <h3>Product sales table</h3>
@@ -373,10 +439,6 @@ function LeadershipTables({ products, ads, countries }) {
     <div className="mini-table">
       <h3>Ads leadership table</h3>
       <div className="table-wrap compact-table"><table><thead><tr><th>Ad</th><th>Product</th><th>CTR</th><th>ATC</th><th>IC</th><th>Sales</th><th>ROAS</th><th>Spend</th></tr></thead><tbody>{(ads || []).slice(0, 12).map((a) => <tr key={a.ad_id}><td><b>{a.ad_name}</b></td><td>{a.product_family || 'unknown_product'}</td><td>{Number(a.ctr || 0).toFixed(2)}%</td><td>{a.add_to_cart || 0}</td><td>{a.checkout_initiated || 0}</td><td>{a.purchases || 0}</td><td>{Number(a.roas || 0).toFixed(2)}x</td><td>{money.format(a.spend_usd || 0)}</td></tr>)}</tbody></table></div>
-    </div>
-    <div className="mini-table country-mini">
-      <h3>Meta country coverage</h3>
-      <div className="country-pill-list">{(countries || []).slice(0, 18).map((c) => <span key={c.country_code}><b>{c.country_code}</b>{c.purchases || 0} sales · {Number(c.roas || 0).toFixed(2)}x</span>)}</div>
     </div>
   </section>;
 }
@@ -388,12 +450,90 @@ function App() {
   const [selected, setSelected] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [query, setQuery] = useState('');
+  const [activeBusiness, setActiveBusiness] = useState('revenue');
+  const [saleSoundEnabled, setSaleSoundEnabled] = useState(false);
+  const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '' });
+  const saleAudioRef = useRef(null);
+  const saleSoundEnabledRef = useRef(false);
+  const lastSaleIdRef = useRef('');
+  const saleInitializedRef = useRef(false);
+  const saleFlashTimerRef = useRef(null);
 
   useEffect(() => {
     fetchJsonWithFallback('/api/data/adset-radar.json', '/data/adset-radar.json', fallbackData).then(setRaw);
   }, []);
   useEffect(() => {
     fetchJsonWithFallback('/api/data/shopify-products.json', '/data/shopify-products.json', fallbackShopify).then(setShopify);
+  }, []);
+  useEffect(() => {
+    saleSoundEnabledRef.current = saleSoundEnabled;
+  }, [saleSoundEnabled]);
+
+  async function playSaleChime() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return false;
+    const context = saleAudioRef.current || new AudioContextClass();
+    saleAudioRef.current = context;
+    if (context.state === 'suspended') await context.resume();
+    const now = context.currentTime;
+    const master = context.createGain();
+    master.gain.setValueAtTime(0.0001, now);
+    master.gain.exponentialRampToValueAtTime(0.24, now + 0.025);
+    master.gain.exponentialRampToValueAtTime(0.0001, now + 0.78);
+    master.connect(context.destination);
+    [
+      { frequency: 523.25, start: 0, duration: 0.11, type: 'triangle', gain: 0.22 },
+      { frequency: 987.77, start: 0.11, duration: 0.18, type: 'sine', gain: 0.18 },
+      { frequency: 1567.98, start: 0.29, duration: 0.28, type: 'sine', gain: 0.13 },
+    ].forEach((note) => {
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      osc.type = note.type;
+      osc.frequency.setValueAtTime(note.frequency, now + note.start);
+      gain.gain.setValueAtTime(0.0001, now + note.start);
+      gain.gain.exponentialRampToValueAtTime(note.gain, now + note.start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + note.start + note.duration);
+      osc.connect(gain);
+      gain.connect(master);
+      osc.start(now + note.start);
+      osc.stop(now + note.start + note.duration + 0.02);
+    });
+    return true;
+  }
+
+  async function enableSaleSound() {
+    const played = await playSaleChime();
+    setSaleSoundEnabled(Boolean(played));
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function pollLatestSale() {
+      try {
+        const payload = await fetchLatestSale();
+        if (cancelled) return;
+        const sale = payload.sale || null;
+        const previousId = lastSaleIdRef.current;
+        const isNewSale = Boolean(sale?.id && saleInitializedRef.current && sale.id !== previousId);
+        if (sale?.id) lastSaleIdRef.current = sale.id;
+        saleInitializedRef.current = true;
+        setSaleMonitor({ status: payload.configured === false ? 'not_configured' : 'live', sale, checkedAt: payload.checked_at || new Date().toISOString(), fresh: isNewSale, error: '' });
+        if (isNewSale) {
+          if (saleSoundEnabledRef.current) playSaleChime();
+          window.clearTimeout(saleFlashTimerRef.current);
+          saleFlashTimerRef.current = window.setTimeout(() => setSaleMonitor((current) => ({ ...current, fresh: false })), 15000);
+        }
+      } catch (error) {
+        if (!cancelled) setSaleMonitor((current) => ({ ...current, status: 'offline', checkedAt: new Date().toISOString(), fresh: false, error: error.message }));
+      }
+    }
+    pollLatestSale();
+    const timer = window.setInterval(pollLatestSale, SALE_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.clearTimeout(saleFlashTimerRef.current);
+    };
   }, []);
 
   const data = raw || fallbackData();
@@ -415,7 +555,11 @@ function App() {
   const marchDelta = { frequency: delta(overall.frequency, march.frequency), cpm: delta(overall.cpm, march.cpm), reach: delta(overall.reach, march.reach) };
   const sourceLabel = data.source === 'sample-data' ? 'Sample fallback' : 'Meta API';
   const productSourceLabel = productData.source?.includes('sample') ? 'Sample Shopify' : 'Shopify';
-  const businessRows = useMemo(() => mergeBusinessRows(data.daily_metrics || aggregateRows(data.adsets || []), productData.daily || []), [data, productData]);
+  const accountDaily = useMemo(() => {
+    const accountRows = data.account_daily_metrics?.length ? data.account_daily_metrics : accountDailyFromAdRows(data.ad_country_daily || []);
+    return accountRows.length ? accountRows : (data.daily_metrics || aggregateRows(data.adsets || []));
+  }, [data]);
+  const businessRows = useMemo(() => mergeBusinessRows(accountDaily, productData.daily || []), [accountDaily, productData]);
   const business = {
     revenue_usd: sum(businessRows, 'revenue_usd'),
     spend_usd: sum(businessRows, 'spend_usd'),
@@ -426,12 +570,11 @@ function App() {
   business.roas = business.spend_usd ? business.revenue_usd / business.spend_usd : 0;
   const productRows = productData.products || [];
   const adRows = data.ads || [];
-  const countryRows = data.countries || [];
   const baselineCopy = march.applies ? 'March USA baseline shown because this frequency view is USA ad sets only.' : 'No March baseline on this view because it is not USA-only.';
 
   return <main className="shell">
     <aside className="rail">
-      <div className="brand"><Gauge size={27} /><div><b>ShawQ</b><span>Ad Set Radar</span></div></div>
+      <div className="brand"><div className="logo-mark">ش</div><div><b>ShawQ</b><span>Business Monitoring</span></div></div>
       <div className="filter-block"><label>Date window</label><button><CalendarDays size={16} /> {data.analysis_window?.since || 'May 1'} - {data.analysis_window?.until || 'today'}</button></div>
       <div className="filter-block"><label>Campaign/ad set</label><select value={selected} onChange={(e) => setSelected(e.target.value)}><option value="all">All ad sets</option>{enriched.map((a) => <option key={a.adset_id} value={a.adset_id}>{a.adset_name}</option>)}</select></div>
       <div className="filter-block"><label>Status</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All statuses</option>{Object.keys(statusLabels).map((s) => <option key={s} value={s}>{statusLabels[s]}</option>)}</select></div>
@@ -440,36 +583,26 @@ function App() {
     </aside>
 
     <section className="content">
-      <header className="topbar"><div><h1>Ad Set Monitoring</h1><p>Daily frequency, CPM, unique impressions / reach, ad set edits, and product demand after launch.</p></div><div className="refresh"><span>{sourceLabel}</span><small>Refreshed {data.generated_at ? new Date(data.generated_at).toLocaleString() : 'now'}</small><RefreshCw size={18}/></div></header>
-      <CoverageStrip coverage={data.data_coverage} />
+      <header className="topbar"><div className="headline-lockup"><div className="logo-mark hero">ش</div><div><h1>ShawQ Business Monitoring</h1><p>Revenue, spend, CAC, ROAS, product demand, and delivery drift from the June 3 launch window.</p></div></div><div className="top-actions"><SaleMonitor monitor={saleMonitor} soundEnabled={saleSoundEnabled} onEnableSound={enableSaleSound} /><div className="refresh"><span>{sourceLabel}</span><small>Refreshed {data.generated_at ? new Date(data.generated_at).toLocaleString() : 'now'}</small><RefreshCw size={18}/></div></div></header>
 
-      <section className="cards">
-        <Card title="Frequency" value={(overall.frequency || 0).toFixed(2)} sub={march.applies ? `March ${Number(march.frequency || 0).toFixed(2)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.frequency)} vs own history`} tone={overallDelta.frequency > 20 ? 'bad' : overallDelta.frequency > 8 ? 'warn' : 'good'} rows={trendRows} metric="frequency" color="#067c73" />
-        <Card title="CPM" value={money.format(overall.cpm || 0)} sub={march.applies ? `March ${money.format(march.cpm || 0)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.cpm)} vs own history`} tone={overallDelta.cpm > 25 ? 'bad' : overallDelta.cpm > 12 ? 'warn' : 'good'} rows={trendRows} metric="cpm" color="#e09113" />
-        <Card title="Unique impressions / reach" value={compact(overall.reach || 0)} sub={march.applies ? `March ${compact(march.reach || 0)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.reach)} vs own history`} tone={overallDelta.reach < -10 ? 'bad' : overallDelta.reach < -4 ? 'warn' : 'good'} rows={trendRows} metric="reach" color="#1d64d8" />
+      <section className="finance-cards top-finance">
+        <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.orders} orders · ${business.units} units`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} />
+        <FinanceCard title="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" tone="warn" active={activeBusiness === 'spend'} onClick={() => setActiveBusiness('spend')} />
+        <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} />
+        <FinanceCard title="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" tone={business.roas >= 2 ? 'good' : business.roas >= 1 ? 'warn' : 'bad'} active={activeBusiness === 'roas'} onClick={() => setActiveBusiness('roas')} />
+      </section>
+      <BusinessMetricTable rows={businessRows} active={activeBusiness} />
+
+      <section className="cards secondary-cards">
+        <Card title="Frequency" value={(overall.frequency || 0).toFixed(2)} sub={march.applies ? `March ${Number(march.frequency || 0).toFixed(2)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.frequency)} vs own history`} tone={overallDelta.frequency > 20 ? 'bad' : overallDelta.frequency > 8 ? 'warn' : 'good'} rows={trendRows} metric="frequency" color="#9a1b22" />
+        <Card title="CPM" value={money.format(overall.cpm || 0)} sub={march.applies ? `March ${money.format(march.cpm || 0)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.cpm)} vs own history`} tone={overallDelta.cpm > 25 ? 'bad' : overallDelta.cpm > 12 ? 'warn' : 'good'} rows={trendRows} metric="cpm" color="#c98834" />
+        <Card title="Unique impressions / reach" value={compact(overall.reach || 0)} sub={march.applies ? `March ${compact(march.reach || 0)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.reach)} vs own history`} tone={overallDelta.reach < -10 ? 'bad' : overallDelta.reach < -4 ? 'warn' : 'good'} rows={trendRows} metric="reach" color="#6f2a30" />
         {march.applies ? <section className="benchmark-card"><span>Vs March USA benchmark</span><div><b className={marchDelta.frequency > 20 ? 'bad' : 'warn'}>{pct(marchDelta.frequency)}</b><small>Frequency</small></div><div><b className={marchDelta.cpm > 20 ? 'bad' : 'warn'}>{pct(marchDelta.cpm)}</b><small>CPM</small></div><div><b className={marchDelta.reach < -8 ? 'bad' : 'good'}>{pct(marchDelta.reach)}</b><small>Reach</small></div></section> : <section className="benchmark-card muted-benchmark"><span>March baseline disabled</span><p>This chart is not a USA-only frequency view, so the USA March benchmark is intentionally hidden.</p></section>}
       </section>
 
-      <section className="finance-zone">
-        <div className="finance-cards">
-          <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.orders} orders · ${business.units} units`} tone={business.revenue_usd ? 'good' : 'neutral'} />
-          <FinanceCard title="Meta spend" value={money.format(business.spend_usd)} sub="Converted daily from Meta account currency" tone="warn" />
-          <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} />
-          <FinanceCard title="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / Meta spend" tone={business.roas >= 2 ? 'good' : business.roas >= 1 ? 'warn' : 'bad'} />
-        </div>
-        <div className="business-chart">
-          <div className="panel-title"><h2>Revenue, spend, CAC and ROAS</h2><p>Shopify revenue is matched by day to Meta spend converted to USD, so the ratios stay currency-clean.</p></div>
-          <ReactECharts option={businessChartOption(businessRows)} style={{ height: 280 }} />
-        </div>
-      </section>
-
       <section className="leadership-zone">
-        <div className="panel-title product-title"><div><h2>Leadership charts</h2><p>Product leadership comes from Shopify sales. Ads leadership is one overall Meta rollup per ad across all countries.</p></div><span>{adRows.length} ads · {countryRows.length} countries</span></div>
-        <section className="leadership-grid">
-          <div className="leadership-card"><div className="panel-title"><h2>Product leadership</h2><p>Units sold by actual Shopify product. Revenue is shown in the tooltip and table.</p></div><ReactECharts option={productLeadershipOption(productRows)} style={{ height: 430 }} /></div>
-          <div className="leadership-card"><div className="panel-title"><h2>Ads leadership</h2><p>Overall ad performance, not split by country: CTR (all), add to cart, IC, sales/purchases, and ROAS.</p></div><ReactECharts option={adLeadershipOption(adRows)} style={{ height: 430 }} /></div>
-        </section>
-        <LeadershipTables products={productRows} ads={adRows} countries={countryRows} />
+        <div className="panel-title product-title"><div><h2>Leadership tables</h2><p>Product sales come from Shopify. Ads leadership is one overall Meta rollup per ad across all countries.</p></div><span>{adRows.length} ads</span></div>
+        <LeadershipTables products={productRows} ads={adRows} />
       </section>
 
       <section className="change-strip">
@@ -486,7 +619,7 @@ function App() {
         <div className="panel-title product-title"><div><h2>Product demand after launch</h2><p>{productSourceLabel} sold-unit view for {productData.period?.since} - {productData.period?.until}. Lines are cumulative monthly sold units by product family.</p></div><span>{(productData.families || []).reduce((a, f) => a + Number(f.units || 0), 0)} merch units</span></div>
         <ProductTotals families={productData.families || []} />
         <OverallProducts products={productData.products || []} />
-        <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2><p>Each line is one product family. Similar apparel categories use different color + stroke + marker shapes to stay readable.</p></div><ReactECharts option={productGrowthOption(productData)} style={{ height: 390 }} /></div><div className="country-card"><div className="panel-title"><h2>Country product mix</h2><p>Units, number of product types sold, and percentage mix by family.</p></div><div className="country-list">{(productData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); return <div className="country-row" key={c.country_code}><div className="country-head"><b>{c.country}</b><span>{c.units} units · {c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} /><div className="mix-labels">{entries.slice(0, 4).map(([f,u]) => <small key={f}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {Math.round((u / c.units) * 100)}%</small>)}</div></div>; })}</div></div></section>
+        <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2><p>Each line is one product family. Similar apparel categories use different color + stroke + marker shapes to stay readable.</p></div><ReactECharts option={productGrowthOption(productData)} style={{ height: 390 }} /></div><div className="country-card"><div className="panel-title"><h2>Country product mix</h2><p>Units, number of product types sold, and percentage mix by family.</p></div><div className="country-list">{(productData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span>{c.units} units · {c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} /><div className="mix-labels">{entries.slice(0, 4).map(([f,u]) => <small key={f}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {Math.round((u / c.units) * 100)}%</small>)}</div></div>; })}</div></div></section>
       </section>
     </section>
   </main>;

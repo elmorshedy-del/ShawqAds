@@ -73,6 +73,49 @@ function dateEnvFromUrl(url) {
   return env;
 }
 
+function shopifyConfig() {
+  return {
+    token: process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN,
+    store: process.env.SHAWQ_SHOPIFY_STORE || process.env.SHOPIFY_STORE || 'f3e7e9-2.myshopify.com',
+    apiVersion: process.env.SHOPIFY_API_VERSION || '2025-10',
+  };
+}
+
+function summarizeOrder(order) {
+  const lineItems = order.line_items || [];
+  const itemCount = lineItems.reduce((total, item) => total + Number(item.quantity || 0), 0);
+  const firstProduct = lineItems.find((item) => item?.title)?.title || '';
+  return {
+    id: String(order.id || ''),
+    name: order.name || (order.id ? `#${order.id}` : 'Latest order'),
+    created_at: order.created_at || '',
+    total_price: Number(order.current_total_price || order.total_price || 0),
+    currency: order.currency || order.presentment_currency || 'USD',
+    financial_status: order.financial_status || '',
+    item_count: itemCount,
+    product_title: firstProduct,
+  };
+}
+
+async function fetchLatestShopifySale() {
+  const { token, store, apiVersion } = shopifyConfig();
+  if (!token || !store) return { ok: false, configured: false, error: 'Shopify token or store is not configured', sale: null };
+
+  const url = new URL(`https://${store}/admin/api/${apiVersion}/orders.json`);
+  url.searchParams.set('status', 'any');
+  url.searchParams.set('limit', '20');
+  url.searchParams.set('order', 'created_at desc');
+  url.searchParams.set('fields', 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,currency,presentment_currency,line_items');
+
+  const response = await fetch(url, { headers: { 'X-Shopify-Access-Token': token } });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Shopify latest-sale ${response.status}: ${text.slice(0, 600)}`);
+  const data = JSON.parse(text);
+  const includeStatus = new Set(['paid', 'partially_paid', 'partially_refunded']);
+  const sale = (data.orders || []).find((order) => !order.cancelled_at && includeStatus.has(order.financial_status));
+  return { ok: true, configured: true, checked_at: new Date().toISOString(), sale: sale ? summarizeOrder(sale) : null };
+}
+
 async function serveData(req, res, name, script) {
   const file = publicDataPath(name);
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
@@ -122,6 +165,16 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/data/shopify-products.json') {
     await serveData(req, res, 'shopify-products.json', 'fetch:shopify');
+    return;
+  }
+
+  if (url.pathname === '/api/shopify/latest-sale') {
+    try {
+      const payload = await fetchLatestShopifySale();
+      send(res, payload.ok ? 200 : 503, JSON.stringify(payload));
+    } catch (error) {
+      send(res, 500, JSON.stringify({ ok: false, configured: true, error: error.message, sale: null }));
+    }
     return;
   }
 

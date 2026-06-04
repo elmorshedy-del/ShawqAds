@@ -390,6 +390,8 @@ const finalAdsetChanges = activitiesFailed && previousAdsetChanges.length ? prev
 
 const allAdsets = aggregateBy(adCountryDaily, (r) => r.adset_id, (r) => ({ adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name }))
   .sort((a, b) => b.spend_usd - a.spend_usd);
+const accountDailyMetrics = aggregateBy(adCountryDaily, (r) => r.date, (r) => ({ date: r.date }))
+  .sort((a, b) => a.date.localeCompare(b.date));
 const ads = aggregateBy(adCountryDaily, (r) => r.ad_id, (r) => ({ ad_id: r.ad_id, ad_name: r.ad_name, adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name, product_family: r.product_family }))
   .sort((a, b) => b.purchases - a.purchases || b.purchase_value_usd - a.purchase_value_usd || b.spend_usd - a.spend_usd);
 const countries = aggregateBy(adCountryDaily, (r) => r.country_code, (r) => ({ country_code: r.country_code, country: r.country }))
@@ -427,6 +429,7 @@ const out = {
     reach: avg(dailyMarch, 'reach'),
     impressions: avg(dailyMarch, 'impressions'),
   },
+  account_daily_metrics: accountDailyMetrics,
   daily_metrics: dailyMetrics,
   adsets: [...byAdset.values()].filter((a) => a.rows.some((r) => r.spend > 0)),
   all_adsets: allAdsets,
