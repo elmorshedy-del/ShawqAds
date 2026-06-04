@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: shawq-ads
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build:deploy
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: SHAWQ_META_ACCESS_TOKEN
+        sync: false
+      - key: SHAWQ_META_AD_ACCOUNT_ID
+        value: "1026963365133388"
+      - key: SHAWQ_SHOPIFY_ACCESS_TOKEN
+        sync: false
+      - key: SHAWQ_SHOPIFY_STORE
+        value: f3e7e9-2.myshopify.com
+      - key: SHOPIFY_API_VERSION
+        value: "2025-10"
+      - key: BACKFILL_START_DATE
+        value: "2026-06-03"
+      - key: REFRESH_ON_START
+        value: "true"
+      - key: REFRESH_API_KEY
+        generateValue: true

@@ -1,0 +1,27 @@
+{
+  "name": "shawq-adset-radar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5177",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5178",
+    "fetch:meta": "node scripts/fetch-meta-insights.mjs",
+    "fetch:shopify": "node scripts/fetch-shopify-products.mjs",
+    "fetch:all": "npm run fetch:meta && npm run fetch:shopify",
+    "start": "node server.mjs",
+    "build:deploy": "vite build"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "typescript": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "echarts": "latest",
+    "echarts-for-react": "latest",
+    "lucide-react": "latest"
+  },
+  "devDependencies": {}
+}
