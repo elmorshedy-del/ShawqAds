@@ -157,6 +157,31 @@ function saleTime(value) {
   return new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+function businessMetricConfig(active) {
+  return {
+    revenue: { key: 'revenue_usd', label: 'Shopify revenue', formatter: (v) => money.format(v), color: '#e02e92' },
+    spend: { key: 'spend_usd', label: 'Meta spend', formatter: (v) => money.format(v), color: '#bf6b1f' },
+    cac: { key: 'cac', label: 'CAC', formatter: (v) => (v ? money.format(v) : 'n/a'), color: '#9f1d63' },
+    roas: { key: 'roas', label: 'ROAS', formatter: (v) => (v ? `${Number(v).toFixed(2)}x` : 'n/a'), color: '#0b766c' },
+  }[active] || { key: 'revenue_usd', label: 'Shopify revenue', formatter: (v) => money.format(v), color: '#e02e92' };
+}
+
+function windowedRows(rows, windowKey) {
+  if (windowKey === 'all') return rows;
+  const count = Number(windowKey || 0);
+  return count > 0 ? rows.slice(-count) : rows;
+}
+
+function fxAuditText(data) {
+  const rates = data.fx_rates?.rates || [];
+  if (!rates.length) return 'FX audit: no rate metadata in this dataset yet.';
+  const usdRates = rates.filter((r) => r.fx_to_usd);
+  const exact = usdRates.filter((r) => r.fx_to_usd_requested_date === r.fx_to_usd_rate_date).length;
+  const fallback = Math.max(0, usdRates.length - exact);
+  const latest = usdRates[usdRates.length - 1];
+  return `FX audit: TRY→USD via ${data.fx_rates?.provider || 'Frankfurter'}; ${exact}/${usdRates.length} exact daily rates${fallback ? `, ${fallback} fallback` : ''}. Latest ${latest?.date || ''}: ${Number(latest?.fx_to_usd || 0).toFixed(5)} (${latest?.fx_to_usd_source || 'source unknown'}).`;
+}
+
 function enrichAdset(adset, march) {
   const rows = adset.rows || [];
   const last = rows[rows.length - 1] || {};
@@ -259,6 +284,37 @@ function productGrowthOption(shopify) {
   };
 }
 
+function countrySalesRoasOption(shopifyCountries = [], metaCountries = []) {
+  const metaByCode = new Map((metaCountries || []).map((country) => [country.country_code, country]));
+  const rows = (shopifyCountries || []).slice(0, 14).map((country) => ({
+    ...country,
+    meta: metaByCode.get(country.country_code) || {},
+  }));
+  return {
+    color: ['#e02e92', '#0b766c'],
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: '#22121a',
+      borderColor: '#22121a',
+      textStyle: { color: '#fff' },
+      formatter: (params) => {
+        const row = rows[params[0].dataIndex];
+        return `<b>${countryFlag(row.country_code)} ${row.country}</b><br/>Shopify units: ${row.units || 0}<br/>Meta purchases: ${row.meta.purchases || 0}<br/>Meta ROAS: ${Number(row.meta.roas || 0).toFixed(2)}x<br/>Meta spend: ${money.format(row.meta.spend_usd || 0)}`;
+      },
+    },
+    grid: { left: 42, right: 52, top: 26, bottom: 42 },
+    xAxis: { type: 'category', data: rows.map((row) => `${countryFlag(row.country_code)} ${row.country_code}`), axisLabel: { color: '#6d5a66', fontWeight: 800 }, axisLine: { lineStyle: { color: '#f0dce8' } } },
+    yAxis: [
+      { type: 'value', name: 'Units', axisLabel: { color: '#6d5a66' }, splitLine: { lineStyle: { color: '#f5e4ee', type: 'dashed' } } },
+      { type: 'value', name: 'ROAS', axisLabel: { color: '#0b766c', formatter: '{value}x' }, splitLine: { show: false } },
+    ],
+    series: [
+      { name: 'Shopify units', type: 'bar', data: rows.map((row) => Number(row.units || 0)), barMaxWidth: 20, itemStyle: { borderRadius: [8, 8, 0, 0] } },
+      { name: 'Meta country ROAS', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 7, data: rows.map((row) => Number(row.meta.roas || 0)), lineStyle: { width: 3 } },
+    ],
+  };
+}
+
 function mergeBusinessRows(metaDaily, shopifyDaily) {
   const metaByDate = new Map((metaDaily || []).map((r) => [r.date, r]));
   return (shopifyDaily || []).map((shop) => {
@@ -293,40 +349,43 @@ function accountDailyFromAdRows(rows) {
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function BusinessMetricTable({ rows, active }) {
-  const label = { revenue: 'Revenue', spend: 'Spend', cac: 'CAC', roas: 'ROAS' }[active] || 'Revenue';
-  return <section className="metric-detail">
-    <div><b>{label} daily detail</b><span>Business cards use Shopify revenue/orders and full-account Meta spend, not the USA-only frequency dataset.</span></div>
-    <div className="table-wrap compact-table"><table><thead><tr><th>Date</th><th>Revenue</th><th>Meta spend</th><th>Orders</th><th>CAC</th><th>ROAS</th></tr></thead><tbody>{rows.map((r) => <tr key={r.date} className={`focus-${active}`}><td><b>{r.date}</b></td><td>{money.format(r.revenue_usd || 0)}</td><td>{money.format(r.spend_usd || 0)}</td><td>{r.orders || 0}</td><td>{r.orders ? money.format(r.cac) : 'n/a'}</td><td>{r.roas ? `${r.roas.toFixed(2)}x` : 'n/a'}</td></tr>)}</tbody></table></div>
-  </section>;
-}
-
-function businessChartOption(rows) {
+function businessTrendOption(rows, active) {
+  const metric = businessMetricConfig(active);
   return {
-    color: ['#0b766c', '#c85b2f', '#1d64d8', '#a40013'],
+    color: [metric.color],
     tooltip: {
       trigger: 'axis',
-      backgroundColor: '#111827',
-      borderColor: '#111827',
+      backgroundColor: '#22121a',
+      borderColor: '#22121a',
       textStyle: { color: '#fff' },
       formatter: (params) => {
         const r = rows[params[0].dataIndex];
-        return `<b>${r.date}</b><br/>Revenue: ${money.format(r.revenue_usd)}<br/>Spend: ${money.format(r.spend_usd)}<br/>CAC: ${r.orders ? money.format(r.cac) : 'n/a'}<br/>ROAS: ${r.roas ? r.roas.toFixed(2) : 'n/a'}x<br/>Orders: ${r.orders}`;
+        return `<b>${r.date}</b><br/>${metric.label}: ${metric.formatter(Number(r[metric.key] || 0))}<br/>Revenue: ${money.format(r.revenue_usd)}<br/>Spend: ${money.format(r.spend_usd)}<br/>Orders: ${r.orders || 0}<br/>CAC: ${r.orders ? money.format(r.cac) : 'n/a'}<br/>ROAS: ${r.roas ? r.roas.toFixed(2) : 'n/a'}x`;
       },
     },
-    legend: { top: 0, textStyle: { color: '#394150', fontWeight: 800 } },
-    grid: { left: 48, right: 52, top: 52, bottom: 38 },
+    grid: { left: 54, right: 28, top: 20, bottom: 38 },
     xAxis: { type: 'category', data: rows.map((r) => r.date), axisLabel: { color: '#697386' }, axisLine: { lineStyle: { color: '#d8d4ca' } } },
-    yAxis: [
-      { type: 'value', name: 'USD', axisLabel: { color: '#697386', formatter: '${value}' }, splitLine: { lineStyle: { color: '#ece7db', type: 'dashed' } } },
-      { type: 'value', name: 'ROAS', axisLabel: { color: '#1d64d8', formatter: '{value}x' }, splitLine: { show: false } },
-    ],
+    yAxis: { type: 'value', scale: true, axisLabel: { color: '#697386', formatter: (v) => active === 'roas' ? `${v}x` : active === 'cac' || active === 'spend' || active === 'revenue' ? `$${v}` : v }, splitLine: { lineStyle: { color: '#f0dce8', type: 'dashed' } } },
     series: [
-      { name: 'Shopify revenue', type: 'bar', data: rows.map((r) => Number(r.revenue_usd || 0)), barMaxWidth: 18, itemStyle: { borderRadius: [5, 5, 0, 0] } },
-      { name: 'Meta spend', type: 'bar', data: rows.map((r) => Number(r.spend_usd || 0)), barMaxWidth: 18, itemStyle: { borderRadius: [5, 5, 0, 0] } },
-      { name: 'ROAS', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 5, data: rows.map((r) => Number(r.roas || 0)) },
+      { name: metric.label, type: 'line', smooth: true, symbolSize: 7, data: rows.map((r) => Number(r[metric.key] || 0)), lineStyle: { width: 4 }, areaStyle: { opacity: 0.12 } },
     ],
   };
+}
+
+function BusinessMetricPanel({ rows, active, windowKey, setWindowKey, fxText }) {
+  const metric = businessMetricConfig(active);
+  const shown = windowedRows(rows, windowKey);
+  const windows = [['3', '3D'], ['7', 'Week'], ['14', '2W'], ['30', 'Month'], ['all', 'All']];
+  return <section className="metric-detail unfold-panel">
+    <div className="metric-detail-copy">
+      <b>{metric.label} trend</b>
+      <span>Click a business card to unfold one clean smoothed line. Business cards use Shopify revenue/orders and full-account Meta spend.</span>
+      <small>{fxText}</small>
+      <div className="window-tabs">{windows.map(([key, label]) => <button type="button" key={key} className={windowKey === key ? 'active' : ''} onClick={() => setWindowKey(key)}>{label}</button>)}</div>
+    </div>
+    <div className="metric-detail-chart"><ReactECharts option={businessTrendOption(shown, active)} style={{ height: 260 }} /></div>
+    <div className="table-wrap compact-table metric-detail-table"><table><thead><tr><th>Date</th><th>Revenue</th><th>Meta spend</th><th>Orders</th><th>CAC</th><th>ROAS</th></tr></thead><tbody>{shown.map((r) => <tr key={r.date} className={`focus-${active}`}><td><b>{r.date}</b></td><td>{money.format(r.revenue_usd || 0)}</td><td>{money.format(r.spend_usd || 0)}</td><td>{r.orders || 0}</td><td>{r.orders ? money.format(r.cac) : 'n/a'}</td><td>{r.roas ? `${r.roas.toFixed(2)}x` : 'n/a'}</td></tr>)}</tbody></table></div>
+  </section>;
 }
 
 function productLeadershipOption(products) {
@@ -392,11 +451,19 @@ function FinanceCard({ title, value, sub, tone = 'neutral', active, onClick }) {
 function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
   const sale = monitor.sale;
   const statusText = monitor.status === 'live' ? 'Live Shopify sales monitor' : monitor.status === 'checking' ? 'Checking Shopify sales' : 'Sale monitor paused';
+  const items = sale?.line_items || [];
   const detail = sale ? `${sale.name} · ${saleMoney(sale)} · ${sale.item_count || 0} item${Number(sale.item_count || 0) === 1 ? '' : 's'}` : 'Waiting for the next paid order';
+  const country = sale?.country?.code ? `${countryFlag(sale.country.code)} ${sale.country.name || sale.country.code}` : 'Country pending';
+  const attribution = sale?.matched_ad?.ad_name || sale?.attribution_label || 'Unattributed in Shopify';
   return <section className={`sale-monitor ${monitor.fresh ? 'fresh' : ''}`}>
     <div className="sale-main">
       <span className={`sale-dot ${monitor.status === 'live' ? 'on' : ''}`} />
-      <div><b><BellRing size={15} />{monitor.fresh ? 'New Shopify sale' : statusText}</b><small>{detail}</small>{sale?.product_title ? <em>{sale.product_title}</em> : null}</div>
+      <div>
+        <b><BellRing size={15} />{monitor.fresh ? 'New Shopify sale' : statusText}</b>
+        <small>{detail} · {country}</small>
+        {items.length ? <div className="sale-items">{items.map((item) => <em key={`${item.title}-${item.quantity}`}>{item.quantity}x {item.title}</em>)}</div> : sale?.product_title ? <em>{sale.product_title}</em> : null}
+        {sale ? <strong className="sale-source">Ad/source: {attribution}</strong> : null}
+      </div>
     </div>
     <div className="sale-actions">
       <small>{monitor.checkedAt ? `Checked ${saleTime(monitor.checkedAt)}` : monitor.error || 'Starting monitor'}</small>
@@ -417,9 +484,18 @@ function CoverageStrip({ coverage }) {
   return <section className="coverage-strip">{items.map(([label, value]) => <div key={label}><span>{label}</span><b>{compact(value)}</b></div>)}</section>;
 }
 
-function MixBars({ mix, total }) {
+function mixTooltip(family, units, total, subtypes = {}) {
+  const familyShare = total ? Math.round((units / total) * 100) : 0;
+  const subtypeEntries = Object.entries(subtypes[family] || {}).sort((a, b) => b[1] - a[1]);
+  const subtypeText = subtypeEntries.length
+    ? subtypeEntries.map(([subtype, count]) => `${subtype}: ${count} (${Math.round((count / units) * 100)}% of ${family}, ${Math.round((count / total) * 100)}% of country)`).join('\n')
+    : 'No subtype split available';
+  return `${family}: ${units} units (${familyShare}% of country)\n${subtypeText}`;
+}
+
+function MixBars({ mix, total, subtypes }) {
   const entries = Object.entries(mix || {}).sort((a, b) => b[1] - a[1]);
-  return <div className="mix-bars">{entries.map(([family, units]) => <span key={family} style={{ width: `${Math.max(4, (units / total) * 100)}%`, background: familyStyle[family]?.color || familyStyle.Other.color }} title={`${family}: ${units} (${Math.round((units / total) * 100)}%)`} />)}</div>;
+  return <div className="mix-bars">{entries.map(([family, units]) => <span key={family} style={{ width: `${Math.max(4, total ? (units / total) * 100 : 0)}%`, background: familyStyle[family]?.color || familyStyle.Other.color }} title={mixTooltip(family, units, total, subtypes)} />)}</div>;
 }
 
 function ProductTotals({ families }) {
@@ -434,11 +510,11 @@ function LeadershipTables({ products, ads }) {
   return <section className="leadership-tables">
     <div className="mini-table">
       <h3>Product sales table</h3>
-      <div className="table-wrap compact-table"><table><thead><tr><th>Product</th><th>Family</th><th>Units</th><th>Revenue</th></tr></thead><tbody>{(products || []).slice(0, 12).map((p) => <tr key={p.product}><td><b>{p.product}</b></td><td>{p.family || 'Unknown'}</td><td>{p.units || 0}</td><td>{money.format(p.revenue_usd || 0)}</td></tr>)}</tbody></table></div>
+      <div className="table-wrap compact-table"><table><thead><tr><th>Product</th><th>Family</th><th>Subtype</th><th>Units</th><th>Revenue</th></tr></thead><tbody>{(products || []).slice(0, 12).map((p) => <tr key={p.product}><td className="name-cell"><b>{p.product}</b></td><td>{p.family || 'Unknown'}</td><td>{p.subtype || 'Unknown'}</td><td>{p.units || 0}</td><td>{money.format(p.revenue_usd || 0)}</td></tr>)}</tbody></table></div>
     </div>
     <div className="mini-table">
       <h3>Ads leadership table</h3>
-      <div className="table-wrap compact-table"><table><thead><tr><th>Ad</th><th>Product</th><th>CTR</th><th>ATC</th><th>IC</th><th>Sales</th><th>ROAS</th><th>Spend</th></tr></thead><tbody>{(ads || []).slice(0, 12).map((a) => <tr key={a.ad_id}><td><b>{a.ad_name}</b></td><td>{a.product_family || 'unknown_product'}</td><td>{Number(a.ctr || 0).toFixed(2)}%</td><td>{a.add_to_cart || 0}</td><td>{a.checkout_initiated || 0}</td><td>{a.purchases || 0}</td><td>{Number(a.roas || 0).toFixed(2)}x</td><td>{money.format(a.spend_usd || 0)}</td></tr>)}</tbody></table></div>
+      <div className="table-wrap compact-table"><table><thead><tr><th>Ad</th><th>Product</th><th>Subtype</th><th>CTR</th><th>ATC</th><th>IC</th><th>Sales</th><th>ROAS</th><th>Spend</th></tr></thead><tbody>{(ads || []).slice(0, 12).map((a) => <tr key={a.ad_id}><td className="name-cell"><b>{a.ad_name}</b></td><td>{a.product_family || 'unknown_product'}</td><td>{a.product_subtype || 'Unknown'}</td><td>{Number(a.ctr || 0).toFixed(2)}%</td><td>{a.add_to_cart || 0}</td><td>{a.checkout_initiated || 0}</td><td>{a.purchases || 0}</td><td>{Number(a.roas || 0).toFixed(2)}x</td><td>{money.format(a.spend_usd || 0)}</td></tr>)}</tbody></table></div>
     </div>
   </section>;
 }
@@ -451,6 +527,7 @@ function App() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [activeBusiness, setActiveBusiness] = useState('revenue');
+  const [businessWindow, setBusinessWindow] = useState('all');
   const [saleSoundEnabled, setSaleSoundEnabled] = useState(false);
   const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '' });
   const saleAudioRef = useRef(null);
@@ -470,35 +547,20 @@ function App() {
   }, [saleSoundEnabled]);
 
   async function playSaleChime() {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return false;
-    const context = saleAudioRef.current || new AudioContextClass();
-    saleAudioRef.current = context;
-    if (context.state === 'suspended') await context.resume();
-    const now = context.currentTime;
-    const master = context.createGain();
-    master.gain.setValueAtTime(0.0001, now);
-    master.gain.exponentialRampToValueAtTime(0.24, now + 0.025);
-    master.gain.exponentialRampToValueAtTime(0.0001, now + 0.78);
-    master.connect(context.destination);
-    [
-      { frequency: 523.25, start: 0, duration: 0.11, type: 'triangle', gain: 0.22 },
-      { frequency: 987.77, start: 0.11, duration: 0.18, type: 'sine', gain: 0.18 },
-      { frequency: 1567.98, start: 0.29, duration: 0.28, type: 'sine', gain: 0.13 },
-    ].forEach((note) => {
-      const osc = context.createOscillator();
-      const gain = context.createGain();
-      osc.type = note.type;
-      osc.frequency.setValueAtTime(note.frequency, now + note.start);
-      gain.gain.setValueAtTime(0.0001, now + note.start);
-      gain.gain.exponentialRampToValueAtTime(note.gain, now + note.start + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + note.start + note.duration);
-      osc.connect(gain);
-      gain.connect(master);
-      osc.start(now + note.start);
-      osc.stop(now + note.start + note.duration + 0.02);
-    });
-    return true;
+    if (!saleAudioRef.current) {
+      const audio = new Audio('/assets/shopify_sale_sound.mp3');
+      audio.preload = 'auto';
+      audio.volume = 0.88;
+      saleAudioRef.current = audio;
+    }
+    const audio = saleAudioRef.current;
+    try {
+      audio.currentTime = 0;
+      await audio.play();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async function enableSaleSound() {
@@ -571,10 +633,12 @@ function App() {
   const productRows = productData.products || [];
   const adRows = data.ads || [];
   const baselineCopy = march.applies ? 'March USA baseline shown because this frequency view is USA ad sets only.' : 'No March baseline on this view because it is not USA-only.';
+  const fxText = fxAuditText(data);
+  const adsetPerfById = useMemo(() => new Map((data.all_adsets || []).map((row) => [row.adset_id, row])), [data]);
 
   return <main className="shell">
     <aside className="rail">
-      <div className="brand"><div className="logo-mark">ش</div><div><b>ShawQ</b><span>Business Monitoring</span></div></div>
+      <div className="brand"><img src="/assets/shawq-logo.png" alt="ShawQ" /><div><b>ShawQ</b><span>Business Monitoring</span></div></div>
       <div className="filter-block"><label>Date window</label><button><CalendarDays size={16} /> {data.analysis_window?.since || 'May 1'} - {data.analysis_window?.until || 'today'}</button></div>
       <div className="filter-block"><label>Campaign/ad set</label><select value={selected} onChange={(e) => setSelected(e.target.value)}><option value="all">All ad sets</option>{enriched.map((a) => <option key={a.adset_id} value={a.adset_id}>{a.adset_name}</option>)}</select></div>
       <div className="filter-block"><label>Status</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All statuses</option>{Object.keys(statusLabels).map((s) => <option key={s} value={s}>{statusLabels[s]}</option>)}</select></div>
@@ -583,7 +647,7 @@ function App() {
     </aside>
 
     <section className="content">
-      <header className="topbar"><div className="headline-lockup"><div className="logo-mark hero">ش</div><div><h1>ShawQ Business Monitoring</h1><p>Revenue, spend, CAC, ROAS, product demand, and delivery drift from the June 3 launch window.</p></div></div><div className="top-actions"><SaleMonitor monitor={saleMonitor} soundEnabled={saleSoundEnabled} onEnableSound={enableSaleSound} /><div className="refresh"><span>{sourceLabel}</span><small>Refreshed {data.generated_at ? new Date(data.generated_at).toLocaleString() : 'now'}</small><RefreshCw size={18}/></div></div></header>
+      <header className="topbar"><div className="headline-lockup"><img className="hero-logo" src="/assets/shawq-logo.png" alt="ShawQ" /><div><h1>ShawQ Business Monitoring</h1><p>Revenue, spend, CAC, ROAS, product demand, and delivery drift from the June 3 launch window.</p></div></div><div className="top-actions"><SaleMonitor monitor={saleMonitor} soundEnabled={saleSoundEnabled} onEnableSound={enableSaleSound} /><div className="refresh"><span>{sourceLabel}</span><small>Refreshed {data.generated_at ? new Date(data.generated_at).toLocaleString() : 'now'}</small><RefreshCw size={18}/></div></div></header>
 
       <section className="finance-cards top-finance">
         <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.orders} orders · ${business.units} units`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} />
@@ -591,7 +655,7 @@ function App() {
         <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} />
         <FinanceCard title="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" tone={business.roas >= 2 ? 'good' : business.roas >= 1 ? 'warn' : 'bad'} active={activeBusiness === 'roas'} onClick={() => setActiveBusiness('roas')} />
       </section>
-      <BusinessMetricTable rows={businessRows} active={activeBusiness} />
+      <BusinessMetricPanel rows={businessRows} active={activeBusiness} windowKey={businessWindow} setWindowKey={setBusinessWindow} fxText={fxText} />
 
       <section className="cards secondary-cards">
         <Card title="Frequency" value={(overall.frequency || 0).toFixed(2)} sub={march.applies ? `March ${Number(march.frequency || 0).toFixed(2)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.frequency)} vs own history`} tone={overallDelta.frequency > 20 ? 'bad' : overallDelta.frequency > 8 ? 'warn' : 'good'} rows={trendRows} metric="frequency" color="#9a1b22" />
@@ -613,13 +677,13 @@ function App() {
 
       <section className="workbench"><div className="chart-panel"><div className="panel-title"><h2>Daily delivery shape</h2><p>Dark red dots mark budget/bid changes. Dashed lines are March USA baselines.</p></div><ReactECharts option={trendOption(trendRows, march, selectedChanges)} style={{ height: 438 }} /></div><aside className="rank-panel"><div className="panel-title"><h2>Ad sets ranked</h2><p>Risk comes from rising frequency/CPM plus falling unique reach.</p></div>{filtered.slice(0, 9).map((a, i) => <div className={`rank-row ${slug(a.status)}`} key={a.adset_id}><strong>{i+1}</strong><div><b>{a.adset_name}</b><small>{a.campaign_name}</small></div><span>{statusLabels[a.status]}</span></div>)}</aside></section>
 
-      <section className="table-panel"><div className="panel-title"><h2>Ad set decision table</h2><p>Use this before scaling: healthy delivery is rising unique reach, not just higher spend.</p></div><div className="table-wrap"><table><thead><tr><th>Ad set</th><th>Campaign</th><th>Status</th><th>Active days</th><th>Freq</th><th>CPM</th><th>Unique imp. / reach</th><th>Freq vs hist</th><th>CPM vs hist</th><th>Reach vs hist</th><th>Freq vs Mar</th><th>CPM vs Mar</th><th>Reach vs Mar</th><th>Action</th></tr></thead><tbody>{filtered.map((a) => <tr key={a.adset_id}><td><b>{a.adset_name}</b></td><td>{a.campaign_name}</td><td><span className={`pill ${slug(a.status)}`}>{statusLabels[a.status]}</span></td><td>{a.activeDays}</td><td>{a.current.frequency.toFixed(2)}</td><td>{money.format(a.current.cpm)}</td><td>{compact(a.current.reach)}</td><td className={a.histDelta.frequency > 18 ? 'bad' : a.histDelta.frequency > 8 ? 'warn' : 'good'}>{pct(a.histDelta.frequency)}</td><td className={a.histDelta.cpm > 20 ? 'bad' : a.histDelta.cpm > 10 ? 'warn' : 'good'}>{pct(a.histDelta.cpm)}</td><td className={a.histDelta.reach < -10 ? 'bad' : 'good'}>{pct(a.histDelta.reach)}</td><td>{pct(a.marchDelta.frequency)}</td><td>{pct(a.marchDelta.cpm)}</td><td>{pct(a.marchDelta.reach)}</td><td><b>{a.recommendation}</b></td></tr>)}</tbody></table></div></section>
+      <section className="table-panel"><div className="panel-title"><h2>Ad set decision table</h2><p>Use this before scaling: healthy delivery is rising unique reach, not just higher spend. ROAS is calculated from each ad set's own spend and purchase value.</p></div><div className="table-wrap"><table><thead><tr><th>Ad set</th><th>Campaign</th><th>Status</th><th>Sales</th><th>ROAS</th><th>Meta spend</th><th>Active days</th><th>Freq</th><th>CPM</th><th>Unique imp. / reach</th><th>Freq vs hist</th><th>CPM vs hist</th><th>Reach vs hist</th><th>Freq vs Mar</th><th>CPM vs Mar</th><th>Reach vs Mar</th><th>Action</th></tr></thead><tbody>{filtered.map((a) => { const perf = adsetPerfById.get(a.adset_id) || {}; return <tr key={a.adset_id}><td className="name-cell"><b>{a.adset_name}</b></td><td className="name-cell">{a.campaign_name}</td><td><span className={`pill ${slug(a.status)}`}>{statusLabels[a.status]}</span></td><td>{perf.purchases || 0}</td><td>{Number(perf.roas || 0).toFixed(2)}x</td><td>{money.format(perf.spend_usd || a.current.spend || 0)}</td><td>{a.activeDays}</td><td>{a.current.frequency.toFixed(2)}</td><td>{money.format(a.current.cpm)}</td><td>{compact(a.current.reach)}</td><td className={a.histDelta.frequency > 18 ? 'bad' : a.histDelta.frequency > 8 ? 'warn' : 'good'}>{pct(a.histDelta.frequency)}</td><td className={a.histDelta.cpm > 20 ? 'bad' : a.histDelta.cpm > 10 ? 'warn' : 'good'}>{pct(a.histDelta.cpm)}</td><td className={a.histDelta.reach < -10 ? 'bad' : 'good'}>{pct(a.histDelta.reach)}</td><td>{pct(a.marchDelta.frequency)}</td><td>{pct(a.marchDelta.cpm)}</td><td>{pct(a.marchDelta.reach)}</td><td className="name-cell"><b>{a.recommendation}</b></td></tr>; })}</tbody></table></div></section>
 
       <section className="product-zone">
         <div className="panel-title product-title"><div><h2>Product demand after launch</h2><p>{productSourceLabel} sold-unit view for {productData.period?.since} - {productData.period?.until}. Lines are cumulative monthly sold units by product family.</p></div><span>{(productData.families || []).reduce((a, f) => a + Number(f.units || 0), 0)} merch units</span></div>
         <ProductTotals families={productData.families || []} />
         <OverallProducts products={productData.products || []} />
-        <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2><p>Each line is one product family. Similar apparel categories use different color + stroke + marker shapes to stay readable.</p></div><ReactECharts option={productGrowthOption(productData)} style={{ height: 390 }} /></div><div className="country-card"><div className="panel-title"><h2>Country product mix</h2><p>Units, number of product types sold, and percentage mix by family.</p></div><div className="country-list">{(productData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span>{c.units} units · {c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} /><div className="mix-labels">{entries.slice(0, 4).map(([f,u]) => <small key={f}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {Math.round((u / c.units) * 100)}%</small>)}</div></div>; })}</div></div></section>
+        <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2><p>Each line is one product family. Similar apparel categories use different color + stroke + marker shapes to stay readable.</p></div><ReactECharts option={productGrowthOption(productData)} style={{ height: 390 }} /></div><div className="country-card"><div className="panel-title"><h2>Country sales + ROAS</h2><p>Bars are Shopify units sold. The line is Meta ROAS by country using that country spend.</p></div><ReactECharts option={countrySalesRoasOption(productData.countries || [], data.countries || [])} style={{ height: 240 }} /><div className="country-list">{(productData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span>{c.units} units · {c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} subtypes={c.subtypes || {}} /><div className="mix-labels">{entries.slice(0, 6).map(([f,u]) => <small key={f} title={mixTooltip(f, u, c.units, c.subtypes || {})}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {c.units ? Math.round((u / c.units) * 100) : 0}%</small>)}</div></div>; })}</div></div></section>
       </section>
     </section>
   </main>;

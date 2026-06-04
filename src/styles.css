@@ -25,3 +25,45 @@ body{background:radial-gradient(circle at 12% 0%,rgba(224,46,146,.16),transparen
 .metric-detail{background:rgba(255,255,255,.9);border:1px solid var(--shawq-line);border-radius:18px;padding:14px;margin-bottom:14px;box-shadow:var(--shadow);display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start}.metric-detail b{font-family:Newsreader,serif;font-size:23px;color:var(--shawq-ink)}.metric-detail span{display:block;color:var(--shawq-muted);font-size:13px;line-height:1.35;margin-top:5px}.secondary-cards{grid-template-columns:repeat(4,minmax(0,1fr));opacity:.96}.secondary-cards .metric-card{min-height:124px}.secondary-cards .metric-copy strong{font-size:30px}.secondary-cards .spark{opacity:.75}
 .leadership-zone{padding:16px;margin-bottom:14px}.leadership-zone .product-title>span{background:var(--shawq-pink);color:#fff}.leadership-tables{margin-top:0}.mini-table h3,.panel-title h2{color:var(--shawq-ink)}th{background:#fff5fb;color:var(--shawq-pink-dark)}td,th{border-color:#f2dfeb}.table-wrap{border-color:#f2dfeb}table{background:#fff}.country-head b{display:flex;align-items:center;gap:8px}.flag{font-size:20px;line-height:1}.product-title>span{background:var(--shawq-pink)}.product-chip i,.mix-labels i{box-shadow:0 0 0 2px rgba(255,255,255,.9)}.change-strip b{color:var(--shawq-ink)}.dot.budget{background:var(--shawq-pink-dark)}.dot.normal{background:var(--shawq-pink)}.bad{color:#b21b2a}.warn{color:#c98834}.good{color:#0b766c}.pill.healthy{color:#0b766c;background:#e8f7f2}.pill.warming{color:#9a6514;background:#fff4dc}.pill.fatigue-risk,.pill.expensive-reach{color:#a51462;background:#fde8f4}.rank-row span{color:var(--shawq-pink-dark)}
 @media(max-width:1320px){.top-finance,.secondary-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-detail{grid-template-columns:1fr}.leadership-tables{grid-template-columns:1fr}.top-actions{min-width:360px}}@media(max-width:1100px){.top-actions{min-width:0;max-width:none;margin-top:14px}.sale-monitor{grid-template-columns:1fr}}@media(max-width:760px){.top-finance,.secondary-cards{grid-template-columns:1fr}.headline-lockup{display:block}.logo-mark.hero{margin-bottom:10px}.topbar h1{font-size:39px}.metric-detail{padding:12px}.rail{height:auto}.sale-actions{justify-items:start}.sale-main em{max-width:220px}}
+
+/* Premium ShawQ monitoring refinement: mostly white, pink only as a brand undertone. */
+:root{
+  --shawq-pink:#e02e92;
+  --shawq-pink-2:#f6a7cf;
+  --shawq-ruby:#9f1d63;
+  --shawq-blush:#fff5fb;
+  --shawq-line:#f1d7e5;
+  --shawq-ink:#211018;
+  --shawq-muted:#7b6672;
+  --shawq-surface:#ffffff;
+  --shadow:0 18px 46px rgba(94,24,60,.075);
+}
+body{
+  background:
+    radial-gradient(circle at 12% -12%,rgba(224,46,146,.16),transparent 31%),
+    radial-gradient(circle at 82% 8%,rgba(224,46,146,.10),transparent 26%),
+    linear-gradient(180deg,#fff 0%,#fff 52%,#fff8fc 100%);
+  color:var(--shawq-ink);
+}
+.shell{grid-template-columns:268px minmax(0,1fr)}
+.rail{
+  background:rgba(255,255,255,.88);
+  backdrop-filter:blur(18px);
+  border-right:1px solid var(--shawq-line);
+  box-shadow:18px 0 60px rgba(224,46,146,.055);
+}
+.brand{gap:10px;margin-bottom:24px}.brand img{width:66px;height:auto;object-fit:contain;filter:drop-shadow(0 10px 18px rgba(224,46,146,.12))}.brand b{font-size:28px;color:var(--shawq-ink)}.brand span{font-size:12px;color:var(--shawq-ruby);letter-spacing:.03em}
+.content{padding:28px 34px 44px;background:linear-gradient(180deg,rgba(255,255,255,.7),rgba(255,255,255,.34))}.topbar{align-items:center;margin-bottom:22px}.headline-lockup{align-items:center}.hero-logo{width:86px;max-height:52px;object-fit:contain;filter:drop-shadow(0 12px 22px rgba(224,46,146,.13))}.topbar h1{font-size:48px;color:var(--shawq-ink);letter-spacing:-.055em}.topbar h1::first-letter{color:var(--shawq-pink)}.topbar p{max-width:780px;color:var(--shawq-muted)}
+.filter-block button,.filter-block select,.search,.method,.refresh,.sale-monitor,.metric-card,.benchmark-card,.chart-panel,.rank-panel,.table-panel,.finance-card,.change-strip,.leadership-zone,.mini-table,.product-zone,.growth-card,.country-card,.overall-products,.metric-detail{
+  background:rgba(255,255,255,.94);
+  border-color:var(--shawq-line);
+  box-shadow:var(--shadow);
+}
+.finance-card{min-height:116px;border-radius:22px;background:linear-gradient(180deg,#fff,#fffafd);position:relative;overflow:hidden}.finance-card::after{content:"";position:absolute;inset:auto -24px -36px auto;width:112px;height:112px;border-radius:50%;background:rgba(224,46,146,.09);transition:transform .24s ease}.finance-card:hover::after,.finance-card.active::after{transform:scale(1.18)}.finance-card strong{font-size:34px}.finance-card.active{border-color:rgba(224,46,146,.58)}
+.metric-detail.unfold-panel{grid-template-columns:300px minmax(0,1fr);align-items:stretch;overflow:hidden;animation:unfoldIn .26s ease both}.metric-detail-copy{display:flex;flex-direction:column;gap:8px}.metric-detail-copy small{display:block;color:#8b6b7b;font-size:11px;line-height:1.45;font-weight:800}.metric-detail-chart{min-width:0;border:1px solid #f5e0ec;border-radius:16px;background:linear-gradient(180deg,#fff,#fff9fd);padding:8px}.metric-detail-table{grid-column:1/-1}.window-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}.window-tabs button{border:1px solid #f1d7e5;background:#fff;border-radius:999px;padding:7px 10px;color:var(--shawq-ruby);font-size:11px;font-weight:900;cursor:pointer}.window-tabs button.active{background:var(--shawq-pink);border-color:var(--shawq-pink);color:#fff}@keyframes unfoldIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.sale-monitor{grid-template-columns:1fr auto;border-radius:22px}.sale-main{grid-template-columns:12px 1fr}.sale-main small{font-size:12px}.sale-items{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}.sale-items em{max-width:none;white-space:normal;background:#fff5fb;border:1px solid #f1d7e5;border-radius:999px;padding:4px 8px;color:var(--shawq-ruby)}.sale-source{display:block;margin-top:6px;color:var(--shawq-ink);font-size:11px;font-weight:900;line-height:1.35}.sale-actions button{transition:background .18s ease,transform .18s ease}.sale-actions button:hover{transform:translateY(-1px)}
+.secondary-cards{opacity:1}.metric-card{border-radius:20px}.change-strip,.leadership-zone,.product-zone,.table-panel,.chart-panel,.rank-panel{border-radius:24px}.panel-title h2,.metric-detail b,.change-strip b,.mini-table h3{letter-spacing:-.045em}.leadership-zone .product-title>span,.product-title>span{background:var(--shawq-ink);color:#fff}.product-zone .product-title>span{background:var(--shawq-pink)}
+.table-wrap{border-color:#f1d7e5;background:#fff}table{background:#fff}th{background:#fff7fc;color:var(--shawq-ruby)}th,td{border-color:#f4e2ed}td.name-cell,td.name-cell b{white-space:normal;line-height:1.32;min-width:210px}td.name-cell b{display:block}.compact-table td.name-cell{min-width:240px}.rank-row b,.rank-row small{white-space:normal}.overall-product-list small span,.product-chip span{white-space:normal;overflow:visible;text-overflow:clip}.product-chip{align-items:flex-start}.product-chip b{flex:none}.country-card{max-height:none}.country-list{max-height:560px;overflow:auto;padding-right:6px}.country-row{background:#fff;border-color:#f3dfeb}.country-head b{font-family:Newsreader,serif;color:var(--shawq-ink)}.mix-bars{background:#f7e8f1}.mix-bars span{cursor:help}.mix-labels small{line-height:1.25;cursor:help}.flag{filter:saturate(1.1)}
+@media(max-width:1320px){.shell{grid-template-columns:240px minmax(0,1fr)}.topbar{display:block}.top-actions{margin-top:14px;max-width:none}.metric-detail.unfold-panel{grid-template-columns:1fr}.metric-detail-chart{grid-column:1/-1}.product-grid{grid-template-columns:1fr}.country-list{max-height:none}}
+@media(max-width:1100px){.shell{grid-template-columns:1fr}.rail{position:relative;height:auto}.content{padding:22px}.hero-logo{width:74px}.topbar h1{font-size:40px}}
+@media(max-width:760px){.headline-lockup{display:flex;align-items:flex-start}.top-finance,.secondary-cards{grid-template-columns:1fr}.sale-monitor{grid-template-columns:1fr}.sale-actions{justify-items:start}.table-panel,.leadership-zone,.product-zone{padding:12px}.topbar h1{font-size:34px}.hero-logo{width:64px}.overall-product-list{grid-template-columns:1fr}.metric-detail.unfold-panel{padding:12px}}

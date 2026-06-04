@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { productTaxonomyForName } from '../src/lib/productMapping.js';
 
 const envPaths = [process.env.ENV_FILE, path.resolve('.env')].filter(Boolean);
 for (const envPath of envPaths) {
@@ -53,34 +54,89 @@ async function getAccountMetadata() {
 }
 
 const fxCache = new Map();
-async function fxRate(date, fromCurrency, toCurrency) {
+function parseFxPayload(data, toCurrency) {
+  const to = String(toCurrency || 'USD').toUpperCase();
+  return {
+    rate: Number(data?.rate ?? data?.rates?.[to] ?? 0),
+    rate_date: data?.date || '',
+  };
+}
+
+async function fxRateInfo(date, fromCurrency, toCurrency) {
   const from = String(fromCurrency || 'USD').toUpperCase();
   const to = String(toCurrency || 'USD').toUpperCase();
-  if (from === to) return 1;
+  if (from === to) {
+    return {
+      rate: 1,
+      provider: 'identity',
+      source: 'same_currency',
+      requested_date: date,
+      rate_date: date,
+      from,
+      to,
+    };
+  }
   const key = `${date}:${from}:${to}`;
   if (fxCache.has(key)) return fxCache.get(key);
   const urls = [
-    `https://api.frankfurter.app/${date}?from=${from}&to=${to}`,
-    `https://api.frankfurter.app/latest?from=${from}&to=${to}`,
+    { source: 'frankfurter_v2_daily', url: `https://api.frankfurter.dev/v2/rate/${from}/${to}?date=${date}` },
+    { source: 'frankfurter_v2_latest_fallback', url: `https://api.frankfurter.dev/v2/rate/${from}/${to}` },
+    { source: 'frankfurter_v1_daily_fallback', url: `https://api.frankfurter.app/${date}?from=${from}&to=${to}` },
+    { source: 'frankfurter_v1_latest_fallback', url: `https://api.frankfurter.app/latest?from=${from}&to=${to}` },
   ];
-  for (const url of urls) {
+  for (const { source, url } of urls) {
     try {
       const res = await fetch(url);
       if (!res.ok) continue;
       const data = await res.json();
-      const rate = Number(data?.rates?.[to] || 0);
+      const { rate, rate_date } = parseFxPayload(data, to);
       if (rate > 0) {
-        fxCache.set(key, rate);
-        return rate;
+        const info = {
+          rate,
+          provider: 'Frankfurter',
+          source,
+          requested_date: date,
+          rate_date: rate_date || (source.includes('latest') ? 'latest' : date),
+          from,
+          to,
+        };
+        fxCache.set(key, info);
+        return info;
       }
     } catch {}
   }
   console.warn(`Could not fetch FX rate ${from}->${to} for ${date}; using 1.`);
-  fxCache.set(key, 1);
-  return 1;
+  const fallback = {
+    rate: 1,
+    provider: 'fallback',
+    source: 'identity_after_fx_failure',
+    requested_date: date,
+    rate_date: date,
+    from,
+    to,
+  };
+  fxCache.set(key, fallback);
+  return fallback;
 }
-const fxToUsd = (date, fromCurrency) => fxRate(date, fromCurrency, 'USD');
-const fxToTry = (date, fromCurrency) => fxRate(date, fromCurrency, 'TRY');
+
+async function fxContext(date, fromCurrency) {
+  const [usd, tryRate] = await Promise.all([
+    fxRateInfo(date, fromCurrency, 'USD'),
+    fxRateInfo(date, fromCurrency, 'TRY'),
+  ]);
+  return {
+    fx_to_usd: usd.rate,
+    fx_to_usd_provider: usd.provider,
+    fx_to_usd_source: usd.source,
+    fx_to_usd_requested_date: usd.requested_date,
+    fx_to_usd_rate_date: usd.rate_date,
+    fx_to_try: tryRate.rate,
+    fx_to_try_provider: tryRate.provider,
+    fx_to_try_source: tryRate.source,
+    fx_to_try_requested_date: tryRate.requested_date,
+    fx_to_try_rate_date: tryRate.rate_date,
+  };
+}
 
 async function getInsights({ level, fields, start, end, breakdowns }) {
   const base = new URL(`https://graph.facebook.com/${graphVersion}/act_${account}/insights`);
@@ -136,18 +192,6 @@ function metricFromActions(actions = [], exact = [], includes = []) {
   return 0;
 }
 
-function productFamilyForAdName(name) {
-  const text = String(name || '').toLowerCase();
-  if (/al\s*madaan|madaan/.test(text)) return 'Al Madaan';
-  if (/skirt|zaytoun|kuffiyah.*skirt|kuffiya.*skirt|vescarts?\s*skirt|vescartes?\s*skirt|vescarts?\s*skit|vescartes?\s*skit/.test(text)) return 'Skirts';
-  if (/crewneck|\b98\b|vescarts?\s*98|vescartes?\s*98/.test(text)) return 'Crewnecks';
-  if (/hoodie/.test(text)) return 'Hoodies';
-  if (/(denim|pants|jeans)/.test(text) && !/skirt/.test(text)) return 'Denim pants';
-  if (/t-?shirt|long\s*sleeve|\btop\b|\btops\b|shirt/.test(text)) return 'Tops';
-  if (/kuffiyah|kuffiya/.test(text)) return 'Kuffiyah accessory';
-  return 'unknown_product';
-}
-
 function countryName(code) {
   try {
     return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code;
@@ -162,13 +206,15 @@ async function normalizeInsightRow(r, accountCurrency) {
   const impressions = Number(r.impressions || 0);
   const clicks = Number(r.clicks || 0);
   const reach = Number(r.reach || 0);
-  const fx_to_usd = await fxToUsd(date, accountCurrency);
-  const fx_to_try = await fxToTry(date, accountCurrency);
+  const fx = await fxContext(date, accountCurrency);
   const purchaseValue = metricFromActions(r.action_values, ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'], ['purchase']);
   const purchases = metricFromActions(r.actions, ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'], ['purchase']);
   const addToCart = metricFromActions(r.actions, ['offsite_conversion.fb_pixel_add_to_cart', 'omni_add_to_cart', 'add_to_cart'], ['add_to_cart']);
   const checkoutInitiated = metricFromActions(r.actions, ['offsite_conversion.fb_pixel_initiate_checkout', 'omni_initiated_checkout', 'initiate_checkout', 'initiated_checkout'], ['initiate_checkout', 'initiated_checkout']);
   const linkClicks = metricFromActions(r.actions, ['link_click'], ['link_click']);
+  const product = productTaxonomyForName(r.ad_name || r.adset_name || r.campaign_name);
+  const fx_to_usd = fx.fx_to_usd;
+  const fx_to_try = fx.fx_to_try;
   const spend_usd = spend * fx_to_usd;
   const spend_try = spend * fx_to_try;
   const purchase_value_usd = purchaseValue * fx_to_usd;
@@ -183,11 +229,11 @@ async function normalizeInsightRow(r, accountCurrency) {
     adset_name: r.adset_name || '',
     ad_id: r.ad_id || '',
     ad_name: r.ad_name || '',
-    product_family: productFamilyForAdName(r.ad_name || r.adset_name || r.campaign_name),
+    product_family: product.family,
+    product_subtype: product.subtype,
     spend,
     spend_currency: accountCurrency,
-    fx_to_usd,
-    fx_to_try,
+    ...fx,
     spend_usd,
     spend_try,
     impressions,
@@ -277,6 +323,27 @@ function aggregateBy(rows, keyFn, seedFn) {
   return [...map.values()].map(finalizeAggregate);
 }
 
+function fxMetaFromRow(row = {}) {
+  return {
+    fx_to_usd: row.fx_to_usd,
+    fx_to_usd_provider: row.fx_to_usd_provider,
+    fx_to_usd_source: row.fx_to_usd_source,
+    fx_to_usd_requested_date: row.fx_to_usd_requested_date,
+    fx_to_usd_rate_date: row.fx_to_usd_rate_date,
+    fx_to_try: row.fx_to_try,
+    fx_to_try_provider: row.fx_to_try_provider,
+    fx_to_try_source: row.fx_to_try_source,
+    fx_to_try_requested_date: row.fx_to_try_requested_date,
+    fx_to_try_rate_date: row.fx_to_try_rate_date,
+  };
+}
+
+function attachFxMetaByDate(rows, sourceRows) {
+  const byDate = new Map();
+  for (const row of sourceRows || []) if (row.date && !byDate.has(row.date)) byDate.set(row.date, fxMetaFromRow(row));
+  return rows.map((row) => ({ ...row, ...(byDate.get(row.date) || {}) }));
+}
+
 function isUsaRow(r) {
   const text = `${r.campaign_name || ''} ${r.adset_name || ''}`;
   return /\bUSA\b|\bUS\b|_US|US_/i.test(text) && !/AUS|Australia/i.test(text);
@@ -306,16 +373,16 @@ for (const r of usaRows) {
   const impressions = Number(r.impressions || 0);
   const reach = Number(r.reach || 0);
   const spend = Number(r.spend || 0);
-  const fx_to_usd = await fxToUsd(r.date_start, accountCurrency);
-  const fx_to_try = await fxToTry(r.date_start, accountCurrency);
+  const fx = await fxContext(r.date_start, accountCurrency);
+  const fx_to_usd = fx.fx_to_usd;
+  const fx_to_try = fx.fx_to_try;
   const spend_usd = spend * fx_to_usd;
   const spend_try = spend * fx_to_try;
   adset.rows.push({
     date: r.date_start,
     spend,
     spend_currency: accountCurrency,
-    fx_to_usd,
-    fx_to_try,
+    ...fx,
     spend_usd,
     spend_try,
     impressions,
@@ -333,19 +400,23 @@ const avg = (arr, key) => arr.length ? arr.reduce((a, r) => a + Number(r[key] ||
 async function aggregateAdsetByDate(rows) {
   const byDate = new Map();
   for (const r of rows) {
-    const cur = byDate.get(r.date_start) || { date: r.date_start, spend: 0, spend_usd: 0, spend_try: 0, impressions: 0, reach: 0 };
+    const cur = byDate.get(r.date_start) || { date: r.date_start, spend: 0, spend_usd: 0, spend_try: 0, impressions: 0, reach: 0, fx: null };
     const spend = Number(r.spend || 0);
-    const fx_to_usd = await fxToUsd(r.date_start, accountCurrency);
-    const fx_to_try = await fxToTry(r.date_start, accountCurrency);
+    const fx = await fxContext(r.date_start, accountCurrency);
+    const fx_to_usd = fx.fx_to_usd;
+    const fx_to_try = fx.fx_to_try;
     cur.spend += spend;
     cur.spend_usd += spend * fx_to_usd;
     cur.spend_try += spend * fx_to_try;
     cur.impressions += Number(r.impressions || 0);
     cur.reach += Number(r.reach || 0);
+    cur.fx = cur.fx || fx;
     byDate.set(r.date_start, cur);
   }
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)).map((r) => ({
     ...r,
+    ...(r.fx || {}),
+    fx: undefined,
     spend_currency: accountCurrency,
     frequency: r.reach ? r.impressions / r.reach : 0,
     cpm: r.impressions ? r.spend / r.impressions * 1000 : 0,
@@ -390,14 +461,21 @@ const finalAdsetChanges = activitiesFailed && previousAdsetChanges.length ? prev
 
 const allAdsets = aggregateBy(adCountryDaily, (r) => r.adset_id, (r) => ({ adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name }))
   .sort((a, b) => b.spend_usd - a.spend_usd);
-const accountDailyMetrics = aggregateBy(adCountryDaily, (r) => r.date, (r) => ({ date: r.date }))
+const accountDailyMetrics = attachFxMetaByDate(aggregateBy(adCountryDaily, (r) => r.date, (r) => ({ date: r.date })), adCountryDaily)
   .sort((a, b) => a.date.localeCompare(b.date));
-const ads = aggregateBy(adCountryDaily, (r) => r.ad_id, (r) => ({ ad_id: r.ad_id, ad_name: r.ad_name, adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name, product_family: r.product_family }))
+const ads = aggregateBy(adCountryDaily, (r) => r.ad_id, (r) => ({ ad_id: r.ad_id, ad_name: r.ad_name, adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name, product_family: r.product_family, product_subtype: r.product_subtype }))
   .sort((a, b) => b.purchases - a.purchases || b.purchase_value_usd - a.purchase_value_usd || b.spend_usd - a.spend_usd);
 const countries = aggregateBy(adCountryDaily, (r) => r.country_code, (r) => ({ country_code: r.country_code, country: r.country }))
   .sort((a, b) => b.purchase_value_usd - a.purchase_value_usd || b.purchases - a.purchases || b.spend_usd - a.spend_usd);
 const productFamilies = aggregateBy(adCountryDaily, (r) => r.product_family, (r) => ({ product_family: r.product_family }))
   .sort((a, b) => b.purchases - a.purchases || b.purchase_value_usd - a.purchase_value_usd || b.spend_usd - a.spend_usd);
+const productSubtypes = aggregateBy(adCountryDaily, (r) => `${r.product_family}::${r.product_subtype}`, (r) => ({ product_family: r.product_family, product_subtype: r.product_subtype }))
+  .sort((a, b) => b.purchases - a.purchases || b.purchase_value_usd - a.purchase_value_usd || b.spend_usd - a.spend_usd);
+const fxRates = [...new Map(adCountryDaily.map((r) => [r.date, {
+  date: r.date,
+  account_currency: accountCurrency,
+  ...fxMetaFromRow(r),
+}])).values()].sort((a, b) => a.date.localeCompare(b.date));
 
 const out = {
   generated_at: new Date().toISOString(),
@@ -418,6 +496,11 @@ const out = {
     ads: ads.length,
     countries: countries.length,
   },
+  fx_rates: {
+    provider: 'Frankfurter',
+    note: 'Meta account spend is converted from account currency to USD using the date-specific Frankfurter v2 rate first; latest/v1 endpoints are only fallbacks and are labeled per date.',
+    rates: fxRates,
+  },
   adset_changes: finalAdsetChanges,
   march_baseline: {
     frequency: avg(dailyMarch, 'frequency'),
@@ -436,6 +519,7 @@ const out = {
   ads,
   countries,
   product_families: productFamilies,
+  product_subtypes: productSubtypes,
   ad_country_daily: adCountryDaily,
 };
 const outPath = path.resolve('public/data/adset-radar.json');

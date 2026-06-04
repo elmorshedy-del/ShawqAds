@@ -3,6 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { productTaxonomyForName } from './src/lib/productMapping.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,6 +33,7 @@ const mime = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.mp3': 'audio/mpeg',
   '.ico': 'image/x-icon',
 };
 
@@ -81,10 +83,85 @@ function shopifyConfig() {
   };
 }
 
+function queryParamsFromMaybeUrl(value = '') {
+  const text = String(value || '');
+  const query = text.includes('?') ? text.slice(text.indexOf('?') + 1) : text;
+  const params = new URLSearchParams(query);
+  return Object.fromEntries([...params.entries()].filter(([key]) => /^(utm_|fbclid|ad_|campaign_|placement|creative)/i.test(key)));
+}
+
+function orderCountry(order) {
+  const address = order.shipping_address || order.billing_address || {};
+  return {
+    code: address.country_code || '',
+    name: address.country || address.country_code || 'Unknown',
+  };
+}
+
+function orderAttribution(order) {
+  const noteAttributes = {};
+  for (const attr of order.note_attributes || []) {
+    if (attr?.name) noteAttributes[attr.name] = attr.value;
+  }
+  const landingParams = queryParamsFromMaybeUrl(order.landing_site || order.landing_site_ref || '');
+  const sourceCandidates = [
+    landingParams.utm_content,
+    landingParams.utm_term,
+    noteAttributes.utm_content,
+    noteAttributes.ad_name,
+    noteAttributes.ad_id,
+    noteAttributes['Ad name'],
+    noteAttributes['Ad ID'],
+  ].filter(Boolean);
+  return {
+    source_name: order.source_name || '',
+    source_identifier: order.source_identifier || '',
+    landing_site: order.landing_site || '',
+    landing_site_ref: order.landing_site_ref || '',
+    referring_site: order.referring_site || '',
+    utm: landingParams,
+    note_attributes: noteAttributes,
+    ad_hint: sourceCandidates[0] || '',
+  };
+}
+
+function normalizeMatch(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function matchAttributionToMetaAd(attribution) {
+  const hints = [
+    attribution.ad_hint,
+    attribution.utm?.utm_content,
+    attribution.utm?.utm_term,
+    attribution.note_attributes?.ad_name,
+    attribution.note_attributes?.ad_id,
+  ].filter(Boolean).map(String);
+  if (!hints.length) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(publicDataPath('adset-radar.json'), 'utf8'));
+    const ads = data.ads || [];
+    for (const hint of hints) {
+      const normalizedHint = normalizeMatch(hint);
+      const idMatch = ads.find((ad) => String(ad.ad_id || '') === hint);
+      if (idMatch) return { ad_id: idMatch.ad_id, ad_name: idMatch.ad_name, match_type: 'ad_id' };
+      const nameMatch = ads.find((ad) => {
+        const adName = normalizeMatch(ad.ad_name);
+        return adName && normalizedHint && (adName === normalizedHint || adName.includes(normalizedHint) || normalizedHint.includes(adName));
+      });
+      if (nameMatch) return { ad_id: nameMatch.ad_id, ad_name: nameMatch.ad_name, match_type: 'shopify_hint' };
+    }
+  } catch {}
+  return null;
+}
+
 function summarizeOrder(order) {
   const lineItems = order.line_items || [];
   const itemCount = lineItems.reduce((total, item) => total + Number(item.quantity || 0), 0);
   const firstProduct = lineItems.find((item) => item?.title)?.title || '';
+  const attribution = orderAttribution(order);
+  const matchedAd = matchAttributionToMetaAd(attribution);
+  const country = orderCountry(order);
   return {
     id: String(order.id || ''),
     name: order.name || (order.id ? `#${order.id}` : 'Latest order'),
@@ -92,8 +169,22 @@ function summarizeOrder(order) {
     total_price: Number(order.current_total_price || order.total_price || 0),
     currency: order.currency || order.presentment_currency || 'USD',
     financial_status: order.financial_status || '',
+    country,
     item_count: itemCount,
     product_title: firstProduct,
+    line_items: lineItems.map((item) => {
+      const taxonomy = productTaxonomyForName(item.title);
+      return {
+        title: item.title || '',
+        quantity: Number(item.quantity || 0),
+        price: Number(item.price || 0),
+        family: taxonomy.family || 'Other',
+        subtype: taxonomy.subtype || 'Other',
+      };
+    }),
+    attribution,
+    matched_ad: matchedAd,
+    attribution_label: matchedAd?.ad_name || attribution.ad_hint || attribution.source_name || attribution.referring_site || 'Unattributed in Shopify',
   };
 }
 
@@ -105,7 +196,7 @@ async function fetchLatestShopifySale() {
   url.searchParams.set('status', 'any');
   url.searchParams.set('limit', '20');
   url.searchParams.set('order', 'created_at desc');
-  url.searchParams.set('fields', 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,currency,presentment_currency,line_items');
+  url.searchParams.set('fields', 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,currency,presentment_currency,line_items,shipping_address,billing_address,landing_site,landing_site_ref,referring_site,source_name,source_identifier,note_attributes,tags');
 
   const response = await fetch(url, { headers: { 'X-Shopify-Access-Token': token } });
   const text = await response.text();

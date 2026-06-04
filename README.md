@@ -7,10 +7,10 @@ Standalone ShawQ advertising dashboard for the June 3 campaign launch window. It
 - Meta delivery: frequency, CPM, reach, spend, and ad set change markers.
 - Budget/change markers: dark red dots are reserved for budget or bid edits; red dots are other ad set edits.
 - Business metrics: Shopify revenue, Meta spend converted to USD daily, CAC, and ROAS.
-- Live sale monitor: polls Shopify for the latest paid order and plays a browser chime after sound is enabled.
+- Live sale monitor: polls Shopify for the latest paid order and plays the bundled Shopify sale sound after sound is enabled.
 - Product leadership: Shopify product units sold and product revenue.
 - Ads leadership: one overall Meta rollup per ad across all countries with CTR (all), add to cart, initiated checkout, purchases, spend, and ROAS.
-- Country coverage: Meta country performance and Shopify product mix by country.
+- Country coverage: Meta country ROAS beside Shopify units sold, plus Shopify product mix by country.
 
 ## Data Windows
 
@@ -36,6 +36,9 @@ Meta spend is kept in the original account currency and converted per day using 
 - `spend_usd`: daily converted USD spend for CAC/ROAS.
 - `spend_try`: daily converted lira spend.
 - `fx_to_usd` and `fx_to_try`: the rate used for that row/date.
+- `fx_to_usd_source` and `fx_to_usd_rate_date`: proof of whether the rate came from exact daily Frankfurter v2 data or a labeled fallback.
+
+The fetcher tries the exact-date Frankfurter v2 rate first. Latest/v1 endpoints are only fallbacks and are stored as such in `fx_rates.rates`.
 
 ## Local Run
 

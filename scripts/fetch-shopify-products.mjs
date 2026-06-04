@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { productTaxonomyForName } from '../src/lib/productMapping.js';
 
 const envPaths = [
   process.env.ENV_FILE,
@@ -28,7 +29,7 @@ if (!token || !store) {
 
 const startIso = `${since}T00:00:00+03:00`;
 const endIso = `${until}T23:59:59+03:00`;
-const fields = 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,shipping_address,billing_address,line_items,refunds';
+const fields = 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,currency,presentment_currency,shipping_address,billing_address,line_items,refunds,landing_site,landing_site_ref,referring_site,source_name,source_identifier,note_attributes,tags';
 
 async function getOrders() {
   const rows = [];
@@ -52,17 +53,11 @@ async function getOrders() {
   return rows;
 }
 
-function familyFor(title) {
-  const p = String(title || '').toLowerCase();
-  if (['tip', 'shipping', 'post card'].includes(p.trim())) return null;
-  if (p.includes('skirt')) return 'Skirts';
-  if (p.includes('crewneck')) return 'Crewnecks';
-  if (p.includes('hoodie')) return 'Hoodies';
-  if (p.includes('jeans') || (p.includes('denim') && !p.includes('skirt')) || p.includes('pants')) return 'Denim pants';
-  if (p.trim() === 'kuffiyah') return 'Kuffiyah accessory';
-  if (p.includes('t-shirt') || p.includes('long sleeve') || p.includes('shirt')) return 'Tops';
-  if (p.includes('art-frame')) return 'Art-frame';
-  return 'Other';
+function taxonomyFor(title) {
+  const taxonomy = productTaxonomyForName(title);
+  if (!taxonomy.family) return taxonomy;
+  if (taxonomy.family === 'unknown_product') return { family: 'Other', subtype: 'Other' };
+  return taxonomy;
 }
 function countryFor(order) {
   const a = order.shipping_address || order.billing_address || {};
@@ -104,10 +99,10 @@ for (const order of included) {
   dailyOrder.revenue_usd += Number(order.current_total_price || order.total_price || 0);
   dailyByDate.set(orderDate, dailyOrder);
   const c = countryFor(order);
-  if (!countryRows.has(c.code)) countryRows.set(c.code, { country_code: c.code, country: c.name, units: 0, unique_products_set: new Set(), mix: {} });
+  if (!countryRows.has(c.code)) countryRows.set(c.code, { country_code: c.code, country: c.name, units: 0, unique_products_set: new Set(), mix: {}, subtypes: {} });
   const cRow = countryRows.get(c.code);
   for (const li of order.line_items || []) {
-    const family = familyFor(li.title);
+    const { family, subtype } = taxonomyFor(li.title);
     if (!family) continue;
     const qty = Number(li.quantity || 0);
     const refundQty = refunded.get(`${order.id}:${li.id}`) || 0;
@@ -122,13 +117,15 @@ for (const order of included) {
     familyRow.units += net;
     familyRow.revenue_usd += lineRevenue;
     familyTotals.set(family, familyRow);
-    const productRow = productTotals.get(li.title) || { product: li.title, units: 0, revenue_usd: 0, family };
+    const productRow = productTotals.get(li.title) || { product: li.title, units: 0, revenue_usd: 0, family, subtype };
     productRow.units += net;
     productRow.revenue_usd += lineRevenue;
     productTotals.set(li.title, productRow);
     cRow.units += net;
     cRow.unique_products_set.add(li.title);
     cRow.mix[family] = (cRow.mix[family] || 0) + net;
+    cRow.subtypes[family] = cRow.subtypes[family] || {};
+    cRow.subtypes[family][subtype || family] = (cRow.subtypes[family][subtype || family] || 0) + net;
     const day = cumulativeByDayFamily.get(date) || {};
     day[family] = (day[family] || 0) + net;
     cumulativeByDayFamily.set(date, day);

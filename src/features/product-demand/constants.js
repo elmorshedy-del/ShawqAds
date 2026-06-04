@@ -6,5 +6,7 @@ export const familyStyle = {
   'Denim pants': { color: '#1f78b4', dash: 'solid', symbol: 'rect' },
   'Kuffiyah accessory': { color: '#c68a00', dash: 'dashed', symbol: 'pin' },
   'Art-frame': { color: '#687385', dash: 'dotted', symbol: 'emptyCircle' },
+  'Al Madaan': { color: '#8c3f78', dash: 'solid', symbol: 'roundRect' },
+  unknown_product: { color: '#98a2b3', dash: 'dashed', symbol: 'emptyCircle' },
   Other: { color: '#8a6f5a', dash: 'dashed', symbol: 'circle' },
 };
