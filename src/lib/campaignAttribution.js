@@ -23,6 +23,8 @@ function emptyNode(type, ids = {}) {
     shopify_country_revenue_usd: 0,
     shopify_product_inferred_sales: 0,
     shopify_product_inferred_revenue_usd: 0,
+    inferred_warning_sales: 0,
+    inferred_warning_revenue_usd: 0,
     unresolved_sales: 0,
     unresolved_revenue_usd: 0,
     inference_notes: new Set(),
@@ -47,6 +49,11 @@ function addShopify(node, bucket, line) {
   node[`${bucket}_revenue_usd`] += n(line.line_revenue_usd);
 }
 
+function addInferredWarning(node, line) {
+  node.inferred_warning_sales += n(line.quantity) || 1;
+  node.inferred_warning_revenue_usd += n(line.line_revenue_usd);
+}
+
 function finalizeNode(node) {
   const trueRevenue = node.shopify_direct_revenue_usd + node.shopify_country_revenue_usd;
   const inferredRevenue = trueRevenue + node.shopify_product_inferred_revenue_usd;
@@ -63,6 +70,8 @@ function finalizeNode(node) {
     inferred_shopify_revenue_usd: inferredRevenue,
     true_roas: node.spend_usd ? trueRevenue / node.spend_usd : 0,
     inferred_roas: node.spend_usd ? inferredRevenue / node.spend_usd : 0,
+    has_inferred_sales: node.shopify_product_inferred_sales > 0,
+    has_best_fit_inference: node.inferred_warning_sales > 0,
     meta_sales_over_shopify_sales: salesGap,
     has_sales_gap: salesGap > 0,
     inference_notes: [...node.inference_notes],
@@ -163,6 +172,16 @@ function productCandidates(metaRows, campaignId, countryCode, family, subtype, o
   const top = list[0];
   const share = total && top ? top.spend_usd / total : 0;
   return { top, list, total, share, unique: Boolean(top && (list.length === 1 || share >= DOMINANT_PRODUCT_AD_SHARE)) };
+}
+
+function bestInferredCandidate(metaRows, campaignId, countryCode, family, subtype) {
+  const exact = productCandidates(metaRows, campaignId, countryCode, family, subtype);
+  if (exact.top) return { ...exact, mode: exact.unique ? 'product-only' : 'best-fit product' };
+  if (family && family !== 'Other') {
+    const familyCandidates = productCandidates(metaRows, campaignId, countryCode, family, null, { familyOnly: true });
+    if (familyCandidates.top) return { ...familyCandidates, mode: familyCandidates.unique ? 'family-only' : 'best-fit family' };
+  }
+  return { top: null, list: [], total: 0, share: 0, unique: false, mode: 'unmapped' };
 }
 
 function collectSalesGaps(nodes, out = [], path = []) {
@@ -278,26 +297,23 @@ export function buildCampaignAttribution(meta, shopify) {
       continue;
     }
 
-    let candidates = productCandidates(metaRows, campaign.campaign_id, line.country_code, line.family, line.subtype);
-    let inferenceMode = 'product-only';
-    if ((!candidates.unique || !candidates.top) && line.family && line.family !== 'Other') {
-      const familyCandidates = productCandidates(metaRows, campaign.campaign_id, line.country_code, line.family, null, { familyOnly: true });
-      if (familyCandidates.unique && familyCandidates.top) {
-        candidates = familyCandidates;
-        inferenceMode = 'family-only';
-      }
-    }
-    if (candidates.unique && candidates.top) {
+    const candidates = bestInferredCandidate(metaRows, campaign.campaign_id, line.country_code, line.family, line.subtype);
+    if (candidates.top) {
       const adset = getAdset(campaign, candidates.top);
       const ad = getAd(adset, candidates.top);
       addShopify(adset, 'shopify_product_inferred', line);
       addShopify(ad, 'shopify_product_inferred', line);
-      adset.inference_notes.add(`${line.product}: ${inferenceMode} inferred to ${candidates.top.ad_name} (${Math.round(candidates.share * 100)}% matching spend)`);
-      ad.inference_notes.add(`${line.product}: ${inferenceMode} inferred (${Math.round(candidates.share * 100)}% matching spend)`);
+      if (!candidates.unique) {
+        addInferredWarning(adset, line);
+        addInferredWarning(ad, line);
+      }
+      const candidateText = candidates.list.length > 1 ? `; ${candidates.list.length} candidates` : '';
+      adset.inference_notes.add(`${line.product}: ${candidates.mode} inferred to ${candidates.top.ad_name} (${Math.round(candidates.share * 100)}% matching spend${candidateText})`);
+      ad.inference_notes.add(`${line.product}: ${candidates.mode} inferred (${Math.round(candidates.share * 100)}% matching spend${candidateText})`);
     } else {
       addShopify(campaign, 'unresolved', line);
       campaign.inference_notes.add(`${line.product}: unresolved ad mapping (${candidates.list.length || 0} matching ads)`);
-      unresolved.push({ line, reason: 'ambiguous_product_to_ad', candidates: candidates.list.slice(0, 6) });
+      unresolved.push({ line, reason: 'no_product_ad_candidate', candidates: candidates.list.slice(0, 6) });
     }
   }
 

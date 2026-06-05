@@ -925,6 +925,14 @@ function cleanAdLabel(line) {
   return text;
 }
 
+function topWinners(items, primaryKey, secondaryKey) {
+  const sorted = [...items].sort((a, b) => Number(b[primaryKey] || 0) - Number(a[primaryKey] || 0) || Number(b[secondaryKey] || 0) - Number(a[secondaryKey] || 0));
+  const top = sorted[0];
+  if (!top) return { winners: [], tieCount: 0 };
+  const tied = sorted.filter((item) => Number(item[primaryKey] || 0) === Number(top[primaryKey] || 0));
+  return { winners: tied.slice(0, 2), tieCount: tied.length };
+}
+
 function dailySalesHighlights(lines, range) {
   const rows = dateListForRange(range).map((date) => ({ date, products: new Map(), ads: new Map() }));
   const byDate = new Map(rows.map((row) => [row.date, row]));
@@ -958,11 +966,10 @@ function dailySalesHighlights(lines, range) {
     }
   }
   return rows.map((row) => {
-    const product = [...row.products.values()].sort((a, b) => b.units - a.units || b.revenue_usd - a.revenue_usd)[0] || null;
-    const ad = [...row.ads.values()]
-      .map((item) => ({ ...item, order_count: item.orders.size || item.units, orders: undefined }))
-      .sort((a, b) => b.order_count - a.order_count || b.revenue_usd - a.revenue_usd)[0] || null;
-    return { date: row.date, product, ad };
+    const productWinners = topWinners([...row.products.values()], 'units', 'revenue_usd');
+    const adWinners = topWinners([...row.ads.values()]
+      .map((item) => ({ ...item, order_count: item.orders.size || item.units, orders: undefined })), 'order_count', 'revenue_usd');
+    return { date: row.date, products: productWinners.winners, productTieCount: productWinners.tieCount, ads: adWinners.winners, adTieCount: adWinners.tieCount };
   });
 }
 
@@ -976,32 +983,64 @@ function DailySalesHighlights({ lines, range }) {
     <div className="daily-highlight-list">
       {rows.map((row) => <article key={row.date} className="daily-highlight-card">
         <b>{row.date}</b>
-        {row.product ? <div className="daily-product">
-          {row.product.image_url ? <img src={row.product.image_url} alt="" /> : <span className="thumb-fallback">{row.product.family?.slice(0, 1) || 'S'}</span>}
+        {row.products?.length ? row.products.map((product) => <div className="daily-product" key={product.product}>
+          {product.image_url ? <img src={product.image_url} alt="" /> : <span className="thumb-fallback">{product.family?.slice(0, 1) || 'S'}</span>}
           <div>
-            <strong>{row.product.product}</strong>
-            <small>{row.product.units} unit{row.product.units === 1 ? '' : 's'} · {money.format(row.product.revenue_usd || 0)}</small>
+            <strong>{product.product}</strong>
+            <small>{product.units} unit{product.units === 1 ? '' : 's'} · {money.format(product.revenue_usd || 0)}{row.productTieCount > 1 ? ' · tied winner' : ''}</small>
           </div>
-        </div> : <div className="daily-product empty"><span className="thumb-fallback">0</span><div><strong>No Shopify sale</strong><small>No paid order lines that day</small></div></div>}
+        </div>) : <div className="daily-product empty"><span className="thumb-fallback">0</span><div><strong>No Shopify sale</strong><small>No paid order lines that day</small></div></div>}
         <div className="daily-ad">
           <span>Top ad/source</span>
-          <strong>{row.ad?.ad || 'No ad captured in Shopify'}</strong>
-          <small>{row.ad ? `${row.ad.order_count} sale${row.ad.order_count === 1 ? '' : 's'} · ${money.format(row.ad.revenue_usd || 0)}` : 'Additional details did not identify an ad'}</small>
+          {row.ads?.length ? row.ads.map((ad) => <div className="daily-ad-winner" key={ad.ad}>
+            <strong>{ad.ad}</strong>
+            <small>{ad.order_count} sale{ad.order_count === 1 ? '' : 's'} · {money.format(ad.revenue_usd || 0)}{row.adTieCount > 1 ? ' · tied winner' : ''}</small>
+          </div>) : <>
+            <strong>No ad captured in Shopify</strong>
+            <small>Additional details did not identify an ad</small>
+          </>}
         </div>
       </article>)}
     </div>
   </section>;
 }
 
+function MetricChip({ label, value, sub = '', tone = '' }) {
+  return <span className={`metric-chip ${tone}`}><small>{label}</small><b>{value}</b>{sub ? <em>{sub}</em> : null}</span>;
+}
+
 function LeadershipTables({ products, ads }) {
-  return <section className="leadership-tables">
-    <div className="mini-table">
-      <h3>Product sales table</h3>
-      <div className="table-wrap compact-table"><table><thead><tr><th>Product</th><th>Family</th><th>Subtype</th><th>Units</th><th>Revenue</th></tr></thead><tbody>{(products || []).slice(0, 12).map((p) => <tr key={p.product}><td className="name-cell"><b>{p.product}</b></td><td>{p.family || 'Unknown'}</td><td>{p.subtype || 'Unknown'}</td><td>{p.units || 0}</td><td>{money.format(p.revenue_usd || 0)}</td></tr>)}</tbody></table></div>
+  return <section className="leadership-tables card-leadership">
+    <div className="mini-table leadership-card-panel">
+      <h3>Product sales</h3>
+      <div className="leadership-card-list">{(products || []).slice(0, 12).map((p) => <article className="leader-card product-leader-card" key={p.product}>
+        {p.image_url ? <img src={p.image_url} alt="" /> : <span className="thumb-fallback">{(p.family || 'S').slice(0, 1)}</span>}
+        <div className="leader-copy">
+          <b>{p.product}</b>
+          <small>{p.family || 'Unknown'} · {p.subtype || 'Unknown'}</small>
+        </div>
+        <div className="leader-metrics">
+          <MetricChip label="Units" value={p.units || 0} />
+          <MetricChip label="Revenue" value={money.format(p.revenue_usd || 0)} tone="good" />
+        </div>
+      </article>)}</div>
     </div>
-    <div className="mini-table">
-      <h3>Ads leadership table</h3>
-      <div className="table-wrap compact-table"><table><thead><tr><th>Ad</th><th>Product</th><th>Subtype</th><th>Click-through CTR</th><th>ATC</th><th>IC</th><th>Sales</th><th>ROAS</th><th>Spend</th></tr></thead><tbody>{(ads || []).slice(0, 12).map((a) => <tr key={a.ad_id}><td className="name-cell"><b>{a.ad_name}</b></td><td>{a.product_family || 'unknown_product'}</td><td>{a.product_subtype || 'Unknown'}</td><td>{Number(a.ctr || 0).toFixed(2)}%</td><td>{a.add_to_cart || 0}</td><td>{a.checkout_initiated || 0}</td><td>{a.purchases || 0}</td><td>{Number(a.roas || 0).toFixed(2)}x</td><td>{money.format(a.spend_usd || 0)}</td></tr>)}</tbody></table></div>
+    <div className="mini-table leadership-card-panel">
+      <h3>Ads leadership</h3>
+      <div className="leadership-card-list">{(ads || []).slice(0, 12).map((a) => <article className="leader-card ad-leader-card" key={a.ad_id || a.ad_name}>
+        <div className="leader-copy">
+          <b>{a.ad_name}</b>
+          <small>{a.product_family || 'unknown_product'} · {a.product_subtype || 'Unknown'}</small>
+        </div>
+        <div className="leader-metrics ad-leader-metrics">
+          <MetricChip label="CTR" value={`${Number(a.ctr || 0).toFixed(2)}%`} />
+          <MetricChip label="ATC" value={a.add_to_cart || 0} />
+          <MetricChip label="IC" value={a.checkout_initiated || 0} />
+          <MetricChip label="Sales" value={a.purchases || 0} />
+          <MetricChip label="ROAS" value={`${Number(a.roas || 0).toFixed(2)}x`} tone={Number(a.roas || 0) >= 2 ? 'good' : 'warn'} />
+          <MetricChip label="Spend" value={money.format(a.spend_usd || 0)} />
+        </div>
+      </article>)}</div>
     </div>
   </section>;
 }
@@ -1010,24 +1049,50 @@ function roasText(value) {
   return Number(value || 0) ? `${Number(value || 0).toFixed(2)}x` : '0.00x';
 }
 
-function CampaignMetricCells({ row }) {
-  return <>
-    <td>{money.format(row.spend_usd || 0)}</td>
-    <td>{Number(row.ctr || 0).toFixed(2)}%</td>
-    <td>{row.add_to_cart || 0}</td>
-    <td>{row.checkout_initiated || 0}</td>
-    <td><b>{row.meta_sales || 0}</b><small>Meta</small></td>
-    <td><b>{row.true_shopify_sales || 0}</b><small>Shopify total</small></td>
-    <td><b>{row.inferred_shopify_sales || 0}</b><small>after inference</small></td>
-    <td>{row.has_sales_gap
-      ? <span className="danger-chip">Meta &gt; Shopify by {row.meta_sales_over_shopify_sales}</span>
-      : row.unresolved_sales
-        ? <span className="unresolved-chip">{row.unresolved_sales} unresolved</span>
-        : <span className="resolved-chip">clean</span>}</td>
-    <td>{roasText(row.meta_roas)}</td>
-    <td className={row.true_roas >= row.meta_roas ? 'good' : 'warn'}>{roasText(row.true_roas)}</td>
-    <td className={row.inferred_roas >= row.true_roas ? 'good' : 'warn'}>{roasText(row.inferred_roas)}</td>
-  </>;
+function MappingBadge({ row }) {
+  if (row.has_sales_gap) return <span className="danger-chip">Meta &gt; Shopify by {row.meta_sales_over_shopify_sales}</span>;
+  if (row.has_best_fit_inference) return <span className="bestfit-chip">{row.inferred_warning_sales} best-fit inferred</span>;
+  if (row.has_inferred_sales) return <span className="inferred-chip">{row.shopify_product_inferred_sales} inferred</span>;
+  if (row.unresolved_sales) return <span className="unresolved-chip">{row.unresolved_sales} unresolved</span>;
+  return <span className="resolved-chip">clean</span>;
+}
+
+function CampaignStatsGrid({ row }) {
+  return <div className="campaign-stats-grid">
+    <MetricChip label="Spend" value={money.format(row.spend_usd || 0)} />
+    <MetricChip label="CTR" value={`${Number(row.ctr || 0).toFixed(2)}%`} />
+    <MetricChip label="ATC" value={row.add_to_cart || 0} />
+    <MetricChip label="IC" value={row.checkout_initiated || 0} />
+    <MetricChip label="Meta sales" value={row.meta_sales || 0} sub="Meta" />
+    <MetricChip label="Shopify" value={row.true_shopify_sales || 0} sub="direct/country" />
+    <MetricChip label="Inferred" value={row.inferred_shopify_sales || 0} sub="after inference" tone={row.has_inferred_sales ? 'inferred' : ''} />
+    <MetricChip label="Meta ROAS" value={roasText(row.meta_roas)} />
+    <MetricChip label="Shopify ROAS" value={roasText(row.true_roas)} tone={row.true_roas >= row.meta_roas ? 'good' : 'warn'} />
+    <MetricChip label="Mapped ROAS" value={roasText(row.inferred_roas)} tone={row.inferred_roas >= row.true_roas ? 'good' : 'warn'} />
+  </div>;
+}
+
+function CampaignNodeCard({ row, level, isOpen, onToggle, children }) {
+  const isLeaf = level === 'ad';
+  const label = level === 'campaign' ? 'Campaign' : level === 'adset' ? 'Ad set' : 'Ad';
+  const title = level === 'campaign' ? row.campaign_name : level === 'adset' ? row.adset_name : row.ad_name;
+  const context = level === 'ad' ? `${row.product_family || 'unknown'} / ${row.product_subtype || 'unknown'}` : row.campaign_name;
+  return <article className={`campaign-node-card ${level}`}>
+    <div className="campaign-node-head">
+      <div className="campaign-node-title">
+        {!isLeaf ? <button type="button" className="tree-toggle" onClick={onToggle}>{isOpen ? '−' : '+'}</button> : <span className="ad-dot" />}
+        <div>
+          <span className="level-pill">{label}</span>
+          <b>{title}</b>
+          {context && context !== title ? <small>{context}</small> : null}
+        </div>
+      </div>
+      <MappingBadge row={row} />
+    </div>
+    {row.inference_notes?.length ? <div className="campaign-notes">{row.inference_notes.slice(0, 2).map((note) => <small key={note}>{note}</small>)}</div> : null}
+    <CampaignStatsGrid row={row} />
+    {children ? <div className="campaign-children">{children}</div> : null}
+  </article>;
 }
 
 function CampaignPerformanceTable({ attribution }) {
@@ -1055,29 +1120,27 @@ function CampaignPerformanceTable({ attribution }) {
     });
   }
   return <section className="campaign-tree-panel">
-    <div className="panel-title product-title"><div><h2>Campaign Shopify ROAS tree</h2><p>Campaign ROAS uses Meta spend as denominator and Shopify order-line revenue as numerator. Ad set/ad mapped ROAS is only added when country + product uniquely maps to one candidate; ambiguous lines stay flagged.</p></div><span>{campaigns.length} campaigns</span></div>
+    <div className="panel-title product-title"><div><h2>Campaign Shopify ROAS tree</h2><p>Campaign ROAS uses Meta spend as denominator and Shopify order-line revenue as numerator. Product/country matches flow into inferred ROAS and stay labeled as inferred instead of direct.</p></div><span>{campaigns.length} campaigns</span></div>
     <div className="campaign-rules">
       <small><b>CTR:</b> click-through/link CTR, not CTR all.</small>
       <small><b>Shopify ROAS:</b> Shopify revenue assigned directly or by country campaign ownership.</small>
-      <small><b>Mapped ROAS:</b> Shopify ROAS plus product-only ad/adset assignment when mapping is unique.</small>
+      <small><b>Mapped ROAS:</b> Shopify ROAS plus product/country inferred ad assignment.</small>
     </div>
-    <div className="table-wrap campaign-table-wrap"><table className="campaign-table"><thead><tr><th>Campaign / ad set / ad</th><th>Level</th><th>Spend</th><th>Click-through CTR</th><th>ATC</th><th>IC</th><th>Meta sales</th><th>Shopify sales</th><th>Mapped sales</th><th>Mapping</th><th>Meta ROAS</th><th>Shopify ROAS</th><th>Mapped ROAS</th></tr></thead><tbody>{campaigns.map((campaign) => {
+    <div className="campaign-card-tree">{campaigns.map((campaign) => {
       const cKey = campaign.campaign_id || campaign.campaign_name;
       const cOpen = openCampaigns.has(cKey);
-      return <React.Fragment key={cKey}>
-        <tr className="campaign-row level-campaign"><td className="name-cell"><button type="button" className="tree-toggle" onClick={() => toggle(setOpenCampaigns, cKey)}>{cOpen ? '−' : '+'}</button><b>{campaign.campaign_name}</b>{campaign.inference_notes?.length ? <small>{campaign.inference_notes.slice(0, 2).join(' · ')}</small> : null}</td><td>Campaign</td><CampaignMetricCells row={campaign} /></tr>
+      return <CampaignNodeCard key={cKey} row={campaign} level="campaign" isOpen={cOpen} onToggle={() => toggle(setOpenCampaigns, cKey)}>
         {cOpen ? campaign.adsets.map((adset) => {
           const aKey = adset.adset_id || `${cKey}-${adset.adset_name}`;
           const aOpen = openAdsets.has(aKey);
-          return <React.Fragment key={aKey}>
-            <tr className="campaign-row level-adset"><td className="name-cell indent-1"><button type="button" className="tree-toggle" onClick={() => toggle(setOpenAdsets, aKey)}>{aOpen ? '−' : '+'}</button><b>{adset.adset_name}</b>{adset.inference_notes?.length ? <small>{adset.inference_notes.slice(0, 2).join(' · ')}</small> : null}</td><td>Ad set</td><CampaignMetricCells row={adset} /></tr>
-            {aOpen ? adset.ads.map((ad) => <tr className="campaign-row level-ad" key={ad.ad_id || `${aKey}-${ad.ad_name}`}><td className="name-cell indent-2"><span className="ad-dot" /><b>{ad.ad_name}</b><small>{ad.product_family || 'unknown'} / {ad.product_subtype || 'unknown'}{ad.inference_notes?.length ? ` · ${ad.inference_notes.slice(0, 1).join('')}` : ''}</small></td><td>Ad</td><CampaignMetricCells row={ad} /></tr>) : null}
-          </React.Fragment>;
+          return <CampaignNodeCard key={aKey} row={adset} level="adset" isOpen={aOpen} onToggle={() => toggle(setOpenAdsets, aKey)}>
+            {aOpen ? adset.ads.map((ad) => <CampaignNodeCard key={ad.ad_id || `${aKey}-${ad.ad_name}`} row={ad} level="ad" />) : null}
+          </CampaignNodeCard>;
         }) : null}
-      </React.Fragment>;
-    })}</tbody></table></div>
+      </CampaignNodeCard>;
+    })}</div>
     {attribution?.sales_gaps?.length ? <div className="unresolved-note danger-note"><b>{attribution.sales_gaps.length} rows where Meta sales exceed Shopify-mapped sales.</b><span>This is a mapping/extraction warning; expand the row before trusting mapped ROAS.</span></div> : null}
-    {attribution?.unresolved?.length ? <div className="unresolved-note"><b>{attribution.unresolved.length} ambiguous order lines not forced into ads.</b><span>They remain in campaign Shopify ROAS when country ownership is clear, but not in ad/adset mapped ROAS until mapping is unique.</span></div> : null}
+    {attribution?.unresolved?.length ? <div className="unresolved-note"><b>{attribution.unresolved.length} Shopify order line has no matching Meta ad candidate.</b><span>It remains inside campaign Shopify ROAS when country ownership is clear, but it cannot be placed into an ad/ad set until a product-to-ad candidate exists.</span></div> : null}
   </section>;
 }
 
