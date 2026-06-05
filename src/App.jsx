@@ -448,7 +448,7 @@ function saleTime(value) {
 function businessMetricConfig(active) {
   return {
     revenue: { key: 'revenue_usd', label: 'Shopify revenue', formatter: (v) => money.format(v), color: '#e02e92' },
-    sales: { key: 'units', label: 'Items sold', formatter: (v) => compact(v), color: '#7f1d57' },
+    sales: { key: 'orders', label: 'Shopify orders', formatter: (v) => compact(v), color: '#7f1d57' },
     aov: { key: 'aov', label: 'AOV', formatter: (v) => (v ? money.format(v) : 'n/a'), color: '#be2b78' },
     spend: { key: 'spend_usd', label: 'Meta spend', formatter: (v) => money.format(v), color: '#bf6b1f' },
     cac: { key: 'cac', label: 'CAC', formatter: (v) => (v ? money.format(v) : 'n/a'), color: '#9f1d63' },
@@ -746,7 +746,7 @@ function BusinessMetricPanel({ rows, active, windowKey, setWindowKey, fxText }) 
   return <section className="metric-detail unfold-panel">
     <div className="metric-detail-copy">
       <b>{metric.label} trend</b>
-      <span>Click a business card to unfold one clean smoothed line. Sales are Shopify sold units; AOV/CAC still use true order count.</span>
+      <span>Click a business card to unfold one clean smoothed line. Sales are Shopify orders; units stay visible as supporting context.</span>
       <small>{fxText}</small>
       <div className="window-tabs">{windows.map(([key, label]) => <button type="button" key={key} className={windowKey === key ? 'active' : ''} onClick={() => setWindowKey(key)}>{label}</button>)}</div>
     </div>
@@ -1398,7 +1398,7 @@ function App() {
   const business = businessStats(businessRows);
   const businessDeltas = useMemo(() => ({
     revenue: businessPeriodDelta(allBusinessRows, 'revenue_usd', activeDateRange),
-    sales: businessPeriodDelta(allBusinessRows, 'units', activeDateRange),
+    sales: businessPeriodDelta(allBusinessRows, 'orders', activeDateRange),
     aov: businessPeriodDelta(allBusinessRows, 'aov', activeDateRange),
     spend: businessPeriodDelta(allBusinessRows, 'spend_usd', activeDateRange),
     cac: businessPeriodDelta(allBusinessRows, 'cac', activeDateRange),
@@ -1427,7 +1427,7 @@ function App() {
 
       <section className="finance-cards top-finance">
         <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} delta={businessDeltas.revenue} deltaTone={toneForDelta(businessDeltas.revenue.pct)} />
-        <FinanceCard title="Sales" value={compact(business.units)} sub={`${business.orders} Shopify orders`} tone={business.units ? 'good' : 'neutral'} active={activeBusiness === 'sales'} onClick={() => setActiveBusiness('sales')} delta={businessDeltas.sales} deltaTone={toneForDelta(businessDeltas.sales.pct)} />
+        <FinanceCard title="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} tone={business.orders ? 'good' : 'neutral'} active={activeBusiness === 'sales'} onClick={() => setActiveBusiness('sales')} delta={businessDeltas.sales} deltaTone={toneForDelta(businessDeltas.sales.pct)} />
         <FinanceCard title="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} sub="Shopify revenue / orders" tone={business.aov ? 'good' : 'neutral'} active={activeBusiness === 'aov'} onClick={() => setActiveBusiness('aov')} delta={businessDeltas.aov} deltaTone={toneForDelta(businessDeltas.aov.pct)} />
         <FinanceCard title="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" tone="warn" active={activeBusiness === 'spend'} onClick={() => setActiveBusiness('spend')} delta={businessDeltas.spend} deltaTone={toneForDelta(businessDeltas.roas.pct)} />
         <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} delta={businessDeltas.cac} deltaTone={toneForDelta(businessDeltas.cac.pct, false)} />
