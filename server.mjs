@@ -66,10 +66,12 @@ function dateEnvFromUrl(url) {
   const env = {};
   if (/^\d{4}-\d{2}-\d{2}$/.test(since)) {
     env.SINCE = since;
+    env.META_SINCE = since;
     env.SHOPIFY_SINCE = since;
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(until)) {
     env.UNTIL = until;
+    env.META_UNTIL = until;
     env.SHOPIFY_UNTIL = until;
   }
   return env;

@@ -52,6 +52,7 @@ function finalizeNode(node) {
   const inferredRevenue = trueRevenue + node.shopify_product_inferred_revenue_usd;
   const trueSales = node.shopify_direct_sales + node.shopify_country_sales;
   const inferredSales = trueSales + node.shopify_product_inferred_sales;
+  const salesGap = Math.max(0, node.meta_sales - inferredSales);
   const out = {
     ...node,
     ctr: node.impressions ? node.link_clicks / node.impressions * 100 : 0,
@@ -62,6 +63,8 @@ function finalizeNode(node) {
     inferred_shopify_revenue_usd: inferredRevenue,
     true_roas: node.spend_usd ? trueRevenue / node.spend_usd : 0,
     inferred_roas: node.spend_usd ? inferredRevenue / node.spend_usd : 0,
+    meta_sales_over_shopify_sales: salesGap,
+    has_sales_gap: salesGap > 0,
     inference_notes: [...node.inference_notes],
   };
   out.adsets = [...node.adsets.values()].map(finalizeNode).sort((a, b) => b.spend_usd - a.spend_usd);
@@ -133,12 +136,14 @@ function dominantCampaignByCountry(metaRows) {
   return out;
 }
 
-function productCandidates(metaRows, campaignId, countryCode, family, subtype) {
+function productCandidates(metaRows, campaignId, countryCode, family, subtype, options = {}) {
+  const familyOnly = Boolean(options.familyOnly || !subtype);
   const grouped = new Map();
   for (const row of metaRows || []) {
     if (campaignId && row.campaign_id !== campaignId) continue;
     if (countryCode && row.country_code !== countryCode) continue;
-    if (row.product_family !== family || row.product_subtype !== subtype) continue;
+    if (row.product_family !== family) continue;
+    if (!familyOnly && row.product_subtype !== subtype) continue;
     if (!row.ad_id) continue;
     const key = row.ad_id;
     const cur = grouped.get(key) || {
@@ -158,6 +163,34 @@ function productCandidates(metaRows, campaignId, countryCode, family, subtype) {
   const top = list[0];
   const share = total && top ? top.spend_usd / total : 0;
   return { top, list, total, share, unique: Boolean(top && (list.length === 1 || share >= DOMINANT_PRODUCT_AD_SHARE)) };
+}
+
+function collectSalesGaps(nodes, out = [], path = []) {
+  for (const node of nodes || []) {
+    const label = node.type === 'ad'
+      ? (node.ad_name || 'Unknown ad')
+      : node.type === 'adset'
+        ? (node.adset_name || 'Unknown ad set')
+        : (node.campaign_name || node.type || 'Unknown');
+    const nextPath = [...path, label];
+    if (node.has_sales_gap) {
+      out.push({
+        type: node.type,
+        name: label,
+        path: nextPath.join(' / '),
+        campaign_name: node.campaign_name || '',
+        adset_name: node.adset_name || '',
+        ad_name: node.ad_name || '',
+        meta_sales: node.meta_sales,
+        inferred_shopify_sales: node.inferred_shopify_sales,
+        true_shopify_sales: node.true_shopify_sales,
+        meta_sales_over_shopify_sales: node.meta_sales_over_shopify_sales,
+      });
+    }
+    collectSalesGaps(node.adsets || [], out, nextPath);
+    collectSalesGaps(node.ads || [], out, nextPath);
+  }
+  return out;
 }
 
 export function buildCampaignAttribution(meta, shopify) {
@@ -245,14 +278,22 @@ export function buildCampaignAttribution(meta, shopify) {
       continue;
     }
 
-    const candidates = productCandidates(metaRows, campaign.campaign_id, line.country_code, line.family, line.subtype);
+    let candidates = productCandidates(metaRows, campaign.campaign_id, line.country_code, line.family, line.subtype);
+    let inferenceMode = 'product-only';
+    if ((!candidates.unique || !candidates.top) && line.family && line.family !== 'Other') {
+      const familyCandidates = productCandidates(metaRows, campaign.campaign_id, line.country_code, line.family, null, { familyOnly: true });
+      if (familyCandidates.unique && familyCandidates.top) {
+        candidates = familyCandidates;
+        inferenceMode = 'family-only';
+      }
+    }
     if (candidates.unique && candidates.top) {
       const adset = getAdset(campaign, candidates.top);
       const ad = getAd(adset, candidates.top);
       addShopify(adset, 'shopify_product_inferred', line);
       addShopify(ad, 'shopify_product_inferred', line);
-      adset.inference_notes.add(`${line.product}: product-only inferred to ${candidates.top.ad_name} (${Math.round(candidates.share * 100)}% matching spend)`);
-      ad.inference_notes.add(`${line.product}: product-only inferred (${Math.round(candidates.share * 100)}% matching spend)`);
+      adset.inference_notes.add(`${line.product}: ${inferenceMode} inferred to ${candidates.top.ad_name} (${Math.round(candidates.share * 100)}% matching spend)`);
+      ad.inference_notes.add(`${line.product}: ${inferenceMode} inferred (${Math.round(candidates.share * 100)}% matching spend)`);
     } else {
       addShopify(campaign, 'unresolved', line);
       campaign.inference_notes.add(`${line.product}: unresolved ad mapping (${candidates.list.length || 0} matching ads)`);
@@ -260,9 +301,11 @@ export function buildCampaignAttribution(meta, shopify) {
     }
   }
 
+  const finalizedCampaigns = [...campaigns.values()].map(finalizeNode).sort((a, b) => b.spend_usd - a.spend_usd);
   return {
-    campaigns: [...campaigns.values()].map(finalizeNode).sort((a, b) => b.spend_usd - a.spend_usd),
+    campaigns: finalizedCampaigns,
     unresolved,
+    sales_gaps: collectSalesGaps(finalizedCampaigns),
     country_campaign_map: [...countryCampaigns.entries()].map(([country_code, row]) => ({ country_code, ...row })),
   };
 }

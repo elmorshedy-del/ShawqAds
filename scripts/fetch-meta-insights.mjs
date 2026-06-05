@@ -16,12 +16,45 @@ for (const envPath of envPaths) {
 
 const token = process.env.SHAWQ_META_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN;
 const account = (process.env.SHAWQ_META_AD_ACCOUNT_ID || process.env.META_AD_ACCOUNT_ID || '').replace(/^act_/, '');
-const since = process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
-const until = process.env.UNTIL || new Date().toISOString().slice(0, 10);
+const requestedSince = process.env.META_SINCE || process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
+const requestedUntil = process.env.META_UNTIL || process.env.UNTIL || '';
 const graphVersion = process.env.META_GRAPH_VERSION || 'v20.0';
 if (!token || !account) {
   console.error('Missing SHAWQ_META_ACCESS_TOKEN or SHAWQ_META_AD_ACCOUNT_ID.');
   process.exit(1);
+}
+
+function dateInTimezone(date = new Date(), timeZone = 'UTC') {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function zonedDateTimeToUnix(date, timeZone, endOfDay = false) {
+  const [year, month, day] = String(date || '').split('-').map(Number);
+  const hour = endOfDay ? 23 : 0;
+  const minute = endOfDay ? 59 : 0;
+  const second = endOfDay ? 59 : 0;
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second, endOfDay ? 999 : 0);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = Object.fromEntries(formatter
+    .formatToParts(new Date(utcGuess))
+    .filter((part) => part.type !== 'literal')
+    .map((part) => [part.type, Number(part.value)]));
+  const zonedAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, endOfDay ? 999 : 0);
+  return Math.floor((utcGuess - (zonedAsUtc - utcGuess)) / 1000);
 }
 
 const adsetFields = [
@@ -48,7 +81,7 @@ async function graphGet(url) {
 async function getAccountMetadata() {
   const base = new URL(`https://graph.facebook.com/${graphVersion}/act_${account}`);
   base.searchParams.set('access_token', token);
-  base.searchParams.set('fields', 'currency,account_status,name');
+  base.searchParams.set('fields', 'currency,account_status,name,timezone_id,timezone_name,timezone_offset_hours_utc');
   try {
     return await graphGet(base.toString());
   } catch (error) {
@@ -166,8 +199,8 @@ async function getActivities(start, end) {
   base.searchParams.set('access_token', token);
   base.searchParams.set('limit', '500');
   base.searchParams.set('fields', 'event_time,event_type,translated_event_type,object_id,object_name,object_type,extra_data');
-  base.searchParams.set('since', Math.floor(new Date(`${start}T00:00:00Z`).getTime() / 1000));
-  base.searchParams.set('until', Math.floor(new Date(`${end}T23:59:59Z`).getTime() / 1000));
+  base.searchParams.set('since', zonedDateTimeToUnix(start, metaReportingTimezone, false));
+  base.searchParams.set('until', zonedDateTimeToUnix(end, metaReportingTimezone, true));
   let url = base.toString();
   const rows = [];
   while (url) {
@@ -385,6 +418,12 @@ function isUsaRow(r) {
 
 const accountMeta = await getAccountMetadata();
 const accountCurrency = String(accountMeta.currency || process.env.META_ACCOUNT_CURRENCY || 'TRY').toUpperCase();
+const metaReportingTimezone = process.env.SHAWQ_META_REPORTING_TIMEZONE
+  || process.env.META_REPORTING_TIMEZONE
+  || accountMeta.timezone_name
+  || 'Europe/Istanbul';
+const since = requestedSince;
+const until = requestedUntil || dateInTimezone(new Date(), metaReportingTimezone);
 const previousOutPath = path.resolve('public/data/adset-radar.json');
 let previousAdsetChanges = [];
 try {
@@ -517,6 +556,9 @@ const out = {
   account_id: `act_${account}`,
   account_currency: accountCurrency,
   account_name: accountMeta.name || '',
+  account_timezone: metaReportingTimezone,
+  account_timezone_id: accountMeta.timezone_id || '',
+  account_timezone_offset_hours_utc: accountMeta.timezone_offset_hours_utc ?? '',
   analysis_window: { since, until },
   delivery_scope: 'usa_adsets_only',
   baseline_window: { since: '2026-03-01', until: '2026-03-31', label: 'March USA benchmark' },

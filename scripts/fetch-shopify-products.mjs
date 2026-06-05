@@ -20,16 +20,93 @@ for (const envPath of envPaths) {
 const token = process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN;
 const store = process.env.SHAWQ_SHOPIFY_STORE || process.env.SHOPIFY_STORE || 'f3e7e9-2.myshopify.com';
 const apiVersion = process.env.SHOPIFY_API_VERSION || '2025-10';
-const since = process.env.SHOPIFY_SINCE || process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
-const until = process.env.SHOPIFY_UNTIL || process.env.UNTIL || new Date().toISOString().slice(0, 10);
+const requestedSince = process.env.SHOPIFY_SINCE || process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
+const requestedUntil = process.env.SHOPIFY_UNTIL || process.env.UNTIL || '';
 if (!token || !store) {
   console.error('Missing SHAWQ_SHOPIFY_ACCESS_TOKEN or SHAWQ_SHOPIFY_STORE.');
   process.exit(1);
 }
 
-const startIso = `${since}T00:00:00+03:00`;
-const endIso = `${until}T23:59:59+03:00`;
 const fields = 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,currency,presentment_currency,shipping_address,billing_address,line_items,refunds,landing_site,landing_site_ref,referring_site,source_name,source_identifier,note_attributes,tags';
+
+function dateInTimezone(date = new Date(), timeZone = 'UTC') {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function zonedDateTimeToUtcIso(date, timeZone, endOfDay = false) {
+  const [year, month, day] = String(date || '').split('-').map(Number);
+  const hour = endOfDay ? 23 : 0;
+  const minute = endOfDay ? 59 : 0;
+  const second = endOfDay ? 59 : 0;
+  const millisecond = endOfDay ? 999 : 0;
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second, millisecond);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = Object.fromEntries(formatter
+    .formatToParts(new Date(utcGuess))
+    .filter((part) => part.type !== 'literal')
+    .map((part) => [part.type, Number(part.value)]));
+  const zonedAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, millisecond);
+  return new Date(utcGuess - (zonedAsUtc - utcGuess)).toISOString();
+}
+
+async function getShopMetadata() {
+  const url = new URL(`https://${store}/admin/api/${apiVersion}/shop.json`);
+  url.searchParams.set('fields', 'name,currency,iana_timezone,timezone');
+  try {
+    const res = await fetch(url, { headers: { 'X-Shopify-Access-Token': token } });
+    const text = await res.text();
+    if (!res.ok) throw new Error(text.slice(0, 400));
+    return JSON.parse(text).shop || {};
+  } catch (error) {
+    console.warn(`Could not fetch Shopify shop metadata: ${error.message}`);
+    return { currency: 'USD', iana_timezone: 'Europe/Istanbul' };
+  }
+}
+
+async function getProductImages(productIds = []) {
+  const out = new Map();
+  for (const productId of productIds) {
+    const url = new URL(`https://${store}/admin/api/${apiVersion}/products/${productId}.json`);
+    url.searchParams.set('fields', 'id,title,handle,image');
+    try {
+      const res = await fetch(url, { headers: { 'X-Shopify-Access-Token': token } });
+      const text = await res.text();
+      if (!res.ok) continue;
+      const product = JSON.parse(text).product || {};
+      out.set(String(productId), {
+        product_id: String(productId),
+        title: product.title || '',
+        handle: product.handle || '',
+        image_url: product.image?.src || '',
+      });
+    } catch {}
+  }
+  return out;
+}
+
+const shopMetadata = await getShopMetadata();
+const reportingTimezone = process.env.SHAWQ_SHOPIFY_REPORTING_TIMEZONE
+  || process.env.SHOPIFY_REPORTING_TIMEZONE
+  || shopMetadata.iana_timezone
+  || 'Europe/Istanbul';
+const since = requestedSince;
+const until = requestedUntil || dateInTimezone(new Date(), reportingTimezone);
+const startIso = zonedDateTimeToUtcIso(since, reportingTimezone, false);
+const endIso = zonedDateTimeToUtcIso(until, reportingTimezone, true);
 
 async function getOrders() {
   const rows = [];
@@ -65,7 +142,7 @@ function countryFor(order) {
 }
 function dayFor(order) {
   const d = new Date(order.created_at || Date.now());
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  return dateInTimezone(d, reportingTimezone);
 }
 
 function queryParamsFromMaybeUrl(value = '') {
@@ -168,6 +245,10 @@ function attributionFor(order) {
 const orders = await getOrders();
 const includeStatus = new Set(['paid', 'partially_paid', 'partially_refunded']);
 const included = orders.filter((o) => !o.cancelled_at && includeStatus.has(o.financial_status));
+const productIds = [...new Set(included.flatMap((order) => (order.line_items || [])
+  .map((line) => String(line.product_id || ''))
+  .filter(Boolean)))];
+const productImages = await getProductImages(productIds);
 const refunded = new Map();
 for (const o of included) {
   for (const ref of o.refunds || []) {
@@ -212,6 +293,7 @@ for (const order of included) {
     dailyUnit.units += net;
     dailyByDate.set(date, dailyUnit);
     const lineRevenue = Number(li.price || 0) * net;
+    const imageMeta = productImages.get(String(li.product_id || '')) || {};
     orderLines.push({
       order_id: String(order.id || ''),
       order_name: order.name || '',
@@ -220,6 +302,9 @@ for (const order of included) {
       country_code: c.code,
       country: c.name,
       product: li.title || '',
+      product_id: String(li.product_id || ''),
+      variant_id: String(li.variant_id || ''),
+      image_url: imageMeta.image_url || '',
       quantity: net,
       line_revenue_usd: lineRevenue,
       family,
@@ -230,7 +315,8 @@ for (const order of included) {
     familyRow.units += net;
     familyRow.revenue_usd += lineRevenue;
     familyTotals.set(family, familyRow);
-    const productRow = productTotals.get(li.title) || { product: li.title, units: 0, revenue_usd: 0, family, subtype };
+    const productRow = productTotals.get(li.title) || { product: li.title, units: 0, revenue_usd: 0, family, subtype, image_url: imageMeta.image_url || '' };
+    if (!productRow.image_url && imageMeta.image_url) productRow.image_url = imageMeta.image_url;
     productRow.units += net;
     productRow.revenue_usd += lineRevenue;
     productTotals.set(li.title, productRow);
@@ -257,7 +343,26 @@ const cumulative = allDates.map((date) => {
 const countries = [...countryRows.values()].map((r) => ({ ...r, unique_products: r.unique_products_set.size, unique_products_set: undefined })).sort((a, b) => b.units - a.units);
 const products = [...productTotals.values()].sort((a, b) => b.units - a.units);
 const daily = [...dailyByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-const out = { source: 'Shopify', generated_at: new Date().toISOString(), period: { since, until, timezone: 'Europe/Istanbul', currency: 'USD' }, orders: { pulled: orders.length, included: included.length }, daily, families, products, countries, cumulative, order_lines: orderLines };
+const out = {
+  source: 'Shopify',
+  generated_at: new Date().toISOString(),
+  period: {
+    since,
+    until,
+    timezone: reportingTimezone,
+    shop_timezone: shopMetadata.iana_timezone || '',
+    shop_timezone_label: shopMetadata.timezone || '',
+    currency: shopMetadata.currency || 'USD',
+    api_window: { created_at_min: startIso, created_at_max: endIso },
+  },
+  orders: { pulled: orders.length, included: included.length },
+  daily,
+  families,
+  products,
+  countries,
+  cumulative,
+  order_lines: orderLines,
+};
 const outPath = path.resolve('public/data/shopify-products.json');
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(out, null, 2));

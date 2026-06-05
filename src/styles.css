@@ -122,3 +122,176 @@ body{
 @media(max-width:1320px){.top-finance{grid-template-columns:repeat(3,minmax(0,1fr))}.campaign-table-wrap{max-height:540px}}
 @media(max-width:900px){.top-finance{grid-template-columns:repeat(2,minmax(0,1fr))}.unresolved-note{display:block}.unresolved-note span{display:block;margin-top:4px}}
 @media(max-width:760px){.top-finance{grid-template-columns:1fr}.campaign-tree-panel{padding:12px}.campaign-rules{display:grid}.campaign-row .name-cell{min-width:270px}}
+
+/* Final premium pass: white glass first, ShawQ pink only as a precise accent. */
+body{
+  background:#fff;
+  color:var(--shawq-ink);
+}
+.content{
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,255,255,.94)),
+    radial-gradient(circle at 72px 34px,rgba(224,46,146,.08),transparent 240px);
+}
+.rail{
+  background:rgba(255,255,255,.92);
+  box-shadow:22px 0 70px rgba(28,14,22,.055);
+}
+.topbar h1{
+  color:var(--shawq-ink);
+  background:linear-gradient(90deg,var(--shawq-pink),var(--shawq-ink) 28%,var(--shawq-ink));
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+.top-finance{grid-template-columns:repeat(6,minmax(0,1fr))}
+.filter-block button,.filter-block select,.search,.method,.refresh,.sale-monitor,.metric-card,.benchmark-card,.chart-panel,.rank-panel,.table-panel,.finance-card,.change-strip,.leadership-zone,.mini-table,.product-zone,.growth-card,.country-card,.overall-products,.metric-detail,.campaign-tree-panel,.daily-highlights{
+  background:rgba(255,255,255,.96);
+  border:1px solid rgba(241,215,229,.92);
+  box-shadow:0 1px 0 rgba(255,255,255,.96) inset,0 18px 42px rgba(28,14,22,.07),0 4px 12px rgba(94,24,60,.045);
+}
+.sale-monitor::before{display:none}
+.finance-card{
+  background:linear-gradient(180deg,#fff 0%,#fff 74%,#fffafd 100%);
+  box-shadow:0 1px 0 rgba(255,255,255,.98) inset,0 18px 38px rgba(28,14,22,.075),0 6px 16px rgba(94,24,60,.055);
+}
+.finance-card strong{letter-spacing:-.045em}
+.metric-detail-chart,.table-wrap,.date-menu,.custom-range{
+  background:rgba(255,255,255,.98);
+}
+.daily-highlights{
+  border-radius:24px;
+  padding:16px;
+  margin:0 0 14px;
+}
+.daily-highlight-list{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(255px,1fr));
+  gap:12px;
+  margin-top:12px;
+}
+.daily-highlight-card{
+  border:1px solid #f2ddeb;
+  border-radius:20px;
+  padding:13px;
+  background:linear-gradient(180deg,#fff,#fffafd);
+  box-shadow:0 12px 28px rgba(28,14,22,.05);
+  display:grid;
+  gap:11px;
+}
+.daily-highlight-card>b{
+  color:var(--shawq-ruby);
+  font-size:12px;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+.daily-product{
+  display:grid;
+  grid-template-columns:58px minmax(0,1fr);
+  gap:11px;
+  align-items:center;
+}
+.daily-product img,.thumb-fallback{
+  width:58px;
+  height:58px;
+  border-radius:16px;
+  object-fit:cover;
+  background:#fff5fb;
+  border:1px solid #efd5e4;
+  box-shadow:0 10px 20px rgba(94,24,60,.08);
+}
+.thumb-fallback{
+  display:grid;
+  place-items:center;
+  color:var(--shawq-ruby);
+  font-family:Newsreader,serif;
+  font-size:26px;
+  font-weight:800;
+}
+.daily-product strong,.daily-ad strong{
+  display:block;
+  color:var(--shawq-ink);
+  line-height:1.25;
+  white-space:normal;
+}
+.daily-product small,.daily-ad small{
+  display:block;
+  color:var(--shawq-muted);
+  font-size:11px;
+  font-weight:850;
+  margin-top:3px;
+}
+.daily-ad{
+  border-top:1px solid #f2ddeb;
+  padding-top:10px;
+}
+.daily-ad span{
+  display:block;
+  color:var(--shawq-ruby);
+  font-size:10px;
+  font-weight:950;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  margin-bottom:3px;
+}
+.country-roas-card .panel-title{margin-bottom:12px}
+.country-roas-card .country-list{
+  max-height:620px;
+  display:grid;
+  gap:10px;
+}
+.country-row{
+  border-radius:18px;
+  padding:13px;
+  box-shadow:0 10px 24px rgba(28,14,22,.04);
+}
+.country-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.country-roas-number{
+  flex:none;
+  display:inline-flex;
+  align-items:center;
+  border-radius:999px;
+  background:#e8f7f2;
+  color:#087162;
+  padding:7px 10px;
+  font-size:12px;
+  font-weight:950;
+}
+.country-metrics{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin:9px 0 10px;
+}
+.country-metrics span{
+  border:1px solid #f2ddeb;
+  border-radius:999px;
+  padding:5px 8px;
+  color:#705866;
+  background:#fff;
+  font-size:11px;
+  font-weight:900;
+}
+.danger-chip{
+  display:inline-flex;
+  border-radius:999px;
+  padding:5px 8px;
+  background:#fff0f2;
+  color:#b21b2a;
+  font-size:10px;
+  font-weight:950;
+}
+.danger-note{
+  border-color:#f2b9c0;
+  background:#fff6f7;
+  color:#98202d;
+}
+.danger-note span{color:#98202d}
+@media(max-width:1500px){.top-finance{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:900px){.top-finance{grid-template-columns:repeat(2,minmax(0,1fr))}.country-head{align-items:flex-start}.country-roas-number{white-space:nowrap}}
+@media(max-width:760px){.top-finance{grid-template-columns:1fr}.daily-highlight-list{grid-template-columns:1fr}.country-head{display:grid}.country-roas-number{justify-self:start}}
