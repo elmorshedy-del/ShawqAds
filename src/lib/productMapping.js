@@ -16,6 +16,7 @@ export function productTaxonomyForName(value) {
   const hasKuffiyah = /kuffiyah|kuffiya|kuffiyeh|kufiya|keffiyeh/.test(text);
   const hasZaytoun = /zaytoun|zaytoon|zaitoun|olive|زيتون/.test(text);
   const hasQuoteCrewneck = /quote\s*(vo|crewneck)|\bvo\b/.test(text);
+  const hasQuoteHoodie = /quote.*hoodie|hoodie.*quote/.test(text);
   const hasGhalabany = /ghalabany|ghalabny|ghalabni|al shawq|al shawq|غلبني|الشوق/.test(text);
   const hasNinetyEightCrewneck = /crew\s*neck.*\b98\b|crewneck.*\b98\b|vescarts?\s*98|vescartes?\s*98/.test(text);
   const hasCrewneck = /crew\s*neck|crewneck/.test(text);
@@ -31,6 +32,7 @@ export function productTaxonomyForName(value) {
   }
 
   if (hasQuoteCrewneck) return { family: 'Crewnecks', subtype: 'Quote crewneck' };
+  if (hasQuoteHoodie) return { family: 'Hoodies', subtype: 'Quote hoodie' };
   if (hasHoodie) return { family: 'Hoodies', subtype: hasGhalabany ? 'Ghalabany Al-ShawQ hoodie' : 'Other hoodie' };
   if (hasLongSleeve) return { family: 'Tops', subtype: 'Long sleeve' };
   if (hasShortSleeve) return { family: 'Tops', subtype: 'Short sleeve' };

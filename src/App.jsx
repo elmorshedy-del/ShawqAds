@@ -471,12 +471,14 @@ function businessStats(rows) {
   };
 }
 
-function businessPeriodDelta(rows, key) {
-  const sorted = [...(rows || [])].sort((a, b) => a.date.localeCompare(b.date));
-  if (sorted.length < 2) return { pct: 0, absolute: 0, label: 'no prior period' };
-  const size = sorted.length >= 4 ? Math.floor(sorted.length / 2) : 1;
-  const currentRows = sorted.slice(-size);
-  const previousRows = sorted.slice(-size * 2, -size);
+function dayCount(range) {
+  if (!range?.since || !range?.until) return 0;
+  const since = new Date(`${range.since}T00:00:00Z`);
+  const until = new Date(`${range.until}T00:00:00Z`);
+  return Math.max(1, Math.round((until - since) / 86400000) + 1);
+}
+
+function periodDeltaFromRows(currentRows, previousRows, key, label) {
   const current = businessStats(currentRows);
   const previous = businessStats(previousRows);
   const cur = Number(current[key] || 0);
@@ -486,8 +488,31 @@ function businessPeriodDelta(rows, key) {
     absolute: cur - prev,
     current: cur,
     previous: prev,
-    label: sorted.length >= 4 ? 'vs prior period' : 'vs previous day',
+    label,
   };
+}
+
+function fallbackPeriodDelta(rows, key) {
+  const sorted = [...(rows || [])].sort((a, b) => a.date.localeCompare(b.date));
+  if (sorted.length < 2) return { pct: 0, absolute: 0, label: 'no prior period' };
+  const size = sorted.length >= 4 ? Math.floor(sorted.length / 2) : 1;
+  const currentRows = sorted.slice(-size);
+  const previousRows = sorted.slice(-size * 2, -size);
+  return periodDeltaFromRows(currentRows, previousRows, key, sorted.length >= 4 ? 'vs prior period' : 'vs previous day');
+}
+
+function businessPeriodDelta(rows, key, activeRange) {
+  const sorted = [...(rows || [])].sort((a, b) => a.date.localeCompare(b.date));
+  if (!activeRange?.since || !activeRange?.until) return fallbackPeriodDelta(sorted, key);
+  const currentRows = filterRowsByDateRange(sorted, activeRange);
+  if (!currentRows.length) return fallbackPeriodDelta(sorted, key);
+  const days = dayCount(activeRange);
+  const previousRange = { since: shiftDate(activeRange.since, -days), until: shiftDate(activeRange.until, -days) };
+  const previousRows = filterRowsByDateRange(sorted, previousRange);
+  if (previousRows.length) {
+    return periodDeltaFromRows(currentRows, previousRows, key, days === 1 ? 'vs previous day' : 'vs previous period');
+  }
+  return fallbackPeriodDelta(currentRows, key);
 }
 
 function toneForDelta(value, higherIsGood = true) {
@@ -603,7 +628,7 @@ function countrySalesRoasOption(shopifyCountries = [], metaCountries = []) {
   const rows = (shopifyCountries || []).slice(0, 14).map((country) => ({
     ...country,
     meta: metaByCode.get(country.country_code) || {},
-  }));
+  })).map((country) => ({ ...country, shopify_roas: shopifyCountryRoas(country, country.meta) }));
   return {
     color: ['#e02e92', '#0b766c'],
     tooltip: {
@@ -613,7 +638,7 @@ function countrySalesRoasOption(shopifyCountries = [], metaCountries = []) {
       textStyle: { color: '#fff' },
       formatter: (params) => {
         const row = rows[params[0].dataIndex];
-        return `<b>${countryFlag(row.country_code)} ${row.country}</b><br/>Shopify units: ${row.units || 0}<br/>Meta purchases: ${row.meta.purchases || 0}<br/>Meta ROAS: ${Number(row.meta.roas || 0).toFixed(2)}x<br/>Meta spend: ${money.format(row.meta.spend_usd || 0)}`;
+        return `<b>${countryFlag(row.country_code)} ${row.country}</b><br/>Shopify units: ${row.units || 0}<br/>Shopify revenue: ${money.format(row.revenue_usd || 0)}<br/>Meta spend: ${money.format(row.meta.spend_usd || 0)}<br/>Shopify ROAS: ${Number(row.shopify_roas || 0).toFixed(2)}x`;
       },
     },
     grid: { left: 42, right: 52, top: 26, bottom: 42 },
@@ -624,9 +649,14 @@ function countrySalesRoasOption(shopifyCountries = [], metaCountries = []) {
     ],
     series: [
       { name: 'Shopify units', type: 'bar', data: rows.map((row) => Number(row.units || 0)), barMaxWidth: 20, itemStyle: { borderRadius: [8, 8, 0, 0] } },
-      { name: 'Meta country ROAS', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 7, data: rows.map((row) => Number(row.meta.roas || 0)), lineStyle: { width: 3 } },
+      { name: 'Shopify ROAS', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 7, data: rows.map((row) => Number(row.shopify_roas || 0)), lineStyle: { width: 3 }, label: { show: true, color: '#0b766c', fontWeight: 900, formatter: (p) => `${Number(p.value || 0).toFixed(1)}x` } },
     ],
   };
+}
+
+function shopifyCountryRoas(country, metaCountry) {
+  const spend = Number(metaCountry?.spend_usd || 0);
+  return spend ? Number(country?.revenue_usd || 0) / spend : 0;
 }
 
 function mergeBusinessRows(metaDaily, shopifyDaily) {
@@ -882,8 +912,8 @@ function CampaignMetricCells({ row }) {
     <td>{row.add_to_cart || 0}</td>
     <td>{row.checkout_initiated || 0}</td>
     <td><b>{row.meta_sales || 0}</b><small>Meta</small></td>
-    <td><b>{row.true_shopify_sales || 0}</b><small>Shopify true</small></td>
-    <td><b>{row.inferred_shopify_sales || 0}</b><small>with inferred</small></td>
+    <td><b>{row.true_shopify_sales || 0}</b><small>Shopify total</small></td>
+    <td><b>{row.inferred_shopify_sales || 0}</b><small>after inference</small></td>
     <td>{row.unresolved_sales ? <span className="unresolved-chip">{row.unresolved_sales} unresolved</span> : <span className="resolved-chip">clean</span>}</td>
     <td>{roasText(row.meta_roas)}</td>
     <td className={row.true_roas >= row.meta_roas ? 'good' : 'warn'}>{roasText(row.true_roas)}</td>
@@ -916,13 +946,13 @@ function CampaignPerformanceTable({ attribution }) {
     });
   }
   return <section className="campaign-tree-panel">
-    <div className="panel-title product-title"><div><h2>Campaign true ROAS tree</h2><p>Campaign ROAS uses Meta spend as denominator and Shopify order-line revenue as numerator. Ad set/ad inferred ROAS is only added when country + product uniquely maps to one candidate; ambiguous lines stay flagged.</p></div><span>{campaigns.length} campaigns</span></div>
+    <div className="panel-title product-title"><div><h2>Campaign Shopify ROAS tree</h2><p>Campaign ROAS uses Meta spend as denominator and Shopify order-line revenue as numerator. Ad set/ad mapped ROAS is only added when country + product uniquely maps to one candidate; ambiguous lines stay flagged.</p></div><span>{campaigns.length} campaigns</span></div>
     <div className="campaign-rules">
       <small><b>CTR:</b> click-through/link CTR, not CTR all.</small>
-      <small><b>True ROAS:</b> Shopify revenue assigned directly or by country campaign ownership.</small>
-      <small><b>Inferred ROAS:</b> true ROAS plus product-only ad/adset assignment when mapping is unique.</small>
+      <small><b>Shopify ROAS:</b> Shopify revenue assigned directly or by country campaign ownership.</small>
+      <small><b>Mapped ROAS:</b> Shopify ROAS plus product-only ad/adset assignment when mapping is unique.</small>
     </div>
-    <div className="table-wrap campaign-table-wrap"><table className="campaign-table"><thead><tr><th>Campaign / ad set / ad</th><th>Level</th><th>Spend</th><th>Click-through CTR</th><th>ATC</th><th>IC</th><th>Sales</th><th>True sales</th><th>Inferred sales</th><th>Mapping</th><th>Meta ROAS</th><th>True ROAS</th><th>Inferred ROAS</th></tr></thead><tbody>{campaigns.map((campaign) => {
+    <div className="table-wrap campaign-table-wrap"><table className="campaign-table"><thead><tr><th>Campaign / ad set / ad</th><th>Level</th><th>Spend</th><th>Click-through CTR</th><th>ATC</th><th>IC</th><th>Meta sales</th><th>Shopify sales</th><th>Mapped sales</th><th>Mapping</th><th>Meta ROAS</th><th>Shopify ROAS</th><th>Mapped ROAS</th></tr></thead><tbody>{campaigns.map((campaign) => {
       const cKey = campaign.campaign_id || campaign.campaign_name;
       const cOpen = openCampaigns.has(cKey);
       return <React.Fragment key={cKey}>
@@ -937,7 +967,7 @@ function CampaignPerformanceTable({ attribution }) {
         }) : null}
       </React.Fragment>;
     })}</tbody></table></div>
-    {attribution?.unresolved?.length ? <div className="unresolved-note"><b>{attribution.unresolved.length} ambiguous order lines not forced into ads.</b><span>They remain in campaign true ROAS when country ownership is clear, but not in ad/adset inferred ROAS until mapping is unique.</span></div> : null}
+    {attribution?.unresolved?.length ? <div className="unresolved-note"><b>{attribution.unresolved.length} ambiguous order lines not forced into ads.</b><span>They remain in campaign Shopify ROAS when country ownership is clear, but not in ad/adset mapped ROAS until mapping is unique.</span></div> : null}
   </section>;
 }
 
@@ -1080,21 +1110,30 @@ function App() {
     const accountRows = data.account_daily_metrics?.length ? data.account_daily_metrics : accountDailyFromAdRows(data.ad_country_daily || []);
     return accountRows.length ? accountRows : (data.daily_metrics || aggregateRows(data.adsets || []));
   }, [data]);
+  const matchedDateRange = useMemo(() => ({ since: loadedBounds.since, until: loadedBounds.until }), [loadedBounds.since, loadedBounds.until]);
+  const matchedData = useMemo(() => filterMetaDataByDateRange(baseData, matchedDateRange), [baseData, matchedDateRange]);
+  const matchedProductData = useMemo(() => filterShopifyByDateRange(baseProductData, matchedDateRange), [baseProductData, matchedDateRange]);
+  const matchedAccountDaily = useMemo(() => {
+    const accountRows = matchedData.account_daily_metrics?.length ? matchedData.account_daily_metrics : accountDailyFromAdRows(matchedData.ad_country_daily || []);
+    return accountRows.length ? accountRows : (matchedData.daily_metrics || aggregateRows(matchedData.adsets || []));
+  }, [matchedData]);
   const businessRows = useMemo(() => mergeBusinessRows(accountDaily, productData.daily || []), [accountDaily, productData]);
+  const matchedBusinessRows = useMemo(() => mergeBusinessRows(matchedAccountDaily, matchedProductData.daily || []), [matchedAccountDaily, matchedProductData]);
   const business = businessStats(businessRows);
   const businessDeltas = useMemo(() => ({
-    revenue: businessPeriodDelta(businessRows, 'revenue_usd'),
-    orders: businessPeriodDelta(businessRows, 'orders'),
-    spend: businessPeriodDelta(businessRows, 'spend_usd'),
-    cac: businessPeriodDelta(businessRows, 'cac'),
-    roas: businessPeriodDelta(businessRows, 'roas'),
-  }), [businessRows]);
+    revenue: businessPeriodDelta(matchedBusinessRows, 'revenue_usd', activeDateRange),
+    orders: businessPeriodDelta(matchedBusinessRows, 'orders', activeDateRange),
+    spend: businessPeriodDelta(matchedBusinessRows, 'spend_usd', activeDateRange),
+    cac: businessPeriodDelta(matchedBusinessRows, 'cac', activeDateRange),
+    roas: businessPeriodDelta(matchedBusinessRows, 'roas', activeDateRange),
+  }), [matchedBusinessRows, activeDateRange]);
   const campaignAttribution = useMemo(() => buildCampaignAttribution(data, productData), [data, productData]);
   const productRows = productData.products || [];
   const adRows = data.ads || [];
   const baselineCopy = march.applies ? 'March USA baseline shown because this frequency view is USA ad sets only.' : 'No March baseline on this view because it is not USA-only.';
   const fxText = fxAuditText(data);
   const adsetPerfById = useMemo(() => new Map((data.all_adsets || []).map((row) => [row.adset_id, row])), [data]);
+  const countryMetaByCode = useMemo(() => new Map((data.countries || []).map((row) => [row.country_code, row])), [data]);
 
   return <main className="shell">
     <aside className="rail">
@@ -1146,7 +1185,7 @@ function App() {
         <div className="panel-title product-title"><div><h2>Product demand after launch</h2><p>{productSourceLabel} sold-unit view for {productData.period?.since} - {productData.period?.until}. Lines are cumulative monthly sold units by product family.</p></div><span>{(productData.families || []).reduce((a, f) => a + Number(f.units || 0), 0)} merch units</span></div>
         <ProductTotals families={productData.families || []} />
         <OverallProducts products={productData.products || []} />
-        <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2><p>Each line is one product family. Similar apparel categories use different color + stroke + marker shapes to stay readable.</p></div><ReactECharts option={productGrowthOption(productData)} style={{ height: 390 }} /></div><div className="country-card"><div className="panel-title"><h2>Country sales + ROAS</h2><p>Bars are Shopify units sold. The line is Meta ROAS by country using that country spend.</p></div><ReactECharts option={countrySalesRoasOption(productData.countries || [], data.countries || [])} style={{ height: 240 }} /><div className="country-list">{(productData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span>{c.units} units · {c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} subtypes={c.subtypes || {}} /><div className="mix-labels">{entries.slice(0, 6).map(([f,u]) => <small key={f} title={mixTooltip(f, u, c.units, c.subtypes || {})}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {c.units ? Math.round((u / c.units) * 100) : 0}%</small>)}</div></div>; })}</div></div></section>
+        <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2><p>Each line is one product family. Similar apparel categories use different color + stroke + marker shapes to stay readable.</p></div><ReactECharts option={productGrowthOption(productData)} style={{ height: 390 }} /></div><div className="country-card"><div className="panel-title"><h2>Country sales + ROAS</h2><p>Bars are Shopify units sold. ROAS is Shopify country revenue divided by Meta country spend.</p></div><ReactECharts option={countrySalesRoasOption(productData.countries || [], data.countries || [])} style={{ height: 240 }} /><div className="country-list">{(productData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); const countryRoas = shopifyCountryRoas(c, countryMetaByCode.get(c.country_code)); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span>{c.units} units · {countryRoas.toFixed(2)}x ROAS · {c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} subtypes={c.subtypes || {}} /><div className="mix-labels">{entries.slice(0, 6).map(([f,u]) => <small key={f} title={mixTooltip(f, u, c.units, c.subtypes || {})}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {c.units ? Math.round((u / c.units) * 100) : 0}%</small>)}</div></div>; })}</div></div></section>
       </section>
     </section>
   </main>;

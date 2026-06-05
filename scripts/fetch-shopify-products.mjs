@@ -72,24 +72,96 @@ function queryParamsFromMaybeUrl(value = '') {
   const text = String(value || '');
   const query = text.includes('?') ? text.slice(text.indexOf('?') + 1) : text;
   const params = new URLSearchParams(query);
-  return Object.fromEntries([...params.entries()].filter(([key]) => /^(utm_|fbclid|ad_|campaign_|placement|creative)/i.test(key)));
+  return Object.fromEntries([...params.entries()].filter(([key]) => /^(utm_|campaign_|campaign$|ad_|ad$|adset_|adset$|placement|creative|attributes\[(ad|ad-id|campaign|campaign-id|adset|adset-id)\])/i.test(key)));
+}
+
+function compactObject(obj = {}) {
+  return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined && value !== null && String(value) !== ''));
+}
+
+function firstPresent(...values) {
+  return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '') || '';
+}
+
+function publicNoteAttributes(noteAttributes = {}) {
+  const allowed = /^(utm_(source|medium|campaign|content|term)(_(first|last))?|campaign(_name|_id)?|adset(_name|_id)?|ad_set_name|ad(_name|_id)?|source|medium|content|term|placement|creative|channel)$/i;
+  return Object.fromEntries(Object.entries(noteAttributes).filter(([key]) => allowed.test(key)));
+}
+
+function pathOnly(value = '') {
+  return String(value || '').split('?')[0].slice(0, 220);
+}
+
+function hostOnly(value = '') {
+  try {
+    return value ? new URL(value, 'https://shawq.co').hostname : '';
+  } catch {
+    return '';
+  }
 }
 
 function attributionFor(order) {
   const noteAttributes = {};
   for (const attr of order.note_attributes || []) if (attr?.name) noteAttributes[attr.name] = attr.value;
-  const landingParams = queryParamsFromMaybeUrl(order.landing_site || order.landing_site_ref || '');
   const lowerNote = Object.fromEntries(Object.entries(noteAttributes).map(([key, value]) => [key.toLowerCase(), value]));
+  const landingParams = queryParamsFromMaybeUrl(order.landing_site || order.landing_site_ref || '');
+  const referrerParams = queryParamsFromMaybeUrl(order.referring_site || '');
+  const noteLandingLast = queryParamsFromMaybeUrl(lowerNote.landing_page_last || lowerNote.landing_page || '');
+  const noteLandingFirst = queryParamsFromMaybeUrl(lowerNote.landing_page_first || '');
+  const params = compactObject({
+    ...noteLandingFirst,
+    ...landingParams,
+    ...referrerParams,
+    ...noteLandingLast,
+  });
+  const campaignHint = firstPresent(
+    lowerNote.utm_campaign_last,
+    params.utm_campaign,
+    lowerNote.utm_campaign,
+    lowerNote.campaign_name,
+    lowerNote.campaign,
+    params.campaign_id,
+    params.campaign
+  );
+  const adsetHint = firstPresent(
+    lowerNote.utm_term_last,
+    params.utm_term,
+    lowerNote.utm_term,
+    lowerNote.adset_name,
+    lowerNote.ad_set_name,
+    lowerNote.adset,
+    params.adset_id,
+    params.adset,
+    params['attributes[adset-id]']
+  );
+  const adHint = firstPresent(
+    lowerNote.utm_content_last,
+    params.utm_content,
+    lowerNote.utm_content,
+    lowerNote.ad_name,
+    lowerNote.ad_id,
+    lowerNote.ad,
+    params.ad_id,
+    params.ad,
+    params['attributes[ad-id]']
+  );
   return {
     source_name: order.source_name || '',
-    source_identifier: order.source_identifier || '',
-    landing_site: order.landing_site || '',
-    landing_site_ref: order.landing_site_ref || '',
-    referring_site: order.referring_site || '',
-    utm: landingParams,
-    campaign_hint: landingParams.utm_campaign || lowerNote.utm_campaign || lowerNote.campaign_name || lowerNote.campaign || '',
-    adset_hint: landingParams.utm_term || lowerNote.utm_term || lowerNote.adset_name || lowerNote.ad_set_name || lowerNote.adset || '',
-    ad_hint: landingParams.utm_content || lowerNote.utm_content || lowerNote.ad_name || lowerNote.ad_id || lowerNote.ad || '',
+    landing_path: pathOnly(order.landing_site || order.landing_site_ref || ''),
+    referrer_host: hostOnly(order.referring_site || ''),
+    utm: params,
+    note_attributes: publicNoteAttributes(noteAttributes),
+    campaign_hint: campaignHint,
+    adset_hint: adsetHint,
+    ad_hint: adHint,
+    match_hints: {
+      campaign_id: params.campaign_id || lowerNote.campaign_id || '',
+      adset_id: params.adset_id || lowerNote.adset_id || '',
+      ad_id: params.ad_id || lowerNote.ad_id || '',
+      campaign_name: campaignHint,
+      adset_name: adsetHint,
+      ad_name: adHint,
+    },
   };
 }
 

@@ -69,12 +69,46 @@ function finalizeNode(node) {
   return out;
 }
 
-function findByHint(hint, rows, idKey, nameKey) {
-  const h = norm(hint);
-  if (!h) return null;
-  return rows.find((row) => String(row[idKey] || '') === String(hint))
-    || rows.find((row) => norm(row[nameKey]) === h)
-    || rows.find((row) => norm(row[nameKey]).includes(h) || h.includes(norm(row[nameKey])));
+function uniqueRows(rows) {
+  const seen = new Set();
+  const out = [];
+  for (const row of rows || []) {
+    const key = keyFor([row.campaign_id, row.adset_id, row.ad_id, row.campaign_name, row.adset_name, row.ad_name, row.country_code]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
+function exactHintCandidates(hint, rows, idKey, nameKey) {
+  const raw = String(hint || '').trim();
+  const h = norm(raw);
+  if (!h) return [];
+  return uniqueRows((rows || []).filter((row) => {
+    const rowId = String(row[idKey] || '').trim();
+    const rowName = norm(row[nameKey]);
+    return (rowId && rowId === raw) || (rowName && rowName === h);
+  }));
+}
+
+function bestBySpend(rows) {
+  return [...(rows || [])].sort((a, b) => n(b.spend_usd) - n(a.spend_usd))[0] || null;
+}
+
+function scopedRows(rows, campaign, line, extra = {}) {
+  return (rows || []).filter((row) => {
+    if (campaign?.campaign_id && row.campaign_id !== campaign.campaign_id) return false;
+    if (campaign?.campaign_name && !campaign.campaign_id && row.campaign_name !== campaign.campaign_name) return false;
+    if (line?.country_code && row.country_code && row.country_code !== line.country_code) return false;
+    if (extra.adset_id && row.adset_id !== extra.adset_id) return false;
+    return true;
+  });
+}
+
+function matchFromHints(hints, rows, idKey, nameKey) {
+  const candidates = hints.flatMap((hint) => exactHintCandidates(hint, rows, idKey, nameKey));
+  return bestBySpend(candidates);
 }
 
 function dominantCampaignByCountry(metaRows) {
@@ -166,7 +200,11 @@ export function buildCampaignAttribution(meta, shopify) {
 
   for (const line of shopify?.order_lines || []) {
     const attribution = line.attribution || {};
-    const directCampaign = findByHint(attribution.campaign_hint, campaignRows, 'campaign_id', 'campaign_name');
+    const directCampaign = matchFromHints([
+      attribution.match_hints?.campaign_id,
+      attribution.campaign_hint,
+      attribution.match_hints?.campaign_name,
+    ], campaignRows, 'campaign_id', 'campaign_name');
     const countryCampaign = countryCampaigns.get(line.country_code);
     const campaignRow = directCampaign || (!countryCampaign?.ambiguous ? countryCampaign : null);
 
@@ -181,16 +219,27 @@ export function buildCampaignAttribution(meta, shopify) {
     addShopify(campaign, campaignBucket, line);
     if (!directCampaign && countryCampaign?.share) campaign.inference_notes.add(`${line.country_code}: country assigned to ${campaign.campaign_name} (${Math.round(countryCampaign.share * 100)}% Meta spend share)`);
 
-    const directAd = findByHint(attribution.ad_hint, adRows, 'ad_id', 'ad_name');
-    const directAdset = findByHint(attribution.adset_hint, adsetRows, 'adset_id', 'adset_name') || (directAd ? directAd : null);
-    if (directAd && directAd.campaign_id === campaign.campaign_id) {
+    const scopedAdsets = scopedRows(adsetRows, campaign, line);
+    const directAdset = matchFromHints([
+      attribution.match_hints?.adset_id,
+      attribution.adset_hint,
+      attribution.match_hints?.adset_name,
+    ], scopedAdsets, 'adset_id', 'adset_name');
+    const scopedAds = scopedRows(adRows, campaign, line, directAdset?.adset_id ? { adset_id: directAdset.adset_id } : {});
+    const directAd = matchFromHints([
+      attribution.match_hints?.ad_id,
+      attribution.ad_hint,
+      attribution.match_hints?.ad_name,
+    ], scopedAds, 'ad_id', 'ad_name');
+
+    if (directAd) {
       const adset = getAdset(campaign, directAd);
       const ad = getAd(adset, directAd);
       addShopify(adset, 'shopify_direct', line);
       addShopify(ad, 'shopify_direct', line);
       continue;
     }
-    if (directAdset && directAdset.campaign_id === campaign.campaign_id) {
+    if (directAdset) {
       const adset = getAdset(campaign, directAdset);
       addShopify(adset, 'shopify_direct', line);
       continue;
