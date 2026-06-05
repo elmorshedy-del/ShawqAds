@@ -143,6 +143,10 @@ function avg(rows, key) {
 function sum(rows, key) { return rows.reduce((a, r) => a + Number(r[key] || 0), 0); }
 function delta(cur, base) { return base ? ((cur - base) / base) * 100 : 0; }
 function localKey(parts) { return parts.filter(Boolean).join('::'); }
+function normalizedIdentity(value) { return String(value || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+function adRollupKey(row) {
+  return normalizedIdentity(row.ad_name) || row.ad_id || localKey([row.adset_id, row.ad_name]);
+}
 function inDateRange(date, range) {
   if (!date) return false;
   if (range?.since && date < range.since) return false;
@@ -218,6 +222,7 @@ function emptyMetaAggregate(seed) {
     countries_set: new Set(),
     ads_set: new Set(),
     adsets_set: new Set(),
+    campaigns_set: new Set(),
   };
 }
 function finalizeMetaAggregate(row) {
@@ -226,10 +231,12 @@ function finalizeMetaAggregate(row) {
   out.country_count = out.countries_set?.size || 0;
   out.ad_count = out.ads_set?.size || 0;
   out.adset_count = out.adsets_set?.size || 0;
+  out.campaign_count = out.campaigns_set?.size || 0;
   delete out.active_days_set;
   delete out.countries_set;
   delete out.ads_set;
   delete out.adsets_set;
+  delete out.campaigns_set;
   out.frequency = out.reach ? out.impressions / out.reach : 0;
   out.ctr_all = out.impressions ? out.clicks_all / out.impressions * 100 : 0;
   out.ctr = out.impressions ? out.link_clicks / out.impressions * 100 : 0;
@@ -252,6 +259,7 @@ function aggregateMetaRows(rows, keyFn, seedFn) {
     if (row.country_code) cur.countries_set.add(row.country_code);
     if (row.ad_id) cur.ads_set.add(row.ad_id);
     if (row.adset_id) cur.adsets_set.add(row.adset_id);
+    if (row.campaign_id || row.campaign_name) cur.campaigns_set.add(row.campaign_id || row.campaign_name);
   });
   return [...map.values()].map(finalizeMetaAggregate).sort((a, b) => b.spend_usd - a.spend_usd);
 }
@@ -261,12 +269,12 @@ function filterMetaDataByDateRange(meta, range) {
   const adsets = (meta?.adsets || [])
     .map((adset) => ({ ...adset, rows: filterRowsByDateRange(adset.rows || [], range) }))
     .filter((adset) => adset.rows.length);
-  const ads = adRows.length ? aggregateMetaRows(adRows, (row) => row.ad_id || localKey([row.adset_id, row.ad_name]), (row) => ({
-    campaign_id: row.campaign_id,
-    campaign_name: row.campaign_name,
-    adset_id: row.adset_id,
-    adset_name: row.adset_name,
-    ad_id: row.ad_id,
+  const ads = adRows.length ? aggregateMetaRows(adRows, adRollupKey, (row) => ({
+    campaign_id: '',
+    campaign_name: '',
+    adset_id: '',
+    adset_name: '',
+    ad_id: adRollupKey(row),
     ad_name: row.ad_name,
     product_family: row.product_family,
     product_subtype: row.product_subtype,
@@ -933,6 +941,38 @@ function topWinners(items, primaryKey, secondaryKey) {
   return { winners: tied.slice(0, 2), tieCount: tied.length };
 }
 
+function nextSort(current, key) {
+  return { key, dir: current?.key === key && current?.dir === 'desc' ? 'asc' : 'desc' };
+}
+
+function sortRowsBy(rows, sort, labelFn = () => '') {
+  const key = sort?.key || 'spend_usd';
+  const dir = sort?.dir === 'asc' ? 1 : -1;
+  return [...(rows || [])].sort((a, b) => {
+    const deltaValue = Number(a[key] || 0) - Number(b[key] || 0);
+    if (deltaValue) return deltaValue * dir;
+    return String(labelFn(a) || '').localeCompare(String(labelFn(b) || ''));
+  });
+}
+
+function sortStatus(sort, options) {
+  const option = options.find((item) => item.key === sort?.key);
+  return `${option?.label || sort?.key || 'Metric'} ${sort?.dir === 'asc' ? 'ascending' : 'descending'}`;
+}
+
+function SortControlStrip({ label, options, sortState, onSort }) {
+  return <div className="sort-control-strip">
+    <span>{label}</span>
+    {options.map((option) => {
+      const active = sortState?.key === option.key;
+      return <button type="button" key={option.key} className={active ? 'active' : ''} onClick={() => onSort(option.key)}>
+        {option.label}
+        <i>{active ? (sortState.dir === 'asc' ? '↑' : '↓') : '↕'}</i>
+      </button>;
+    })}
+  </div>;
+}
+
 function dailySalesHighlights(lines, range) {
   const rows = dateListForRange(range).map((date) => ({ date, products: new Map(), ads: new Map() }));
   const byDate = new Map(rows.map((row) => [row.date, row]));
@@ -983,15 +1023,16 @@ function DailySalesHighlights({ lines, range }) {
     <div className="daily-highlight-list">
       {rows.map((row) => <article key={row.date} className="daily-highlight-card">
         <b>{row.date}</b>
+        <div className="daily-leader-label">Top product</div>
         {row.products?.length ? row.products.map((product) => <div className="daily-product" key={product.product}>
           {product.image_url ? <img src={product.image_url} alt="" /> : <span className="thumb-fallback">{product.family?.slice(0, 1) || 'S'}</span>}
           <div>
             <strong>{product.product}</strong>
-            <small>{product.units} unit{product.units === 1 ? '' : 's'} · {money.format(product.revenue_usd || 0)}{row.productTieCount > 1 ? ' · tied winner' : ''}</small>
+            <small>{product.units} unit{product.units === 1 ? '' : 's'} sold · {money.format(product.revenue_usd || 0)}{row.productTieCount > 1 ? ' · tied winner' : ''}</small>
           </div>
         </div>) : <div className="daily-product empty"><span className="thumb-fallback">0</span><div><strong>No Shopify sale</strong><small>No paid order lines that day</small></div></div>}
         <div className="daily-ad">
-          <span>Top ad/source</span>
+          <span>Top ad</span>
           {row.ads?.length ? row.ads.map((ad) => <div className="daily-ad-winner" key={ad.ad}>
             <strong>{ad.ad}</strong>
             <small>{ad.order_count} sale{ad.order_count === 1 ? '' : 's'} · {money.format(ad.revenue_usd || 0)}{row.adTieCount > 1 ? ' · tied winner' : ''}</small>
@@ -1005,40 +1046,84 @@ function DailySalesHighlights({ lines, range }) {
   </section>;
 }
 
-function MetricChip({ label, value, sub = '', tone = '' }) {
-  return <span className={`metric-chip ${tone}`}><small>{label}</small><b>{value}</b>{sub ? <em>{sub}</em> : null}</span>;
+function MetricChip({ label, value, sub = '', tone = '', sortKey = '', sortState, onSort }) {
+  const sortable = Boolean(sortKey && onSort);
+  const active = sortable && sortState?.key === sortKey;
+  const className = `metric-chip ${tone} ${sortable ? 'sortable' : ''} ${active ? 'active' : ''}`;
+  const content = <>
+    <small>{label}{sortable ? <i>{active ? (sortState.dir === 'asc' ? '↑' : '↓') : '↕'}</i> : null}</small>
+    <b>{value}</b>
+    {sub ? <em>{sub}</em> : null}
+  </>;
+  if (sortable) return <button type="button" className={className} onClick={() => onSort(sortKey)}>{content}</button>;
+  return <span className={className}>{content}</span>;
 }
 
+const PRODUCT_SORT_OPTIONS = [
+  { key: 'units', label: 'Units' },
+  { key: 'revenue_usd', label: 'Revenue' },
+];
+
+const AD_SORT_OPTIONS = [
+  { key: 'purchases', label: 'Sales' },
+  { key: 'roas', label: 'ROAS' },
+  { key: 'ctr', label: 'CTR' },
+  { key: 'add_to_cart', label: 'ATC' },
+  { key: 'checkout_initiated', label: 'IC' },
+  { key: 'spend_usd', label: 'Spend' },
+];
+
+const CAMPAIGN_SORT_OPTIONS = [
+  { key: 'spend_usd', label: 'Spend' },
+  { key: 'ctr', label: 'CTR' },
+  { key: 'add_to_cart', label: 'ATC' },
+  { key: 'checkout_initiated', label: 'IC' },
+  { key: 'meta_sales', label: 'Meta sales' },
+  { key: 'true_shopify_sales', label: 'Shopify' },
+  { key: 'inferred_shopify_sales', label: 'Mapped sales' },
+  { key: 'meta_roas', label: 'Meta ROAS' },
+  { key: 'true_roas', label: 'Shopify ROAS' },
+  { key: 'inferred_roas', label: 'Mapped ROAS' },
+];
+
 function LeadershipTables({ products, ads }) {
+  const [productSort, setProductSort] = useState({ key: 'units', dir: 'desc' });
+  const [adSort, setAdSort] = useState({ key: 'purchases', dir: 'desc' });
+  const productRows = useMemo(() => sortRowsBy(products, productSort, (row) => row.product), [products, productSort]);
+  const adRows = useMemo(() => sortRowsBy(ads, adSort, (row) => row.ad_name), [ads, adSort]);
+  const toggleProductSort = (key) => setProductSort((current) => nextSort(current, key));
+  const toggleAdSort = (key) => setAdSort((current) => nextSort(current, key));
   return <section className="leadership-tables card-leadership">
     <div className="mini-table leadership-card-panel">
-      <h3>Product sales</h3>
-      <div className="leadership-card-list">{(products || []).slice(0, 12).map((p) => <article className="leader-card product-leader-card" key={p.product}>
+      <div className="leader-panel-head"><h3>Product sales</h3><small>{sortStatus(productSort, PRODUCT_SORT_OPTIONS)}</small></div>
+      <SortControlStrip label="Sort products" options={PRODUCT_SORT_OPTIONS} sortState={productSort} onSort={toggleProductSort} />
+      <div className="leadership-card-list">{productRows.slice(0, 12).map((p) => <article className="leader-card product-leader-card" key={p.product}>
         {p.image_url ? <img src={p.image_url} alt="" /> : <span className="thumb-fallback">{(p.family || 'S').slice(0, 1)}</span>}
         <div className="leader-copy">
           <b>{p.product}</b>
           <small>{p.family || 'Unknown'} · {p.subtype || 'Unknown'}</small>
         </div>
         <div className="leader-metrics">
-          <MetricChip label="Units" value={p.units || 0} />
-          <MetricChip label="Revenue" value={money.format(p.revenue_usd || 0)} tone="good" />
+          <MetricChip label="Units" value={p.units || 0} sortKey="units" sortState={productSort} onSort={toggleProductSort} />
+          <MetricChip label="Revenue" value={money.format(p.revenue_usd || 0)} tone="good" sortKey="revenue_usd" sortState={productSort} onSort={toggleProductSort} />
         </div>
       </article>)}</div>
     </div>
     <div className="mini-table leadership-card-panel">
-      <h3>Ads leadership</h3>
-      <div className="leadership-card-list">{(ads || []).slice(0, 12).map((a) => <article className="leader-card ad-leader-card" key={a.ad_id || a.ad_name}>
+      <div className="leader-panel-head"><h3>Ads leadership</h3><small>{sortStatus(adSort, AD_SORT_OPTIONS)}</small></div>
+      <SortControlStrip label="Sort ads" options={AD_SORT_OPTIONS} sortState={adSort} onSort={toggleAdSort} />
+      <div className="leadership-card-list">{adRows.slice(0, 12).map((a) => <article className="leader-card ad-leader-card" key={a.ad_id || a.ad_name}>
         <div className="leader-copy">
           <b>{a.ad_name}</b>
-          <small>{a.product_family || 'unknown_product'} · {a.product_subtype || 'Unknown'}</small>
+          <small>{a.product_family || 'unknown_product'} · {a.product_subtype || 'Unknown'}{a.campaign_count ? ` · ${a.campaign_count} campaign${a.campaign_count === 1 ? '' : 's'}` : ''}</small>
         </div>
         <div className="leader-metrics ad-leader-metrics">
-          <MetricChip label="CTR" value={`${Number(a.ctr || 0).toFixed(2)}%`} />
-          <MetricChip label="ATC" value={a.add_to_cart || 0} />
-          <MetricChip label="IC" value={a.checkout_initiated || 0} />
-          <MetricChip label="Sales" value={a.purchases || 0} />
-          <MetricChip label="ROAS" value={`${Number(a.roas || 0).toFixed(2)}x`} tone={Number(a.roas || 0) >= 2 ? 'good' : 'warn'} />
-          <MetricChip label="Spend" value={money.format(a.spend_usd || 0)} />
+          <MetricChip label="Sales" value={a.purchases || 0} sortKey="purchases" sortState={adSort} onSort={toggleAdSort} />
+          <MetricChip label="ROAS" value={`${Number(a.roas || 0).toFixed(2)}x`} tone={Number(a.roas || 0) >= 2 ? 'good' : 'warn'} sortKey="roas" sortState={adSort} onSort={toggleAdSort} />
+          <MetricChip label="CTR" value={`${Number(a.ctr || 0).toFixed(2)}%`} sortKey="ctr" sortState={adSort} onSort={toggleAdSort} />
+          <MetricChip label="ATC" value={a.add_to_cart || 0} sortKey="add_to_cart" sortState={adSort} onSort={toggleAdSort} />
+          <MetricChip label="IC" value={a.checkout_initiated || 0} sortKey="checkout_initiated" sortState={adSort} onSort={toggleAdSort} />
+          <MetricChip label="Spend" value={money.format(a.spend_usd || 0)} sortKey="spend_usd" sortState={adSort} onSort={toggleAdSort} />
         </div>
       </article>)}</div>
     </div>
@@ -1057,22 +1142,22 @@ function MappingBadge({ row }) {
   return <span className="resolved-chip">clean</span>;
 }
 
-function CampaignStatsGrid({ row }) {
+function CampaignStatsGrid({ row, sortState, onSort }) {
   return <div className="campaign-stats-grid">
-    <MetricChip label="Spend" value={money.format(row.spend_usd || 0)} />
-    <MetricChip label="CTR" value={`${Number(row.ctr || 0).toFixed(2)}%`} />
-    <MetricChip label="ATC" value={row.add_to_cart || 0} />
-    <MetricChip label="IC" value={row.checkout_initiated || 0} />
-    <MetricChip label="Meta sales" value={row.meta_sales || 0} sub="Meta" />
-    <MetricChip label="Shopify" value={row.true_shopify_sales || 0} sub="direct/country" />
-    <MetricChip label="Inferred" value={row.inferred_shopify_sales || 0} sub="after inference" tone={row.has_inferred_sales ? 'inferred' : ''} />
-    <MetricChip label="Meta ROAS" value={roasText(row.meta_roas)} />
-    <MetricChip label="Shopify ROAS" value={roasText(row.true_roas)} tone={row.true_roas >= row.meta_roas ? 'good' : 'warn'} />
-    <MetricChip label="Mapped ROAS" value={roasText(row.inferred_roas)} tone={row.inferred_roas >= row.true_roas ? 'good' : 'warn'} />
+    <MetricChip label="Spend" value={money.format(row.spend_usd || 0)} sortKey="spend_usd" sortState={sortState} onSort={onSort} />
+    <MetricChip label="CTR" value={`${Number(row.ctr || 0).toFixed(2)}%`} sortKey="ctr" sortState={sortState} onSort={onSort} />
+    <MetricChip label="ATC" value={row.add_to_cart || 0} sortKey="add_to_cart" sortState={sortState} onSort={onSort} />
+    <MetricChip label="IC" value={row.checkout_initiated || 0} sortKey="checkout_initiated" sortState={sortState} onSort={onSort} />
+    <MetricChip label="Meta sales" value={row.meta_sales || 0} sub="Meta" sortKey="meta_sales" sortState={sortState} onSort={onSort} />
+    <MetricChip label="Shopify" value={row.true_shopify_sales || 0} sub="direct/country" sortKey="true_shopify_sales" sortState={sortState} onSort={onSort} />
+    <MetricChip label="Mapped sales" value={row.inferred_shopify_sales || 0} sub="after inference" tone={row.has_inferred_sales ? 'inferred' : ''} sortKey="inferred_shopify_sales" sortState={sortState} onSort={onSort} />
+    <MetricChip label="Meta ROAS" value={roasText(row.meta_roas)} sortKey="meta_roas" sortState={sortState} onSort={onSort} />
+    <MetricChip label="Shopify ROAS" value={roasText(row.true_roas)} tone={row.true_roas >= row.meta_roas ? 'good' : 'warn'} sortKey="true_roas" sortState={sortState} onSort={onSort} />
+    <MetricChip label="Mapped ROAS" value={roasText(row.inferred_roas)} tone={row.inferred_roas >= row.true_roas ? 'good' : 'warn'} sortKey="inferred_roas" sortState={sortState} onSort={onSort} />
   </div>;
 }
 
-function CampaignNodeCard({ row, level, isOpen, onToggle, children }) {
+function CampaignNodeCard({ row, level, isOpen, onToggle, sortState, onSort, children }) {
   const isLeaf = level === 'ad';
   const label = level === 'campaign' ? 'Campaign' : level === 'adset' ? 'Ad set' : 'Ad';
   const title = level === 'campaign' ? row.campaign_name : level === 'adset' ? row.adset_name : row.ad_name;
@@ -1090,15 +1175,18 @@ function CampaignNodeCard({ row, level, isOpen, onToggle, children }) {
       <MappingBadge row={row} />
     </div>
     {row.inference_notes?.length ? <div className="campaign-notes">{row.inference_notes.slice(0, 2).map((note) => <small key={note}>{note}</small>)}</div> : null}
-    <CampaignStatsGrid row={row} />
+    <CampaignStatsGrid row={row} sortState={sortState} onSort={onSort} />
     {children ? <div className="campaign-children">{children}</div> : null}
   </article>;
 }
 
 function CampaignPerformanceTable({ attribution }) {
-  const campaigns = attribution?.campaigns || [];
+  const sourceCampaigns = attribution?.campaigns || [];
+  const [treeSort, setTreeSort] = useState({ key: 'spend_usd', dir: 'desc' });
+  const campaigns = useMemo(() => sortRowsBy(sourceCampaigns, treeSort, (row) => row.campaign_name), [sourceCampaigns, treeSort]);
   const [openCampaigns, setOpenCampaigns] = useState(() => new Set(campaigns.slice(0, 3).map((c) => c.campaign_id || c.campaign_name)));
   const [openAdsets, setOpenAdsets] = useState(new Set());
+  const toggleTreeSort = (key) => setTreeSort((current) => nextSort(current, key));
   useEffect(() => {
     if (!campaigns.length) return;
     setOpenCampaigns((current) => current.size ? current : new Set(campaigns.slice(0, 3).map((c) => c.campaign_id || c.campaign_name)));
@@ -1126,15 +1214,16 @@ function CampaignPerformanceTable({ attribution }) {
       <small><b>Shopify ROAS:</b> Shopify revenue assigned directly or by country campaign ownership.</small>
       <small><b>Mapped ROAS:</b> Shopify ROAS plus product/country inferred ad assignment.</small>
     </div>
+    <SortControlStrip label={`Sort tree · ${sortStatus(treeSort, CAMPAIGN_SORT_OPTIONS)}`} options={CAMPAIGN_SORT_OPTIONS} sortState={treeSort} onSort={toggleTreeSort} />
     <div className="campaign-card-tree">{campaigns.map((campaign) => {
       const cKey = campaign.campaign_id || campaign.campaign_name;
       const cOpen = openCampaigns.has(cKey);
-      return <CampaignNodeCard key={cKey} row={campaign} level="campaign" isOpen={cOpen} onToggle={() => toggle(setOpenCampaigns, cKey)}>
-        {cOpen ? campaign.adsets.map((adset) => {
+      return <CampaignNodeCard key={cKey} row={campaign} level="campaign" isOpen={cOpen} onToggle={() => toggle(setOpenCampaigns, cKey)} sortState={treeSort} onSort={toggleTreeSort}>
+        {cOpen ? sortRowsBy(campaign.adsets || [], treeSort, (row) => row.adset_name).map((adset) => {
           const aKey = adset.adset_id || `${cKey}-${adset.adset_name}`;
           const aOpen = openAdsets.has(aKey);
-          return <CampaignNodeCard key={aKey} row={adset} level="adset" isOpen={aOpen} onToggle={() => toggle(setOpenAdsets, aKey)}>
-            {aOpen ? adset.ads.map((ad) => <CampaignNodeCard key={ad.ad_id || `${aKey}-${ad.ad_name}`} row={ad} level="ad" />) : null}
+          return <CampaignNodeCard key={aKey} row={adset} level="adset" isOpen={aOpen} onToggle={() => toggle(setOpenAdsets, aKey)} sortState={treeSort} onSort={toggleTreeSort}>
+            {aOpen ? sortRowsBy(adset.ads || [], treeSort, (row) => row.ad_name).map((ad) => <CampaignNodeCard key={ad.ad_id || `${aKey}-${ad.ad_name}`} row={ad} level="ad" sortState={treeSort} onSort={toggleTreeSort} />) : null}
           </CampaignNodeCard>;
         }) : null}
       </CampaignNodeCard>;

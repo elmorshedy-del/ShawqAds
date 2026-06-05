@@ -169,6 +169,22 @@ body{
   letter-spacing:.04em;
   text-transform:uppercase;
 }
+.daily-leader-label{
+  display:inline-flex;
+  width:max-content;
+  align-self:start;
+  justify-self:start;
+  line-height:1;
+  color:var(--shawq-ruby);
+  background:#fff5fb;
+  border:1px solid #f1d6e5;
+  border-radius:999px;
+  padding:5px 8px;
+  font-size:10px;
+  font-weight:950;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
 .daily-product{
   display:grid;
   grid-template-columns:58px minmax(0,1fr);
@@ -282,11 +298,69 @@ body{
 
 /* Responsive data-card refactor: no horizontal scrolling for leadership or campaign tree. */
 .card-leadership{
-  grid-template-columns:minmax(0,1fr) minmax(0,1.18fr);
+  grid-template-columns:repeat(2,minmax(0,1fr));
   align-items:start;
+  gap:16px;
 }
 .leadership-card-panel{
   overflow:hidden;
+  display:grid;
+  gap:12px;
+}
+.leader-panel-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+}
+.leader-panel-head h3{margin:0}
+.leader-panel-head small{
+  color:var(--shawq-muted);
+  font-size:11px;
+  font-weight:900;
+  text-align:right;
+  line-height:1.25;
+}
+.sort-control-strip{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:7px;
+  padding:8px;
+  border:1px solid #f2ddeb;
+  border-radius:18px;
+  background:linear-gradient(180deg,#fff,#fffafd);
+}
+.sort-control-strip span{
+  color:#806878;
+  font-size:10px;
+  font-weight:950;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  margin-right:4px;
+}
+.sort-control-strip button{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  border:1px solid #efd4e3;
+  border-radius:999px;
+  padding:7px 10px;
+  background:#fff;
+  color:var(--shawq-ink);
+  font-size:11px;
+  font-weight:950;
+  cursor:pointer;
+  box-shadow:0 6px 14px rgba(28,14,22,.035);
+}
+.sort-control-strip button:hover,.sort-control-strip button.active{
+  border-color:#eaa3c8;
+  background:#fff4fa;
+  color:var(--shawq-ruby);
+}
+.sort-control-strip i{
+  font-style:normal;
+  color:inherit;
 }
 .leadership-card-list{
   display:grid;
@@ -294,23 +368,26 @@ body{
 }
 .leader-card{
   display:grid;
-  grid-template-columns:minmax(0,1fr) auto;
-  gap:12px;
-  align-items:center;
+  grid-template-columns:1fr;
+  gap:10px;
+  align-items:start;
   border:1px solid #f2ddeb;
-  border-radius:18px;
-  padding:12px;
+  border-radius:20px;
+  padding:14px;
   background:linear-gradient(180deg,#fff,#fffafd);
-  box-shadow:0 10px 24px rgba(28,14,22,.045);
+  box-shadow:0 14px 30px rgba(28,14,22,.05);
   min-width:0;
 }
 .product-leader-card{
-  grid-template-columns:54px minmax(0,1fr) auto;
+  grid-template-columns:58px minmax(0,1fr);
 }
 .product-leader-card img,.product-leader-card .thumb-fallback{
-  width:54px;
-  height:54px;
+  width:58px;
+  height:58px;
   border-radius:15px;
+}
+.product-leader-card .leader-metrics{
+  grid-column:1/-1;
 }
 .leader-copy{
   min-width:0;
@@ -331,33 +408,45 @@ body{
   white-space:normal;
 }
 .leader-metrics{
-  display:flex;
-  flex-wrap:wrap;
-  justify-content:flex-end;
-  gap:7px;
-  max-width:420px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(94px,1fr));
+  gap:8px;
+  width:100%;
+  max-width:none;
 }
 .ad-leader-metrics{
-  max-width:560px;
+  grid-template-columns:repeat(3,minmax(0,1fr));
 }
 .metric-chip{
-  display:inline-grid;
+  display:grid;
   gap:2px;
-  min-width:74px;
+  min-width:0;
   border:1px solid #f2ddeb;
   border-radius:14px;
   padding:8px 9px;
   background:#fff;
   color:var(--shawq-ink);
   box-shadow:0 6px 14px rgba(28,14,22,.035);
+  text-align:left;
+  font:inherit;
 }
 .metric-chip small{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
   color:var(--shawq-muted);
   font-size:9px;
   font-weight:950;
   letter-spacing:.06em;
   text-transform:uppercase;
   line-height:1.1;
+  white-space:nowrap;
+}
+.metric-chip small i{
+  color:#c84b91;
+  font-style:normal;
+  font-size:10px;
 }
 .metric-chip b{
   color:var(--shawq-ink);
@@ -365,7 +454,9 @@ body{
   font-size:13px;
   font-weight:950;
   line-height:1.1;
-  white-space:normal;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 .metric-chip em{
   color:#907684;
@@ -377,6 +468,17 @@ body{
 .metric-chip.good{background:#f2fbf8;border-color:#cbeee5}.metric-chip.good b{color:#087162}
 .metric-chip.warn{background:#fff9ea;border-color:#f1d8a4}.metric-chip.warn b{color:#a76612}
 .metric-chip.inferred{background:#fff5fb;border-color:#edb8d5}.metric-chip.inferred b{color:var(--shawq-ruby)}
+.metric-chip.sortable{
+  cursor:pointer;
+}
+.metric-chip.sortable:hover,.metric-chip.sortable.active{
+  border-color:#eaa3c8;
+  box-shadow:0 10px 22px rgba(159,29,99,.09);
+  transform:translateY(-1px);
+}
+.metric-chip.sortable.active{
+  background:#fff4fa;
+}
 .campaign-card-tree{
   display:grid;
   gap:12px;
@@ -461,7 +563,7 @@ body{
 }
 .campaign-stats-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(92px,1fr));
+  grid-template-columns:repeat(auto-fit,minmax(118px,1fr));
   gap:8px;
   margin-top:12px;
 }
@@ -482,5 +584,5 @@ body{
   flex:none;
   align-self:flex-start;
 }
-@media(max-width:1320px){.card-leadership{grid-template-columns:1fr}.leader-card,.product-leader-card{grid-template-columns:1fr}.leader-metrics{justify-content:flex-start;max-width:none}.campaign-node-card.adset,.campaign-node-card.ad{margin-left:10px}}
-@media(max-width:760px){.campaign-node-head{display:grid}.campaign-node-head .danger-chip,.campaign-node-head .resolved-chip,.campaign-node-head .unresolved-chip,.campaign-node-head .inferred-chip,.campaign-node-head .bestfit-chip{justify-self:start}.campaign-notes{margin-left:0}.campaign-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.leader-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.metric-chip{min-width:0}.campaign-node-card.adset,.campaign-node-card.ad{margin-left:0}}
+@media(max-width:1320px){.card-leadership{grid-template-columns:1fr}.campaign-node-card.adset,.campaign-node-card.ad{margin-left:10px}}
+@media(max-width:760px){.campaign-node-head{display:grid}.campaign-node-head .danger-chip,.campaign-node-head .resolved-chip,.campaign-node-head .unresolved-chip,.campaign-node-head .inferred-chip,.campaign-node-head .bestfit-chip{justify-self:start}.campaign-notes{margin-left:0}.campaign-stats-grid,.ad-leader-metrics,.leader-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.leader-panel-head{display:grid}.leader-panel-head small{text-align:left}.sort-control-strip{align-items:flex-start}.campaign-node-card.adset,.campaign-node-card.ad{margin-left:0}}
