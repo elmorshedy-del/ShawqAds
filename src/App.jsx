@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { BellRing, CalendarDays, RefreshCw, Search, Volume2, VolumeX } from 'lucide-react';
 import { compact, money, pct, slug } from './lib/format.js';
+import { buildCampaignAttribution } from './lib/campaignAttribution.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
 
@@ -129,12 +130,284 @@ function aggregateRows(adsets) {
   }));
 }
 
+const META_SUM_FIELDS = [
+  'spend', 'spend_usd', 'spend_try', 'impressions', 'reach', 'clicks_all', 'link_clicks',
+  'outbound_clicks', 'purchases', 'add_to_cart', 'checkout_initiated',
+  'purchase_value', 'purchase_value_usd', 'purchase_value_try',
+];
+
 function avg(rows, key) {
   const vals = rows.map((r) => Number(r[key] || 0)).filter((v) => Number.isFinite(v) && v > 0);
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
 }
 function sum(rows, key) { return rows.reduce((a, r) => a + Number(r[key] || 0), 0); }
 function delta(cur, base) { return base ? ((cur - base) / base) * 100 : 0; }
+function localKey(parts) { return parts.filter(Boolean).join('::'); }
+function inDateRange(date, range) {
+  if (!date) return false;
+  if (range?.since && date < range.since) return false;
+  if (range?.until && date > range.until) return false;
+  return true;
+}
+function filterRowsByDateRange(rows, range) {
+  return (rows || []).filter((row) => inDateRange(row.date || row.date_start, range));
+}
+function rangeFromDateSet(set) {
+  const sorted = [...set].filter(Boolean).sort();
+  return { since: sorted[0] || '', until: sorted[sorted.length - 1] || '', days: sorted.length, dates: sorted };
+}
+function loadedDateRange(meta, shopify) {
+  const metaDates = new Set();
+  const shopifyDates = new Set();
+  const addMeta = (date) => { if (date) metaDates.add(date); };
+  const addShopify = (date) => { if (date) shopifyDates.add(date); };
+  addMeta(meta?.analysis_window?.since); addMeta(meta?.analysis_window?.until);
+  addShopify(shopify?.period?.since); addShopify(shopify?.period?.until);
+  (meta?.adsets || []).forEach((adset) => (adset.rows || []).forEach((row) => addMeta(row.date)));
+  (meta?.ad_country_daily || []).forEach((row) => addMeta(row.date));
+  (meta?.account_daily_metrics || []).forEach((row) => addMeta(row.date));
+  (shopify?.daily || []).forEach((row) => addShopify(row.date));
+  (shopify?.order_lines || []).forEach((row) => addShopify(row.date));
+  const metaRange = rangeFromDateSet(metaDates);
+  const shopifyRange = rangeFromDateSet(shopifyDates);
+  const unionRange = rangeFromDateSet(new Set([...metaDates, ...shopifyDates]));
+  const commonSince = [metaRange.since, shopifyRange.since].filter(Boolean).sort().at(-1) || unionRange.since;
+  const commonUntil = [metaRange.until, shopifyRange.until].filter(Boolean).sort()[0] || unionRange.until;
+  const hasCommon = Boolean(commonSince && commonUntil && commonSince <= commonUntil);
+  const commonDates = unionRange.dates.filter((date) => date >= commonSince && date <= commonUntil);
+  return {
+    since: hasCommon ? commonSince : unionRange.since,
+    until: hasCommon ? commonUntil : unionRange.until,
+    days: hasCommon ? commonDates.length : unionRange.days,
+    meta_since: metaRange.since,
+    meta_until: metaRange.until,
+    shopify_since: shopifyRange.since,
+    shopify_until: shopifyRange.until,
+    union_since: unionRange.since,
+    union_until: unionRange.until,
+    is_common: hasCommon,
+  };
+}
+function normalizeDateRange(range, bounds) {
+  let since = range?.since || bounds?.since || '';
+  let until = range?.until || bounds?.until || '';
+  if (since && until && since > until) [since, until] = [until, since];
+  return { since, until };
+}
+function emptyMetaAggregate(seed) {
+  return {
+    ...seed,
+    spend: 0,
+    spend_usd: 0,
+    spend_try: 0,
+    impressions: 0,
+    reach: 0,
+    clicks_all: 0,
+    link_clicks: 0,
+    outbound_clicks: 0,
+    purchases: 0,
+    add_to_cart: 0,
+    checkout_initiated: 0,
+    purchase_value: 0,
+    purchase_value_usd: 0,
+    purchase_value_try: 0,
+    active_days_set: new Set(),
+    countries_set: new Set(),
+    ads_set: new Set(),
+    adsets_set: new Set(),
+  };
+}
+function finalizeMetaAggregate(row) {
+  const out = { ...row };
+  out.active_days = out.active_days_set?.size || 0;
+  out.country_count = out.countries_set?.size || 0;
+  out.ad_count = out.ads_set?.size || 0;
+  out.adset_count = out.adsets_set?.size || 0;
+  delete out.active_days_set;
+  delete out.countries_set;
+  delete out.ads_set;
+  delete out.adsets_set;
+  out.frequency = out.reach ? out.impressions / out.reach : 0;
+  out.ctr_all = out.impressions ? out.clicks_all / out.impressions * 100 : 0;
+  out.ctr = out.impressions ? out.link_clicks / out.impressions * 100 : 0;
+  out.ctr_source = out.link_clicks ? 'windowed_link_clicks' : 'windowed_no_link_clicks';
+  out.cpm_usd = out.impressions ? out.spend_usd / out.impressions * 1000 : 0;
+  out.cpm_try = out.impressions ? out.spend_try / out.impressions * 1000 : 0;
+  out.cpa_usd = out.purchases ? out.spend_usd / out.purchases : 0;
+  out.roas = out.spend_usd ? out.purchase_value_usd / out.spend_usd : 0;
+  return out;
+}
+function aggregateMetaRows(rows, keyFn, seedFn) {
+  const map = new Map();
+  (rows || []).forEach((row) => {
+    const key = keyFn(row);
+    if (!key) return;
+    if (!map.has(key)) map.set(key, emptyMetaAggregate(seedFn(row)));
+    const cur = map.get(key);
+    META_SUM_FIELDS.forEach((field) => { cur[field] += Number(row[field] || 0); });
+    if (Number(row.spend_usd || row.spend || 0) > 0) cur.active_days_set.add(row.date);
+    if (row.country_code) cur.countries_set.add(row.country_code);
+    if (row.ad_id) cur.ads_set.add(row.ad_id);
+    if (row.adset_id) cur.adsets_set.add(row.adset_id);
+  });
+  return [...map.values()].map(finalizeMetaAggregate).sort((a, b) => b.spend_usd - a.spend_usd);
+}
+function filterMetaDataByDateRange(meta, range) {
+  const adRows = filterRowsByDateRange(meta?.ad_country_daily || [], range);
+  const hasWindowableAdRows = Boolean(meta?.ad_country_daily?.length);
+  const adsets = (meta?.adsets || [])
+    .map((adset) => ({ ...adset, rows: filterRowsByDateRange(adset.rows || [], range) }))
+    .filter((adset) => adset.rows.length);
+  const ads = adRows.length ? aggregateMetaRows(adRows, (row) => row.ad_id || localKey([row.adset_id, row.ad_name]), (row) => ({
+    campaign_id: row.campaign_id,
+    campaign_name: row.campaign_name,
+    adset_id: row.adset_id,
+    adset_name: row.adset_name,
+    ad_id: row.ad_id,
+    ad_name: row.ad_name,
+    product_family: row.product_family,
+    product_subtype: row.product_subtype,
+  })) : (hasWindowableAdRows ? [] : (meta?.ads || []));
+  const allAdsets = adRows.length ? aggregateMetaRows(adRows, (row) => row.adset_id || localKey([row.campaign_id, row.adset_name]), (row) => ({
+    campaign_id: row.campaign_id,
+    campaign_name: row.campaign_name,
+    adset_id: row.adset_id,
+    adset_name: row.adset_name,
+  })) : (hasWindowableAdRows ? [] : (meta?.all_adsets || []));
+  const countries = adRows.length ? aggregateMetaRows(adRows, (row) => row.country_code, (row) => ({
+    country_code: row.country_code,
+    country: row.country,
+  })) : (hasWindowableAdRows ? [] : (meta?.countries || []));
+  const accountDaily = filterRowsByDateRange(meta?.account_daily_metrics || [], range);
+  const adsetCountryDaily = filterRowsByDateRange(meta?.adset_country_daily || [], range);
+  const fxRates = meta?.fx_rates?.rates ? { ...meta.fx_rates, rates: filterRowsByDateRange(meta.fx_rates.rates, range) } : meta?.fx_rates;
+  return {
+    ...meta,
+    analysis_window: { ...(meta?.analysis_window || {}), since: range.since, until: range.until },
+    adsets,
+    ads,
+    all_adsets: allAdsets,
+    countries,
+    account_daily_metrics: accountDaily,
+    ad_country_daily: adRows,
+    adset_country_daily: adsetCountryDaily,
+    adset_changes: filterRowsByDateRange(meta?.adset_changes || [], range),
+    fx_rates: fxRates,
+    data_coverage: {
+      ...(meta?.data_coverage || {}),
+      all_adsets: allAdsets.length || adsets.length,
+      usa_adsets: allAdsets.filter((row) => row.country_code === 'US' || /(^|_)usa|usa_|us_/i.test(`${row.campaign_name || ''} ${row.adset_name || ''}`)).length,
+      ads: ads.length,
+      countries: countries.length,
+      ad_country_daily_rows: adRows.length,
+      adset_country_daily_rows: adsetCountryDaily.length,
+    },
+  };
+}
+function filterShopifyByDateRange(shopify, range) {
+  const daily = filterRowsByDateRange(shopify?.daily || [], range);
+  const lines = filterRowsByDateRange(shopify?.order_lines || [], range);
+  if (!lines.length && !(shopify?.order_lines || []).length) {
+    return {
+      ...shopify,
+      period: { ...(shopify?.period || {}), since: range.since, until: range.until },
+      daily,
+      cumulative: filterRowsByDateRange(shopify?.cumulative || [], range),
+    };
+  }
+
+  const familyMap = new Map();
+  const productMap = new Map();
+  const countryMap = new Map();
+  const byDateFamily = new Map();
+  lines.forEach((line) => {
+    const units = Number(line.quantity || 0) || 1;
+    const revenue = Number(line.line_revenue_usd || 0);
+    const family = line.family || 'Other';
+    const subtype = line.subtype || 'Unknown';
+    const product = line.product || 'Unknown product';
+    const familyRow = familyMap.get(family) || { family, units: 0, revenue_usd: 0 };
+    familyRow.units += units; familyRow.revenue_usd += revenue; familyMap.set(family, familyRow);
+    const productRow = productMap.get(product) || { product, family, subtype, units: 0, revenue_usd: 0 };
+    productRow.units += units; productRow.revenue_usd += revenue; productMap.set(product, productRow);
+    const countryKey = line.country_code || 'Unknown';
+    const countryRow = countryMap.get(countryKey) || { country_code: line.country_code || '', country: line.country || countryKey, units: 0, revenue_usd: 0, unique_products_set: new Set(), mix: {}, subtypes: {} };
+    countryRow.units += units;
+    countryRow.revenue_usd += revenue;
+    countryRow.unique_products_set.add(product);
+    countryRow.mix[family] = (countryRow.mix[family] || 0) + units;
+    countryRow.subtypes[family] = countryRow.subtypes[family] || {};
+    countryRow.subtypes[family][subtype] = (countryRow.subtypes[family][subtype] || 0) + units;
+    countryMap.set(countryKey, countryRow);
+    const dateMix = byDateFamily.get(line.date) || {};
+    dateMix[family] = (dateMix[family] || 0) + units;
+    byDateFamily.set(line.date, dateMix);
+  });
+  const dates = [...new Set([...daily.map((row) => row.date), ...lines.map((line) => line.date)])].filter(Boolean).sort();
+  const running = {};
+  const cumulative = dates.map((date) => {
+    Object.entries(byDateFamily.get(date) || {}).forEach(([family, units]) => {
+      running[family] = (running[family] || 0) + units;
+    });
+    return { date, ...running };
+  });
+  const countries = [...countryMap.values()].map((row) => {
+    const out = { ...row, unique_products: row.unique_products_set.size };
+    delete out.unique_products_set;
+    return out;
+  }).sort((a, b) => b.units - a.units);
+  return {
+    ...shopify,
+    period: { ...(shopify?.period || {}), since: range.since, until: range.until },
+    daily,
+    order_lines: lines,
+    families: [...familyMap.values()].sort((a, b) => b.units - a.units),
+    products: [...productMap.values()].sort((a, b) => b.units - a.units || b.revenue_usd - a.revenue_usd),
+    countries,
+    cumulative,
+    orders: {
+      ...(shopify?.orders || {}),
+      included: sum(daily, 'orders'),
+    },
+  };
+}
+function shiftDate(date, days) {
+  if (!date) return '';
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function clampDateRange(range, bounds) {
+  const normalized = normalizeDateRange(range, bounds);
+  let since = normalized.since;
+  let until = normalized.until;
+  if (bounds?.since && since < bounds.since) since = bounds.since;
+  if (bounds?.until && until > bounds.until) until = bounds.until;
+  if (since && until && since > until) since = until;
+  return { since, until };
+}
+function presetDateRange(preset, bounds) {
+  const end = bounds?.until || '';
+  if (!end) return { since: '', until: '' };
+  if (preset === 'today') return clampDateRange({ since: end, until: end }, bounds);
+  if (preset === 'yesterday') {
+    const day = shiftDate(end, -1);
+    return clampDateRange({ since: day, until: day }, bounds);
+  }
+  if (preset === 'last7') return clampDateRange({ since: shiftDate(end, -6), until: end }, bounds);
+  return clampDateRange({ since: bounds?.since || end, until: end }, bounds);
+}
+function dateRangeLabel(range, preset) {
+  if (!range?.since || !range?.until) return 'Choose dates';
+  const prefix = preset === 'today' ? 'Today' : preset === 'yesterday' ? 'Yesterday' : preset === 'last7' ? 'Last week' : preset === 'all' ? 'Matched data' : 'Custom';
+  return `${prefix}: ${range.since} - ${range.until}`;
+}
+function presetSubLabel(preset, bounds) {
+  const range = presetDateRange(preset, bounds);
+  if (!range.since) return 'No loaded dates yet';
+  if (preset === 'custom') return 'Choose exact start and end';
+  return range.since === range.until ? range.since : `${range.since} - ${range.until}`;
+}
 function shortLabel(value, max = 28) {
   const text = String(value || '');
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -160,6 +433,7 @@ function saleTime(value) {
 function businessMetricConfig(active) {
   return {
     revenue: { key: 'revenue_usd', label: 'Shopify revenue', formatter: (v) => money.format(v), color: '#e02e92' },
+    orders: { key: 'orders', label: 'Shopify orders', formatter: (v) => compact(v), color: '#7f1d57' },
     spend: { key: 'spend_usd', label: 'Meta spend', formatter: (v) => money.format(v), color: '#bf6b1f' },
     cac: { key: 'cac', label: 'CAC', formatter: (v) => (v ? money.format(v) : 'n/a'), color: '#9f1d63' },
     roas: { key: 'roas', label: 'ROAS', formatter: (v) => (v ? `${Number(v).toFixed(2)}x` : 'n/a'), color: '#0b766c' },
@@ -180,6 +454,46 @@ function fxAuditText(data) {
   const fallback = Math.max(0, usdRates.length - exact);
   const latest = usdRates[usdRates.length - 1];
   return `FX audit: TRY→USD via ${data.fx_rates?.provider || 'Frankfurter'}; ${exact}/${usdRates.length} exact daily rates${fallback ? `, ${fallback} fallback` : ''}. Latest ${latest?.date || ''}: ${Number(latest?.fx_to_usd || 0).toFixed(5)} (${latest?.fx_to_usd_source || 'source unknown'}).`;
+}
+
+function businessStats(rows) {
+  const revenue = sum(rows, 'revenue_usd');
+  const spend = sum(rows, 'spend_usd');
+  const orders = sum(rows, 'orders');
+  const units = sum(rows, 'units');
+  return {
+    revenue_usd: revenue,
+    spend_usd: spend,
+    orders,
+    units,
+    cac: orders ? spend / orders : 0,
+    roas: spend ? revenue / spend : 0,
+  };
+}
+
+function businessPeriodDelta(rows, key) {
+  const sorted = [...(rows || [])].sort((a, b) => a.date.localeCompare(b.date));
+  if (sorted.length < 2) return { pct: 0, absolute: 0, label: 'no prior period' };
+  const size = sorted.length >= 4 ? Math.floor(sorted.length / 2) : 1;
+  const currentRows = sorted.slice(-size);
+  const previousRows = sorted.slice(-size * 2, -size);
+  const current = businessStats(currentRows);
+  const previous = businessStats(previousRows);
+  const cur = Number(current[key] || 0);
+  const prev = Number(previous[key] || 0);
+  return {
+    pct: prev ? (cur - prev) / prev * 100 : 0,
+    absolute: cur - prev,
+    current: cur,
+    previous: prev,
+    label: sorted.length >= 4 ? 'vs prior period' : 'vs previous day',
+  };
+}
+
+function toneForDelta(value, higherIsGood = true) {
+  const n = Number(value || 0);
+  if (!n) return 'neutral';
+  return higherIsGood ? (n > 0 ? 'good' : 'bad') : (n < 0 ? 'good' : 'bad');
 }
 
 function enrichAdset(adset, march) {
@@ -420,7 +734,7 @@ function adLeadershipOption(ads) {
       textStyle: { color: '#fff' },
       formatter: (params) => {
         const r = rows[params[0].dataIndex];
-        return `<b>${r.ad_name}</b><br/>Product: ${r.product_family || 'unknown_product'}<br/>CTR (all): ${Number(r.ctr || 0).toFixed(2)}%<br/>Add to cart: ${r.add_to_cart || 0}<br/>Initiated checkout: ${r.checkout_initiated || 0}<br/>Sales / purchases: ${r.purchases || 0}<br/>ROAS: ${Number(r.roas || 0).toFixed(2)}x<br/>Spend: ${money.format(r.spend_usd || 0)}<br/>Purchase value: ${money.format(r.purchase_value_usd || 0)}`;
+        return `<b>${r.ad_name}</b><br/>Product: ${r.product_family || 'unknown_product'}<br/>Click-through CTR: ${Number(r.ctr || 0).toFixed(2)}%<br/>Add to cart: ${r.add_to_cart || 0}<br/>Initiated checkout: ${r.checkout_initiated || 0}<br/>Sales / purchases: ${r.purchases || 0}<br/>ROAS: ${Number(r.roas || 0).toFixed(2)}x<br/>Spend: ${money.format(r.spend_usd || 0)}<br/>Purchase value: ${money.format(r.purchase_value_usd || 0)}`;
       },
     },
     legend: { top: 0, type: 'scroll', textStyle: { color: '#394150', fontWeight: 800 } },
@@ -434,7 +748,7 @@ function adLeadershipOption(ads) {
       { name: 'Sales', type: 'bar', data: rows.map((r) => Number(r.purchases || 0)), barMaxWidth: 14, itemStyle: { borderRadius: [5, 5, 0, 0] } },
       { name: 'Add to cart', type: 'bar', data: rows.map((r) => Number(r.add_to_cart || 0)), barMaxWidth: 14, itemStyle: { borderRadius: [5, 5, 0, 0] } },
       { name: 'IC', type: 'bar', data: rows.map((r) => Number(r.checkout_initiated || 0)), barMaxWidth: 14, itemStyle: { borderRadius: [5, 5, 0, 0] } },
-      { name: 'CTR (all)', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 6, data: rows.map((r) => Number(r.ctr || 0)) },
+      { name: 'Click-through CTR', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 6, data: rows.map((r) => Number(r.ctr || 0)) },
       { name: 'ROAS', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 6, data: rows.map((r) => Number(r.roas || 0)) },
     ],
   };
@@ -444,8 +758,16 @@ function Card({ title, value, sub, deltaValue, tone, rows, metric, color }) {
   return <section className="metric-card"><div className="metric-copy"><span>{title}</span><strong>{value}</strong><small>{sub}</small><em className={tone}>{deltaValue}</em></div><div className="spark"><ReactECharts option={sparkOption(rows, metric, color)} style={{ height: 72 }} /></div></section>;
 }
 
-function FinanceCard({ title, value, sub, tone = 'neutral', active, onClick }) {
-  return <button type="button" className={`finance-card ${tone} ${active ? 'active' : ''}`} onClick={onClick}><span>{title}</span><strong>{value}</strong><small>{sub}</small></button>;
+function TrendBadge({ delta, tone }) {
+  if (!delta) return null;
+  const value = Number(delta.pct || 0);
+  const up = value >= 0;
+  const marker = value === 0 ? '→' : up ? '▲' : '▼';
+  return <em className={`trend-badge ${tone || (up ? 'good' : 'bad')}`}><i>{marker}</i>{Math.abs(value).toFixed(1)}% <small>{delta.label}</small></em>;
+}
+
+function FinanceCard({ title, value, sub, tone = 'neutral', active, onClick, delta, deltaTone }) {
+  return <button type="button" className={`finance-card ${tone} ${active ? 'active' : ''}`} onClick={onClick}><span>{title}</span><strong>{value}</strong><small>{sub}</small><TrendBadge delta={delta} tone={deltaTone} /></button>;
 }
 
 function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
@@ -470,6 +792,36 @@ function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
       <button type="button" className={soundEnabled ? 'sound-on' : ''} onClick={onEnableSound}>{soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}{soundEnabled ? 'Sound on' : 'Enable sound'}</button>
     </div>
   </section>;
+}
+
+function DateWindowControl({ range, bounds, preset, isOpen, customRange, onToggle, onPreset, onCustomChange, onApplyCustom }) {
+  const presets = [
+    ['today', 'Today', 'Latest loaded day'],
+    ['yesterday', 'Yesterday', 'Previous loaded day'],
+    ['last7', 'Last week', 'Rolling 7-day view'],
+    ['all', 'Matched data', 'All days with Meta + Shopify'],
+    ['custom', 'Date range', 'Exact start and end'],
+  ];
+  return <div className={`date-control ${isOpen ? 'open' : ''}`}>
+    <button type="button" className="date-trigger" onClick={onToggle} aria-expanded={isOpen}>
+      <CalendarDays size={16} />
+      <span>{dateRangeLabel(range, preset)}</span>
+      <i>{isOpen ? '−' : '+'}</i>
+    </button>
+    {isOpen ? <div className="date-menu">
+      {presets.map(([key, label, helper]) => <button type="button" key={key} className={preset === key ? 'active' : ''} onClick={() => onPreset(key)}>
+        <b>{label}</b>
+        <span>{helper}</span>
+        <small>{key === 'custom' ? presetSubLabel('custom', bounds) : presetSubLabel(key, bounds)}</small>
+      </button>)}
+      {preset === 'custom' ? <div className="custom-range">
+        <label><span>Start</span><input type="date" min={bounds.since || undefined} max={bounds.until || undefined} value={customRange.since || ''} onInput={(event) => onCustomChange((current) => ({ ...current, since: event.currentTarget.value }))} onChange={(event) => onCustomChange((current) => ({ ...current, since: event.target.value }))} /></label>
+        <label><span>End</span><input type="date" min={bounds.since || undefined} max={bounds.until || undefined} value={customRange.until || ''} onInput={(event) => onCustomChange((current) => ({ ...current, until: event.currentTarget.value }))} onChange={(event) => onCustomChange((current) => ({ ...current, until: event.target.value }))} /></label>
+        <button type="button" className="apply-range" onClick={onApplyCustom}>Apply range</button>
+      </div> : null}
+      <p>Analysis-ready: {bounds.since || 'n/a'} - {bounds.until || 'n/a'}{bounds.shopify_until && bounds.shopify_until !== bounds.until ? ` · Shopify latest ${bounds.shopify_until}` : ''}</p>
+    </div> : null}
+  </div>;
 }
 
 function CoverageStrip({ coverage }) {
@@ -514,8 +866,78 @@ function LeadershipTables({ products, ads }) {
     </div>
     <div className="mini-table">
       <h3>Ads leadership table</h3>
-      <div className="table-wrap compact-table"><table><thead><tr><th>Ad</th><th>Product</th><th>Subtype</th><th>CTR</th><th>ATC</th><th>IC</th><th>Sales</th><th>ROAS</th><th>Spend</th></tr></thead><tbody>{(ads || []).slice(0, 12).map((a) => <tr key={a.ad_id}><td className="name-cell"><b>{a.ad_name}</b></td><td>{a.product_family || 'unknown_product'}</td><td>{a.product_subtype || 'Unknown'}</td><td>{Number(a.ctr || 0).toFixed(2)}%</td><td>{a.add_to_cart || 0}</td><td>{a.checkout_initiated || 0}</td><td>{a.purchases || 0}</td><td>{Number(a.roas || 0).toFixed(2)}x</td><td>{money.format(a.spend_usd || 0)}</td></tr>)}</tbody></table></div>
+      <div className="table-wrap compact-table"><table><thead><tr><th>Ad</th><th>Product</th><th>Subtype</th><th>Click-through CTR</th><th>ATC</th><th>IC</th><th>Sales</th><th>ROAS</th><th>Spend</th></tr></thead><tbody>{(ads || []).slice(0, 12).map((a) => <tr key={a.ad_id}><td className="name-cell"><b>{a.ad_name}</b></td><td>{a.product_family || 'unknown_product'}</td><td>{a.product_subtype || 'Unknown'}</td><td>{Number(a.ctr || 0).toFixed(2)}%</td><td>{a.add_to_cart || 0}</td><td>{a.checkout_initiated || 0}</td><td>{a.purchases || 0}</td><td>{Number(a.roas || 0).toFixed(2)}x</td><td>{money.format(a.spend_usd || 0)}</td></tr>)}</tbody></table></div>
     </div>
+  </section>;
+}
+
+function roasText(value) {
+  return Number(value || 0) ? `${Number(value || 0).toFixed(2)}x` : '0.00x';
+}
+
+function CampaignMetricCells({ row }) {
+  return <>
+    <td>{money.format(row.spend_usd || 0)}</td>
+    <td>{Number(row.ctr || 0).toFixed(2)}%</td>
+    <td>{row.add_to_cart || 0}</td>
+    <td>{row.checkout_initiated || 0}</td>
+    <td><b>{row.meta_sales || 0}</b><small>Meta</small></td>
+    <td><b>{row.true_shopify_sales || 0}</b><small>Shopify true</small></td>
+    <td><b>{row.inferred_shopify_sales || 0}</b><small>with inferred</small></td>
+    <td>{row.unresolved_sales ? <span className="unresolved-chip">{row.unresolved_sales} unresolved</span> : <span className="resolved-chip">clean</span>}</td>
+    <td>{roasText(row.meta_roas)}</td>
+    <td className={row.true_roas >= row.meta_roas ? 'good' : 'warn'}>{roasText(row.true_roas)}</td>
+    <td className={row.inferred_roas >= row.true_roas ? 'good' : 'warn'}>{roasText(row.inferred_roas)}</td>
+  </>;
+}
+
+function CampaignPerformanceTable({ attribution }) {
+  const campaigns = attribution?.campaigns || [];
+  const [openCampaigns, setOpenCampaigns] = useState(() => new Set(campaigns.slice(0, 3).map((c) => c.campaign_id || c.campaign_name)));
+  const [openAdsets, setOpenAdsets] = useState(new Set());
+  useEffect(() => {
+    if (!campaigns.length) return;
+    setOpenCampaigns((current) => current.size ? current : new Set(campaigns.slice(0, 3).map((c) => c.campaign_id || c.campaign_name)));
+    setOpenAdsets((current) => {
+      if (current.size) return current;
+      const next = new Set();
+      campaigns.slice(0, 2).forEach((campaign) => {
+        (campaign.adsets || []).slice(0, 1).forEach((adset) => next.add(adset.adset_id || `${campaign.campaign_id || campaign.campaign_name}-${adset.adset_name}`));
+      });
+      return next;
+    });
+  }, [campaigns]);
+  function toggle(setter, key) {
+    setter((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+  return <section className="campaign-tree-panel">
+    <div className="panel-title product-title"><div><h2>Campaign true ROAS tree</h2><p>Campaign ROAS uses Meta spend as denominator and Shopify order-line revenue as numerator. Ad set/ad inferred ROAS is only added when country + product uniquely maps to one candidate; ambiguous lines stay flagged.</p></div><span>{campaigns.length} campaigns</span></div>
+    <div className="campaign-rules">
+      <small><b>CTR:</b> click-through/link CTR, not CTR all.</small>
+      <small><b>True ROAS:</b> Shopify revenue assigned directly or by country campaign ownership.</small>
+      <small><b>Inferred ROAS:</b> true ROAS plus product-only ad/adset assignment when mapping is unique.</small>
+    </div>
+    <div className="table-wrap campaign-table-wrap"><table className="campaign-table"><thead><tr><th>Campaign / ad set / ad</th><th>Level</th><th>Spend</th><th>Click-through CTR</th><th>ATC</th><th>IC</th><th>Sales</th><th>True sales</th><th>Inferred sales</th><th>Mapping</th><th>Meta ROAS</th><th>True ROAS</th><th>Inferred ROAS</th></tr></thead><tbody>{campaigns.map((campaign) => {
+      const cKey = campaign.campaign_id || campaign.campaign_name;
+      const cOpen = openCampaigns.has(cKey);
+      return <React.Fragment key={cKey}>
+        <tr className="campaign-row level-campaign"><td className="name-cell"><button type="button" className="tree-toggle" onClick={() => toggle(setOpenCampaigns, cKey)}>{cOpen ? '−' : '+'}</button><b>{campaign.campaign_name}</b>{campaign.inference_notes?.length ? <small>{campaign.inference_notes.slice(0, 2).join(' · ')}</small> : null}</td><td>Campaign</td><CampaignMetricCells row={campaign} /></tr>
+        {cOpen ? campaign.adsets.map((adset) => {
+          const aKey = adset.adset_id || `${cKey}-${adset.adset_name}`;
+          const aOpen = openAdsets.has(aKey);
+          return <React.Fragment key={aKey}>
+            <tr className="campaign-row level-adset"><td className="name-cell indent-1"><button type="button" className="tree-toggle" onClick={() => toggle(setOpenAdsets, aKey)}>{aOpen ? '−' : '+'}</button><b>{adset.adset_name}</b>{adset.inference_notes?.length ? <small>{adset.inference_notes.slice(0, 2).join(' · ')}</small> : null}</td><td>Ad set</td><CampaignMetricCells row={adset} /></tr>
+            {aOpen ? adset.ads.map((ad) => <tr className="campaign-row level-ad" key={ad.ad_id || `${aKey}-${ad.ad_name}`}><td className="name-cell indent-2"><span className="ad-dot" /><b>{ad.ad_name}</b><small>{ad.product_family || 'unknown'} / {ad.product_subtype || 'unknown'}{ad.inference_notes?.length ? ` · ${ad.inference_notes.slice(0, 1).join('')}` : ''}</small></td><td>Ad</td><CampaignMetricCells row={ad} /></tr>) : null}
+          </React.Fragment>;
+        }) : null}
+      </React.Fragment>;
+    })}</tbody></table></div>
+    {attribution?.unresolved?.length ? <div className="unresolved-note"><b>{attribution.unresolved.length} ambiguous order lines not forced into ads.</b><span>They remain in campaign true ROAS when country ownership is clear, but not in ad/adset inferred ROAS until mapping is unique.</span></div> : null}
   </section>;
 }
 
@@ -528,6 +950,10 @@ function App() {
   const [query, setQuery] = useState('');
   const [activeBusiness, setActiveBusiness] = useState('revenue');
   const [businessWindow, setBusinessWindow] = useState('all');
+  const [datePreset, setDatePreset] = useState('all');
+  const [dateRange, setDateRange] = useState({ since: '', until: '' });
+  const [customRange, setCustomRange] = useState({ since: '', until: '' });
+  const [dateMenuOpen, setDateMenuOpen] = useState(false);
   const [saleSoundEnabled, setSaleSoundEnabled] = useState(false);
   const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '' });
   const saleAudioRef = useRef(null);
@@ -598,8 +1024,41 @@ function App() {
     };
   }, []);
 
-  const data = raw || fallbackData();
-  const productData = shopify || fallbackShopify();
+  const baseData = raw || fallbackData();
+  const baseProductData = shopify || fallbackShopify();
+  const loadedBounds = useMemo(() => loadedDateRange(baseData, baseProductData), [baseData, baseProductData]);
+  useEffect(() => {
+    if (!loadedBounds.since || !loadedBounds.until) return;
+    if (datePreset !== 'custom') {
+      const next = presetDateRange(datePreset, loadedBounds);
+      setDateRange(next);
+      setCustomRange(next);
+      return;
+    }
+    setDateRange((current) => clampDateRange(current.since ? current : loadedBounds, loadedBounds));
+    setCustomRange((current) => clampDateRange(current.since ? current : loadedBounds, loadedBounds));
+  }, [loadedBounds.since, loadedBounds.until, datePreset]);
+  const activeDateRange = useMemo(() => clampDateRange(dateRange.since ? dateRange : presetDateRange(datePreset, loadedBounds), loadedBounds), [dateRange, datePreset, loadedBounds]);
+  const data = useMemo(() => filterMetaDataByDateRange(baseData, activeDateRange), [baseData, activeDateRange]);
+  const productData = useMemo(() => filterShopifyByDateRange(baseProductData, activeDateRange), [baseProductData, activeDateRange]);
+  function handleDatePreset(nextPreset) {
+    setDatePreset(nextPreset);
+    if (nextPreset === 'custom') {
+      setCustomRange(activeDateRange);
+      return;
+    }
+    const next = presetDateRange(nextPreset, loadedBounds);
+    setDateRange(next);
+    setCustomRange(next);
+    setDateMenuOpen(false);
+  }
+  function applyCustomDateRange() {
+    const next = clampDateRange(customRange, loadedBounds);
+    setDatePreset('custom');
+    setDateRange(next);
+    setCustomRange(next);
+    setDateMenuOpen(false);
+  }
   const isUsaFrequencyView = data.delivery_scope === 'usa_adsets_only' && (selected === 'all' || (data.adsets || []).some((a) => a.adset_id === selected));
   const march = { ...(data.march_baseline || {}), applies: isUsaFrequencyView };
   const enriched = useMemo(() => (data.adsets || []).map((a) => enrichAdset(a, march)).sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || b.current.spend - a.current.spend), [data, march]);
@@ -622,14 +1081,15 @@ function App() {
     return accountRows.length ? accountRows : (data.daily_metrics || aggregateRows(data.adsets || []));
   }, [data]);
   const businessRows = useMemo(() => mergeBusinessRows(accountDaily, productData.daily || []), [accountDaily, productData]);
-  const business = {
-    revenue_usd: sum(businessRows, 'revenue_usd'),
-    spend_usd: sum(businessRows, 'spend_usd'),
-    orders: sum(businessRows, 'orders'),
-    units: sum(businessRows, 'units'),
-  };
-  business.cac = business.orders ? business.spend_usd / business.orders : 0;
-  business.roas = business.spend_usd ? business.revenue_usd / business.spend_usd : 0;
+  const business = businessStats(businessRows);
+  const businessDeltas = useMemo(() => ({
+    revenue: businessPeriodDelta(businessRows, 'revenue_usd'),
+    orders: businessPeriodDelta(businessRows, 'orders'),
+    spend: businessPeriodDelta(businessRows, 'spend_usd'),
+    cac: businessPeriodDelta(businessRows, 'cac'),
+    roas: businessPeriodDelta(businessRows, 'roas'),
+  }), [businessRows]);
+  const campaignAttribution = useMemo(() => buildCampaignAttribution(data, productData), [data, productData]);
   const productRows = productData.products || [];
   const adRows = data.ads || [];
   const baselineCopy = march.applies ? 'March USA baseline shown because this frequency view is USA ad sets only.' : 'No March baseline on this view because it is not USA-only.';
@@ -639,7 +1099,7 @@ function App() {
   return <main className="shell">
     <aside className="rail">
       <div className="brand"><img src="/assets/shawq-logo.png" alt="ShawQ" /><div><b>ShawQ</b><span>Business Monitoring</span></div></div>
-      <div className="filter-block"><label>Date window</label><button><CalendarDays size={16} /> {data.analysis_window?.since || 'May 1'} - {data.analysis_window?.until || 'today'}</button></div>
+      <div className="filter-block"><label>Date window</label><DateWindowControl range={activeDateRange} bounds={loadedBounds} preset={datePreset} isOpen={dateMenuOpen} customRange={customRange} onToggle={() => setDateMenuOpen((open) => !open)} onPreset={handleDatePreset} onCustomChange={setCustomRange} onApplyCustom={applyCustomDateRange} /></div>
       <div className="filter-block"><label>Campaign/ad set</label><select value={selected} onChange={(e) => setSelected(e.target.value)}><option value="all">All ad sets</option>{enriched.map((a) => <option key={a.adset_id} value={a.adset_id}>{a.adset_name}</option>)}</select></div>
       <div className="filter-block"><label>Status</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All statuses</option>{Object.keys(statusLabels).map((s) => <option key={s} value={s}>{statusLabels[s]}</option>)}</select></div>
       <div className="filter-block"><label>Search</label><div className="search"><Search size={15}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="ad set or campaign" /></div></div>
@@ -650,12 +1110,15 @@ function App() {
       <header className="topbar"><div className="headline-lockup"><img className="hero-logo" src="/assets/shawq-logo.png" alt="ShawQ" /><div><h1>ShawQ Business Monitoring</h1><p>Revenue, spend, CAC, ROAS, product demand, and delivery drift from the June 3 launch window.</p></div></div><div className="top-actions"><SaleMonitor monitor={saleMonitor} soundEnabled={saleSoundEnabled} onEnableSound={enableSaleSound} /><div className="refresh"><span>{sourceLabel}</span><small>Refreshed {data.generated_at ? new Date(data.generated_at).toLocaleString() : 'now'}</small><RefreshCw size={18}/></div></div></header>
 
       <section className="finance-cards top-finance">
-        <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.orders} orders · ${business.units} units`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} />
-        <FinanceCard title="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" tone="warn" active={activeBusiness === 'spend'} onClick={() => setActiveBusiness('spend')} />
-        <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} />
-        <FinanceCard title="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" tone={business.roas >= 2 ? 'good' : business.roas >= 1 ? 'warn' : 'bad'} active={activeBusiness === 'roas'} onClick={() => setActiveBusiness('roas')} />
+        <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} delta={businessDeltas.revenue} deltaTone={toneForDelta(businessDeltas.revenue.pct)} />
+        <FinanceCard title="Orders" value={compact(business.orders)} sub={`${business.units} paid items`} tone={business.orders ? 'good' : 'neutral'} active={activeBusiness === 'orders'} onClick={() => setActiveBusiness('orders')} delta={businessDeltas.orders} deltaTone={toneForDelta(businessDeltas.orders.pct)} />
+        <FinanceCard title="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" tone="warn" active={activeBusiness === 'spend'} onClick={() => setActiveBusiness('spend')} delta={businessDeltas.spend} deltaTone={toneForDelta(businessDeltas.roas.pct)} />
+        <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} delta={businessDeltas.cac} deltaTone={toneForDelta(businessDeltas.cac.pct, false)} />
+        <FinanceCard title="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" tone={business.roas >= 2 ? 'good' : business.roas >= 1 ? 'warn' : 'bad'} active={activeBusiness === 'roas'} onClick={() => setActiveBusiness('roas')} delta={businessDeltas.roas} deltaTone={toneForDelta(businessDeltas.roas.pct)} />
       </section>
       <BusinessMetricPanel rows={businessRows} active={activeBusiness} windowKey={businessWindow} setWindowKey={setBusinessWindow} fxText={fxText} />
+
+      <CampaignPerformanceTable attribution={campaignAttribution} />
 
       <section className="cards secondary-cards">
         <Card title="Frequency" value={(overall.frequency || 0).toFixed(2)} sub={march.applies ? `March ${Number(march.frequency || 0).toFixed(2)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.frequency)} vs own history`} tone={overallDelta.frequency > 20 ? 'bad' : overallDelta.frequency > 8 ? 'warn' : 'good'} rows={trendRows} metric="frequency" color="#9a1b22" />
@@ -665,7 +1128,7 @@ function App() {
       </section>
 
       <section className="leadership-zone">
-        <div className="panel-title product-title"><div><h2>Leadership tables</h2><p>Product sales come from Shopify. Ads leadership is one overall Meta rollup per ad across all countries.</p></div><span>{adRows.length} ads</span></div>
+        <div className="panel-title product-title"><div><h2>Leadership tables</h2><p>Product sales come from Shopify. Ads leadership is one overall Meta rollup per ad across all countries; CTR is click-through/link CTR from Meta.</p></div><span>{adRows.length} ads</span></div>
         <LeadershipTables products={productRows} ads={adRows} />
       </section>
 

@@ -59,7 +59,7 @@ body{
   border-color:var(--shawq-line);
   box-shadow:var(--shadow);
 }
-.finance-card{min-height:116px;border-radius:22px;background:linear-gradient(180deg,#fff,#fffafd);position:relative;overflow:hidden}.finance-card::after{content:"";position:absolute;inset:auto -24px -36px auto;width:112px;height:112px;border-radius:50%;background:rgba(224,46,146,.09);transition:transform .24s ease}.finance-card:hover::after,.finance-card.active::after{transform:scale(1.18)}.finance-card strong{font-size:34px}.finance-card.active{border-color:rgba(224,46,146,.58)}
+.finance-card{min-height:116px;border-radius:22px;background:linear-gradient(180deg,#fff 0%,#fffafd 82%,#fff5fb 100%);position:relative;overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,.95) inset,0 16px 34px rgba(94,24,60,.10),0 4px 10px rgba(94,24,60,.055);transform:translateZ(0)}.finance-card::before{content:"";position:absolute;inset:0 0 auto 0;height:48%;background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(255,255,255,0));pointer-events:none}.finance-card::after{display:none}.finance-card:hover{box-shadow:0 1px 0 rgba(255,255,255,.98) inset,0 22px 46px rgba(94,24,60,.14),0 8px 18px rgba(94,24,60,.08)}.finance-card strong{font-size:34px;position:relative;z-index:1}.finance-card.active{border-color:rgba(224,46,146,.58);box-shadow:0 1px 0 rgba(255,255,255,.98) inset,0 24px 54px rgba(224,46,146,.18),0 8px 20px rgba(94,24,60,.08)}
 .metric-detail.unfold-panel{grid-template-columns:300px minmax(0,1fr);align-items:stretch;overflow:hidden;animation:unfoldIn .26s ease both}.metric-detail-copy{display:flex;flex-direction:column;gap:8px}.metric-detail-copy small{display:block;color:#8b6b7b;font-size:11px;line-height:1.45;font-weight:800}.metric-detail-chart{min-width:0;border:1px solid #f5e0ec;border-radius:16px;background:linear-gradient(180deg,#fff,#fff9fd);padding:8px}.metric-detail-table{grid-column:1/-1}.window-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}.window-tabs button{border:1px solid #f1d7e5;background:#fff;border-radius:999px;padding:7px 10px;color:var(--shawq-ruby);font-size:11px;font-weight:900;cursor:pointer}.window-tabs button.active{background:var(--shawq-pink);border-color:var(--shawq-pink);color:#fff}@keyframes unfoldIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
 .sale-monitor{grid-template-columns:1fr auto;border-radius:22px}.sale-main{grid-template-columns:12px 1fr}.sale-main small{font-size:12px}.sale-items{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}.sale-items em{max-width:none;white-space:normal;background:#fff5fb;border:1px solid #f1d7e5;border-radius:999px;padding:4px 8px;color:var(--shawq-ruby)}.sale-source{display:block;margin-top:6px;color:var(--shawq-ink);font-size:11px;font-weight:900;line-height:1.35}.sale-actions button{transition:background .18s ease,transform .18s ease}.sale-actions button:hover{transform:translateY(-1px)}
 .secondary-cards{opacity:1}.metric-card{border-radius:20px}.change-strip,.leadership-zone,.product-zone,.table-panel,.chart-panel,.rank-panel{border-radius:24px}.panel-title h2,.metric-detail b,.change-strip b,.mini-table h3{letter-spacing:-.045em}.leadership-zone .product-title>span,.product-title>span{background:var(--shawq-ink);color:#fff}.product-zone .product-title>span{background:var(--shawq-pink)}
@@ -67,3 +67,58 @@ body{
 @media(max-width:1320px){.shell{grid-template-columns:240px minmax(0,1fr)}.topbar{display:block}.top-actions{margin-top:14px;max-width:none}.metric-detail.unfold-panel{grid-template-columns:1fr}.metric-detail-chart{grid-column:1/-1}.product-grid{grid-template-columns:1fr}.country-list{max-height:none}}
 @media(max-width:1100px){.shell{grid-template-columns:1fr}.rail{position:relative;height:auto}.content{padding:22px}.hero-logo{width:74px}.topbar h1{font-size:40px}}
 @media(max-width:760px){.headline-lockup{display:flex;align-items:flex-start}.top-finance,.secondary-cards{grid-template-columns:1fr}.sale-monitor{grid-template-columns:1fr}.sale-actions{justify-items:start}.table-panel,.leadership-zone,.product-zone{padding:12px}.topbar h1{font-size:34px}.hero-logo{width:64px}.overall-product-list{grid-template-columns:1fr}.metric-detail.unfold-panel{padding:12px}}
+
+/* Decision layer: business deltas and campaign-level true/inferred ROAS. */
+.top-finance{grid-template-columns:repeat(5,minmax(0,1fr))}
+.finance-card{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.finance-card small{position:relative;z-index:1}
+.trend-badge{position:relative;z-index:1;display:inline-flex;align-items:center;gap:6px;margin-top:auto;padding:6px 9px;border-radius:999px;background:#f6f7f6;color:#475467;font-style:normal;font-size:11px;font-weight:950;letter-spacing:.01em}
+.trend-badge i{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:999px;background:#fff;font-style:normal;line-height:1}
+.trend-badge small{font-size:10px;color:inherit;opacity:.72;font-weight:900}
+.trend-badge.good{background:#e8f7f2;color:#087162}.trend-badge.bad{background:#fff0f2;color:#b21b2a}.trend-badge.warn{background:#fff5dd;color:#9a6514}.trend-badge.neutral{background:#f7edf3;color:#7b6672}
+.date-control{position:relative}
+.date-trigger{justify-content:flex-start!important;text-align:left;height:auto!important;min-height:46px;line-height:1.2}
+.date-trigger span{flex:1;font-size:13px;font-weight:900}
+.date-trigger i{font-style:normal;font-weight:950;color:var(--shawq-ruby)}
+.date-menu{position:absolute;z-index:30;top:calc(100% + 8px);left:0;right:0;padding:8px;background:rgba(255,255,255,.98);border:1px solid var(--shawq-line);border-radius:18px;box-shadow:0 24px 60px rgba(94,24,60,.18);animation:unfoldIn .18s ease both}
+.date-menu button{width:100%;height:auto;min-height:0;border:0!important;background:transparent!important;color:var(--shawq-ink)!important;box-shadow:none!important;border-radius:13px!important;padding:9px 10px!important;display:grid!important;grid-template-columns:1fr auto;gap:2px 10px;text-align:left;cursor:pointer}
+.date-menu button:hover,.date-menu button.active{background:#fff3fa!important}
+.date-menu button b{font-size:12px;color:var(--shawq-ink)}
+.date-menu button span{grid-row:2;color:var(--shawq-muted);font-size:10px;font-weight:850}
+.date-menu button small{grid-row:1/3;grid-column:2;align-self:center;color:var(--shawq-ruby);font-size:10px;font-weight:950;white-space:nowrap}
+.custom-range{margin:7px 2px 2px;padding:10px;border:1px solid #f1d7e5;background:#fff8fc;border-radius:14px;display:grid;gap:8px}
+.custom-range label{display:grid;gap:4px;color:var(--shawq-ruby);font-size:10px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
+.custom-range input{width:100%;border:1px solid #efd4e3;border-radius:10px;background:#fff;color:var(--shawq-ink);padding:8px;font-size:12px;font-weight:850}
+.custom-range .apply-range{display:flex!important;justify-content:center!important;background:var(--shawq-pink)!important;color:#fff!important;border-radius:999px!important;padding:9px 10px!important;font-weight:950!important}
+.date-menu p{margin:7px 4px 2px;color:#927383;font-size:10px;font-weight:850;text-align:center}
+.campaign-tree-panel{background:rgba(255,255,255,.96);border:1px solid var(--shawq-line);border-radius:26px;box-shadow:var(--shadow);padding:16px;margin:0 0 14px;overflow:hidden}
+.campaign-tree-panel .product-title>span{background:var(--shawq-ink);color:#fff}
+.campaign-rules{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+.campaign-rules small{display:inline-flex;align-items:center;gap:4px;border:1px solid #f0d5e4;background:#fff8fc;color:#705866;border-radius:999px;padding:7px 10px;font-size:11px;font-weight:850}
+.campaign-table-wrap{border-radius:18px;max-height:620px;background:#fff}
+.campaign-table{min-width:1540px}
+.campaign-table th{top:0;background:#fff7fc}
+.campaign-table td{vertical-align:top}
+.campaign-row td:first-child{border-left:4px solid transparent}
+.campaign-row.level-campaign td{background:linear-gradient(90deg,#fff7fc,#fff)}
+.campaign-row.level-campaign td:first-child{border-left-color:var(--shawq-pink)}
+.campaign-row.level-adset td{background:#fffdfd}
+.campaign-row.level-adset td:first-child{border-left-color:#f1a8cd}
+.campaign-row.level-ad td{background:#fff}
+.campaign-row.level-ad td:first-child{border-left-color:#ead7e2}
+.campaign-row .name-cell{min-width:340px;max-width:520px}
+.campaign-row .name-cell small{display:block;margin-top:4px;color:#8a7180;font-size:10px;font-weight:800;white-space:normal;line-height:1.3}
+.tree-toggle{width:26px;height:26px;border:1px solid #efd4e3;border-radius:9px;background:#fff;color:var(--shawq-ruby);font-weight:950;margin-right:8px;cursor:pointer;box-shadow:0 5px 14px rgba(159,29,99,.08)}
+.tree-toggle:hover{background:#fff4fa;border-color:#e99bc4}
+.indent-1{padding-left:28px!important}.indent-2{padding-left:58px!important}
+.ad-dot{display:inline-block;width:9px;height:9px;border-radius:999px;background:var(--shawq-pink);box-shadow:0 0 0 4px rgba(224,46,146,.10);margin:5px 12px 0 2px;vertical-align:top}
+.campaign-table td b+small,.campaign-table td small{color:#7d6672}
+.campaign-table td small{display:block;font-size:10px;font-weight:850;line-height:1.2}
+.resolved-chip,.unresolved-chip{display:inline-flex;border-radius:999px;padding:5px 8px;font-size:10px;font-weight:950}
+.resolved-chip{background:#e8f7f2;color:#087162}.unresolved-chip{background:#fff2db;color:#9a6514}
+.unresolved-note{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:12px;padding:11px 13px;border:1px solid #f2d8a8;background:#fff9ed;border-radius:16px;color:#6f4b17}
+.unresolved-note b{font-family:"Instrument Sans",sans-serif;font-size:12px}
+.unresolved-note span{font-size:12px;font-weight:800;color:#8a641e}
+@media(max-width:1320px){.top-finance{grid-template-columns:repeat(3,minmax(0,1fr))}.campaign-table-wrap{max-height:540px}}
+@media(max-width:900px){.top-finance{grid-template-columns:repeat(2,minmax(0,1fr))}.unresolved-note{display:block}.unresolved-note span{display:block;margin-top:4px}}
+@media(max-width:760px){.top-finance{grid-template-columns:1fr}.campaign-tree-panel{padding:12px}.campaign-rules{display:grid}.campaign-row .name-cell{min-width:270px}}

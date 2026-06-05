@@ -17,7 +17,7 @@ export function productTaxonomyForName(value) {
   const hasZaytoun = /zaytoun|zaytoon|zaitoun|olive|زيتون/.test(text);
   const hasQuoteCrewneck = /quote\s*(vo|crewneck)|\bvo\b/.test(text);
   const hasGhalabany = /ghalabany|ghalabny|ghalabni|al shawq|al shawq|غلبني|الشوق/.test(text);
-  const hasNinetyEight = /\b98\b|vescarts?\s*98|vescartes?\s*98/.test(text);
+  const hasNinetyEightCrewneck = /crew\s*neck.*\b98\b|crewneck.*\b98\b|vescarts?\s*98|vescartes?\s*98/.test(text);
   const hasCrewneck = /crew\s*neck|crewneck/.test(text);
   const hasHoodie = /hoodie/.test(text);
   const hasLongSleeve = /long\s*sleeve/.test(text);
@@ -32,10 +32,10 @@ export function productTaxonomyForName(value) {
 
   if (hasQuoteCrewneck) return { family: 'Crewnecks', subtype: 'Quote crewneck' };
   if (hasHoodie) return { family: 'Hoodies', subtype: hasGhalabany ? 'Ghalabany Al-ShawQ hoodie' : 'Other hoodie' };
-  if (hasNinetyEight) return { family: 'Crewnecks', subtype: 'Vescartes 98 crewneck' };
   if (hasLongSleeve) return { family: 'Tops', subtype: 'Long sleeve' };
   if (hasShortSleeve) return { family: 'Tops', subtype: 'Short sleeve' };
   if (hasDenimPants) return { family: 'Denim pants', subtype: 'Denim pants' };
+  if (hasNinetyEightCrewneck) return { family: 'Crewnecks', subtype: 'Vescartes 98 crewneck' };
   if (hasCrewneck) return { family: 'Crewnecks', subtype: hasGhalabany ? 'Ghalabany Al-ShawQ crewneck' : 'Other crewneck' };
   if (/al\s*madaan|madaan|mada.?en|madain|almad|mad2en|mada2en/.test(text)) return { family: 'Al Madaan', subtype: 'Al Madaan' };
   if (hasKuffiyah) return { family: 'Kuffiyah accessory', subtype: 'Kuffiyah accessory' };

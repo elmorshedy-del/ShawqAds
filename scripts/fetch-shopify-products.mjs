@@ -68,6 +68,31 @@ function dayFor(order) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 }
 
+function queryParamsFromMaybeUrl(value = '') {
+  const text = String(value || '');
+  const query = text.includes('?') ? text.slice(text.indexOf('?') + 1) : text;
+  const params = new URLSearchParams(query);
+  return Object.fromEntries([...params.entries()].filter(([key]) => /^(utm_|fbclid|ad_|campaign_|placement|creative)/i.test(key)));
+}
+
+function attributionFor(order) {
+  const noteAttributes = {};
+  for (const attr of order.note_attributes || []) if (attr?.name) noteAttributes[attr.name] = attr.value;
+  const landingParams = queryParamsFromMaybeUrl(order.landing_site || order.landing_site_ref || '');
+  const lowerNote = Object.fromEntries(Object.entries(noteAttributes).map(([key, value]) => [key.toLowerCase(), value]));
+  return {
+    source_name: order.source_name || '',
+    source_identifier: order.source_identifier || '',
+    landing_site: order.landing_site || '',
+    landing_site_ref: order.landing_site_ref || '',
+    referring_site: order.referring_site || '',
+    utm: landingParams,
+    campaign_hint: landingParams.utm_campaign || lowerNote.utm_campaign || lowerNote.campaign_name || lowerNote.campaign || '',
+    adset_hint: landingParams.utm_term || lowerNote.utm_term || lowerNote.adset_name || lowerNote.ad_set_name || lowerNote.adset || '',
+    ad_hint: landingParams.utm_content || lowerNote.utm_content || lowerNote.ad_name || lowerNote.ad_id || lowerNote.ad || '',
+  };
+}
+
 const orders = await getOrders();
 const includeStatus = new Set(['paid', 'partially_paid', 'partially_refunded']);
 const included = orders.filter((o) => !o.cancelled_at && includeStatus.has(o.financial_status));
@@ -85,6 +110,7 @@ const countryRows = new Map();
 const productTotals = new Map();
 const cumulativeByDayFamily = new Map();
 const dailyByDate = new Map();
+const orderLines = [];
 const allDates = [];
 for (let d = new Date(`${since}T00:00:00Z`); d <= new Date(`${until}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) allDates.push(d.toISOString().slice(0, 10));
 for (const date of allDates) {
@@ -99,6 +125,7 @@ for (const order of included) {
   dailyOrder.revenue_usd += Number(order.current_total_price || order.total_price || 0);
   dailyByDate.set(orderDate, dailyOrder);
   const c = countryFor(order);
+  const attribution = attributionFor(order);
   if (!countryRows.has(c.code)) countryRows.set(c.code, { country_code: c.code, country: c.name, units: 0, unique_products_set: new Set(), mix: {}, subtypes: {} });
   const cRow = countryRows.get(c.code);
   for (const li of order.line_items || []) {
@@ -113,6 +140,20 @@ for (const order of included) {
     dailyUnit.units += net;
     dailyByDate.set(date, dailyUnit);
     const lineRevenue = Number(li.price || 0) * net;
+    orderLines.push({
+      order_id: String(order.id || ''),
+      order_name: order.name || '',
+      date: orderDate,
+      created_at: order.created_at || '',
+      country_code: c.code,
+      country: c.name,
+      product: li.title || '',
+      quantity: net,
+      line_revenue_usd: lineRevenue,
+      family,
+      subtype,
+      attribution,
+    });
     const familyRow = familyTotals.get(family) || { family, units: 0, revenue_usd: 0 };
     familyRow.units += net;
     familyRow.revenue_usd += lineRevenue;
@@ -144,7 +185,7 @@ const cumulative = allDates.map((date) => {
 const countries = [...countryRows.values()].map((r) => ({ ...r, unique_products: r.unique_products_set.size, unique_products_set: undefined })).sort((a, b) => b.units - a.units);
 const products = [...productTotals.values()].sort((a, b) => b.units - a.units);
 const daily = [...dailyByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-const out = { source: 'Shopify', generated_at: new Date().toISOString(), period: { since, until, timezone: 'Europe/Istanbul', currency: 'USD' }, orders: { pulled: orders.length, included: included.length }, daily, families, products, countries, cumulative };
+const out = { source: 'Shopify', generated_at: new Date().toISOString(), period: { since, until, timezone: 'Europe/Istanbul', currency: 'USD' }, orders: { pulled: orders.length, included: included.length }, daily, families, products, countries, cumulative, order_lines: orderLines };
 const outPath = path.resolve('public/data/shopify-products.json');
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(out, null, 2));

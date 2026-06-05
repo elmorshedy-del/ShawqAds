@@ -26,12 +26,16 @@ if (!token || !account) {
 
 const adsetFields = [
   'date_start', 'date_stop', 'campaign_id', 'campaign_name', 'adset_id', 'adset_name',
-  'spend', 'impressions', 'reach', 'frequency', 'cpm', 'ctr', 'clicks', 'actions', 'action_values', 'purchase_roas'
+  'spend', 'impressions', 'reach', 'frequency', 'cpm', 'ctr', 'clicks',
+  'inline_link_clicks', 'inline_link_click_ctr', 'outbound_clicks', 'outbound_clicks_ctr',
+  'actions', 'action_values', 'purchase_roas'
 ].join(',');
 
 const adFields = [
   'date_start', 'date_stop', 'campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name',
-  'spend', 'impressions', 'reach', 'frequency', 'cpm', 'ctr', 'clicks', 'actions', 'action_values', 'purchase_roas'
+  'spend', 'impressions', 'reach', 'frequency', 'cpm', 'ctr', 'clicks',
+  'inline_link_clicks', 'inline_link_click_ctr', 'outbound_clicks', 'outbound_clicks_ctr',
+  'actions', 'action_values', 'purchase_roas'
 ].join(',');
 
 async function graphGet(url) {
@@ -192,6 +196,20 @@ function metricFromActions(actions = [], exact = [], includes = []) {
   return 0;
 }
 
+function numericMetric(value) {
+  if (Array.isArray(value)) return metricFromActions(value, ['outbound_click', 'link_click'], ['outbound', 'link_click']);
+  return Number(value || 0);
+}
+
+function clickThroughCtr({ impressions, inlineLinkClicks, inlineLinkCtr, outboundCtr, ctrAll }) {
+  const inlineCtr = Number(inlineLinkCtr || 0);
+  if (inlineCtr > 0) return { ctr: inlineCtr, source: 'inline_link_click_ctr' };
+  const outbound = numericMetric(outboundCtr);
+  if (outbound > 0) return { ctr: outbound, source: 'outbound_clicks_ctr' };
+  if (impressions && inlineLinkClicks) return { ctr: inlineLinkClicks / impressions * 100, source: 'computed_inline_link_clicks' };
+  return { ctr: Number(ctrAll || 0), source: 'ctr_all_fallback' };
+}
+
 function countryName(code) {
   try {
     return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code;
@@ -212,6 +230,16 @@ async function normalizeInsightRow(r, accountCurrency) {
   const addToCart = metricFromActions(r.actions, ['offsite_conversion.fb_pixel_add_to_cart', 'omni_add_to_cart', 'add_to_cart'], ['add_to_cart']);
   const checkoutInitiated = metricFromActions(r.actions, ['offsite_conversion.fb_pixel_initiate_checkout', 'omni_initiated_checkout', 'initiate_checkout', 'initiated_checkout'], ['initiate_checkout', 'initiated_checkout']);
   const linkClicks = metricFromActions(r.actions, ['link_click'], ['link_click']);
+  const inlineLinkClicks = Number(r.inline_link_clicks || linkClicks || 0);
+  const outboundClicks = numericMetric(r.outbound_clicks);
+  const ctrAll = Number(r.ctr || (impressions ? clicks / impressions * 100 : 0));
+  const clickCtr = clickThroughCtr({
+    impressions,
+    inlineLinkClicks,
+    inlineLinkCtr: r.inline_link_click_ctr,
+    outboundCtr: r.outbound_clicks_ctr,
+    ctrAll,
+  });
   const product = productTaxonomyForName(r.ad_name || r.adset_name || r.campaign_name);
   const fx_to_usd = fx.fx_to_usd;
   const fx_to_try = fx.fx_to_try;
@@ -240,8 +268,11 @@ async function normalizeInsightRow(r, accountCurrency) {
     reach,
     frequency: Number(r.frequency || (reach ? impressions / reach : 0)),
     clicks_all: clicks,
-    link_clicks: linkClicks,
-    ctr: Number(r.ctr || (impressions ? clicks / impressions * 100 : 0)),
+    link_clicks: inlineLinkClicks,
+    outbound_clicks: outboundClicks,
+    ctr_all: ctrAll,
+    ctr: clickCtr.ctr,
+    ctr_source: clickCtr.source,
     cpm: Number(r.cpm || (impressions ? spend / impressions * 1000 : 0)),
     cpm_usd: impressions ? spend_usd / impressions * 1000 : 0,
     cpm_try: impressions ? spend_try / impressions * 1000 : 0,
@@ -267,6 +298,7 @@ function emptyAggregate(extra = {}) {
     reach: 0,
     clicks_all: 0,
     link_clicks: 0,
+    outbound_clicks: 0,
     purchases: 0,
     add_to_cart: 0,
     checkout_initiated: 0,
@@ -281,7 +313,7 @@ function emptyAggregate(extra = {}) {
 }
 
 function addToAggregate(target, r) {
-  for (const key of ['spend', 'spend_usd', 'spend_try', 'impressions', 'reach', 'clicks_all', 'link_clicks', 'purchases', 'add_to_cart', 'checkout_initiated', 'purchase_value', 'purchase_value_usd', 'purchase_value_try']) {
+  for (const key of ['spend', 'spend_usd', 'spend_try', 'impressions', 'reach', 'clicks_all', 'link_clicks', 'outbound_clicks', 'purchases', 'add_to_cart', 'checkout_initiated', 'purchase_value', 'purchase_value_usd', 'purchase_value_try']) {
     target[key] += Number(r[key] || 0);
   }
   if (Number(r.spend || 0) > 0) target.active_days_set.add(r.date);
@@ -300,7 +332,9 @@ function finalizeAggregate(row) {
   delete out.countries_set;
   delete out.ads_set;
   delete out.adsets_set;
-  out.ctr = out.impressions ? out.clicks_all / out.impressions * 100 : 0;
+  out.ctr_all = out.impressions ? out.clicks_all / out.impressions * 100 : 0;
+  out.ctr = out.impressions ? out.link_clicks / out.impressions * 100 : 0;
+  out.ctr_source = 'aggregate_link_clicks';
   out.cpm_usd = out.impressions ? out.spend_usd / out.impressions * 1000 : 0;
   out.cpm_try = out.impressions ? out.spend_try / out.impressions * 1000 : 0;
   out.cpa_usd = out.purchases ? out.spend_usd / out.purchases : 0;
