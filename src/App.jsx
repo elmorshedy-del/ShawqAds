@@ -448,7 +448,7 @@ function saleTime(value) {
 function businessMetricConfig(active) {
   return {
     revenue: { key: 'revenue_usd', label: 'Shopify revenue', formatter: (v) => money.format(v), color: '#e02e92' },
-    orders: { key: 'orders', label: 'Shopify orders', formatter: (v) => compact(v), color: '#7f1d57' },
+    sales: { key: 'units', label: 'Items sold', formatter: (v) => compact(v), color: '#7f1d57' },
     aov: { key: 'aov', label: 'AOV', formatter: (v) => (v ? money.format(v) : 'n/a'), color: '#be2b78' },
     spend: { key: 'spend_usd', label: 'Meta spend', formatter: (v) => money.format(v), color: '#bf6b1f' },
     cac: { key: 'cac', label: 'CAC', formatter: (v) => (v ? money.format(v) : 'n/a'), color: '#9f1d63' },
@@ -727,7 +727,7 @@ function businessTrendOption(rows, active) {
       textStyle: { color: '#fff' },
       formatter: (params) => {
         const r = rows[params[0].dataIndex];
-        return `<b>${r.date}</b><br/>${metric.label}: ${metric.formatter(Number(r[metric.key] || 0))}<br/>Revenue: ${money.format(r.revenue_usd)}<br/>Spend: ${money.format(r.spend_usd)}<br/>Orders: ${r.orders || 0}<br/>AOV: ${r.orders ? money.format(r.aov) : 'n/a'}<br/>CAC: ${r.orders ? money.format(r.cac) : 'n/a'}<br/>ROAS: ${r.roas ? r.roas.toFixed(2) : 'n/a'}x`;
+        return `<b>${r.date}</b><br/>${metric.label}: ${metric.formatter(Number(r[metric.key] || 0))}<br/>Revenue: ${money.format(r.revenue_usd)}<br/>Spend: ${money.format(r.spend_usd)}<br/>Items sold: ${r.units || 0}<br/>Orders: ${r.orders || 0}<br/>AOV: ${r.orders ? money.format(r.aov) : 'n/a'}<br/>CAC: ${r.orders ? money.format(r.cac) : 'n/a'}<br/>ROAS: ${r.roas ? r.roas.toFixed(2) : 'n/a'}x`;
       },
     },
     grid: { left: 54, right: 28, top: 20, bottom: 38 },
@@ -746,12 +746,12 @@ function BusinessMetricPanel({ rows, active, windowKey, setWindowKey, fxText }) 
   return <section className="metric-detail unfold-panel">
     <div className="metric-detail-copy">
       <b>{metric.label} trend</b>
-      <span>Click a business card to unfold one clean smoothed line. Business cards use Shopify revenue/orders and full-account Meta spend.</span>
+      <span>Click a business card to unfold one clean smoothed line. Sales are Shopify sold units; AOV/CAC still use true order count.</span>
       <small>{fxText}</small>
       <div className="window-tabs">{windows.map(([key, label]) => <button type="button" key={key} className={windowKey === key ? 'active' : ''} onClick={() => setWindowKey(key)}>{label}</button>)}</div>
     </div>
     <div className="metric-detail-chart"><ReactECharts option={businessTrendOption(shown, active)} style={{ height: 260 }} /></div>
-    <div className="table-wrap compact-table metric-detail-table"><table><thead><tr><th>Date</th><th>Revenue</th><th>Meta spend</th><th>Orders</th><th>AOV</th><th>CAC</th><th>ROAS</th></tr></thead><tbody>{shown.map((r) => <tr key={r.date} className={`focus-${active}`}><td><b>{r.date}</b></td><td>{money.format(r.revenue_usd || 0)}</td><td>{money.format(r.spend_usd || 0)}</td><td>{r.orders || 0}</td><td>{r.orders ? money.format(r.aov) : 'n/a'}</td><td>{r.orders ? money.format(r.cac) : 'n/a'}</td><td>{r.roas ? `${r.roas.toFixed(2)}x` : 'n/a'}</td></tr>)}</tbody></table></div>
+    <div className="table-wrap compact-table metric-detail-table"><table><thead><tr><th>Date</th><th>Revenue</th><th>Meta spend</th><th>Items sold</th><th>Orders</th><th>AOV</th><th>CAC</th><th>ROAS</th></tr></thead><tbody>{shown.map((r) => <tr key={r.date} className={`focus-${active}`}><td><b>{r.date}</b></td><td>{money.format(r.revenue_usd || 0)}</td><td>{money.format(r.spend_usd || 0)}</td><td>{r.units || 0}</td><td>{r.orders || 0}</td><td>{r.orders ? money.format(r.aov) : 'n/a'}</td><td>{r.orders ? money.format(r.cac) : 'n/a'}</td><td>{r.roas ? `${r.roas.toFixed(2)}x` : 'n/a'}</td></tr>)}</tbody></table></div>
   </section>;
 }
 
@@ -938,7 +938,7 @@ function topWinners(items, primaryKey, secondaryKey) {
   const top = sorted[0];
   if (!top) return { winners: [], tieCount: 0 };
   const tied = sorted.filter((item) => Number(item[primaryKey] || 0) === Number(top[primaryKey] || 0));
-  return { winners: tied.slice(0, 2), tieCount: tied.length };
+  return { winners: tied, tieCount: tied.length };
 }
 
 function nextSort(current, key) {
@@ -1015,33 +1015,47 @@ function dailySalesHighlights(lines, range) {
 
 function DailySalesHighlights({ lines, range }) {
   const rows = useMemo(() => dailySalesHighlights(lines, range), [lines, range]);
+  const hasTies = rows.some((row) => row.productTieCount > 1 || row.adTieCount > 1);
   return <section className="daily-highlights">
     <div className="panel-title">
       <h2>Daily sales leaders</h2>
       <p>Top Shopify product and top Shopify-captured ad/source for each selected day.</p>
     </div>
-    <div className="daily-highlight-list">
-      {rows.map((row) => <article key={row.date} className="daily-highlight-card">
-        <b>{row.date}</b>
-        <div className="daily-leader-label">Top product</div>
-        {row.products?.length ? row.products.map((product) => <div className="daily-product" key={product.product}>
-          {product.image_url ? <img src={product.image_url} alt="" /> : <span className="thumb-fallback">{product.family?.slice(0, 1) || 'S'}</span>}
-          <div>
-            <strong>{product.product}</strong>
-            <small>{product.units} unit{product.units === 1 ? '' : 's'} sold · {money.format(product.revenue_usd || 0)}{row.productTieCount > 1 ? ' · tied winner' : ''}</small>
-          </div>
-        </div>) : <div className="daily-product empty"><span className="thumb-fallback">0</span><div><strong>No Shopify sale</strong><small>No paid order lines that day</small></div></div>}
-        <div className="daily-ad">
-          <span>Top ad</span>
-          {row.ads?.length ? row.ads.map((ad) => <div className="daily-ad-winner" key={ad.ad}>
-            <strong>{ad.ad}</strong>
-            <small>{ad.order_count} sale{ad.order_count === 1 ? '' : 's'} · {money.format(ad.revenue_usd || 0)}{row.adTieCount > 1 ? ' · tied winner' : ''}</small>
-          </div>) : <>
-            <strong>No ad captured in Shopify</strong>
-            <small>Additional details did not identify an ad</small>
-          </>}
+    <div className={`daily-leader-board ${hasTies ? 'has-ties' : ''}`}>
+      <article className="daily-leader-panel top-product-panel">
+        <div className="daily-leader-heading"><span>Top product</span><small>By sold units</small></div>
+        <div className="daily-date-stack">
+          {rows.map((row) => <div className="daily-date-row" key={`product-${row.date}`}>
+            <b>{row.date}</b>
+            <div className="daily-winner-stack">
+              {row.products?.length ? row.products.map((product) => <div className="daily-product daily-winner-row" key={product.product}>
+                {product.image_url ? <img src={product.image_url} alt="" /> : <span className="thumb-fallback">{product.family?.slice(0, 1) || 'S'}</span>}
+                <div>
+                  <strong>{product.product}</strong>
+                  <small>{product.units} unit{product.units === 1 ? '' : 's'} sold · {money.format(product.revenue_usd || 0)}{row.productTieCount > 1 ? ' · tied winner' : ''}</small>
+                </div>
+              </div>) : <div className="daily-product empty daily-winner-row"><span className="thumb-fallback">0</span><div><strong>No Shopify sale</strong><small>No paid order lines that day</small></div></div>}
+            </div>
+          </div>)}
         </div>
-      </article>)}
+      </article>
+      <article className="daily-leader-panel top-ad-panel">
+        <div className="daily-leader-heading"><span>Top ad</span><small>By Shopify-captured sales</small></div>
+        <div className="daily-date-stack">
+          {rows.map((row) => <div className="daily-date-row" key={`ad-${row.date}`}>
+            <b>{row.date}</b>
+            <div className="daily-winner-stack">
+              {row.ads?.length ? row.ads.map((ad) => <div className="daily-ad-winner daily-winner-row" key={ad.ad}>
+                <strong>{ad.ad}</strong>
+                <small>{ad.order_count} sale{ad.order_count === 1 ? '' : 's'} · {money.format(ad.revenue_usd || 0)}{row.adTieCount > 1 ? ' · tied winner' : ''}</small>
+              </div>) : <div className="daily-ad-winner empty daily-winner-row">
+                <strong>No ad captured in Shopify</strong>
+                <small>Additional details did not identify an ad</small>
+              </div>}
+            </div>
+          </div>)}
+        </div>
+      </article>
     </div>
   </section>;
 }
@@ -1242,7 +1256,7 @@ function App() {
   const [query, setQuery] = useState('');
   const [activeBusiness, setActiveBusiness] = useState('revenue');
   const [businessWindow, setBusinessWindow] = useState('all');
-  const [datePreset, setDatePreset] = useState('all');
+  const [datePreset, setDatePreset] = useState('today');
   const [dateRange, setDateRange] = useState({ since: '', until: '' });
   const [customRange, setCustomRange] = useState({ since: '', until: '' });
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
@@ -1384,7 +1398,7 @@ function App() {
   const business = businessStats(businessRows);
   const businessDeltas = useMemo(() => ({
     revenue: businessPeriodDelta(allBusinessRows, 'revenue_usd', activeDateRange),
-    orders: businessPeriodDelta(allBusinessRows, 'orders', activeDateRange),
+    sales: businessPeriodDelta(allBusinessRows, 'units', activeDateRange),
     aov: businessPeriodDelta(allBusinessRows, 'aov', activeDateRange),
     spend: businessPeriodDelta(allBusinessRows, 'spend_usd', activeDateRange),
     cac: businessPeriodDelta(allBusinessRows, 'cac', activeDateRange),
@@ -1413,7 +1427,7 @@ function App() {
 
       <section className="finance-cards top-finance">
         <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} delta={businessDeltas.revenue} deltaTone={toneForDelta(businessDeltas.revenue.pct)} />
-        <FinanceCard title="Orders" value={compact(business.orders)} sub={`${business.units} paid items`} tone={business.orders ? 'good' : 'neutral'} active={activeBusiness === 'orders'} onClick={() => setActiveBusiness('orders')} delta={businessDeltas.orders} deltaTone={toneForDelta(businessDeltas.orders.pct)} />
+        <FinanceCard title="Sales" value={compact(business.units)} sub={`${business.orders} Shopify orders`} tone={business.units ? 'good' : 'neutral'} active={activeBusiness === 'sales'} onClick={() => setActiveBusiness('sales')} delta={businessDeltas.sales} deltaTone={toneForDelta(businessDeltas.sales.pct)} />
         <FinanceCard title="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} sub="Shopify revenue / orders" tone={business.aov ? 'good' : 'neutral'} active={activeBusiness === 'aov'} onClick={() => setActiveBusiness('aov')} delta={businessDeltas.aov} deltaTone={toneForDelta(businessDeltas.aov.pct)} />
         <FinanceCard title="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" tone="warn" active={activeBusiness === 'spend'} onClick={() => setActiveBusiness('spend')} delta={businessDeltas.spend} deltaTone={toneForDelta(businessDeltas.roas.pct)} />
         <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} delta={businessDeltas.cac} deltaTone={toneForDelta(businessDeltas.cac.pct, false)} />

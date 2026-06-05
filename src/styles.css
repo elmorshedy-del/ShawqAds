@@ -148,52 +148,87 @@ body{
   padding:16px;
   margin:0 0 14px;
 }
-.daily-highlight-list{
+.daily-leader-board{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(255px,1fr));
-  gap:12px;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
   margin-top:12px;
 }
-.daily-highlight-card{
+.daily-leader-panel{
   border:1px solid #f2ddeb;
-  border-radius:20px;
-  padding:13px;
+  border-radius:22px;
+  padding:14px;
   background:linear-gradient(180deg,#fff,#fffafd);
-  box-shadow:0 12px 28px rgba(28,14,22,.05);
-  display:grid;
-  gap:11px;
+  box-shadow:0 14px 32px rgba(28,14,22,.055);
+  min-width:0;
 }
-.daily-highlight-card>b{
-  color:var(--shawq-ruby);
-  font-size:12px;
-  letter-spacing:.04em;
-  text-transform:uppercase;
+.daily-leader-heading{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:flex-start;
+  padding-bottom:10px;
+  border-bottom:1px solid #f2ddeb;
 }
-.daily-leader-label{
-  display:inline-flex;
-  width:max-content;
-  align-self:start;
-  justify-self:start;
-  line-height:1;
+.daily-leader-heading span{
   color:var(--shawq-ruby);
   background:#fff5fb;
   border:1px solid #f1d6e5;
   border-radius:999px;
-  padding:5px 8px;
+  padding:6px 9px;
   font-size:10px;
   font-weight:950;
   letter-spacing:.06em;
+  line-height:1;
   text-transform:uppercase;
+}
+.daily-leader-heading small{
+  color:var(--shawq-muted);
+  font-size:11px;
+  font-weight:900;
+  line-height:1.25;
+  text-align:right;
+}
+.daily-date-stack{
+  display:grid;
+  gap:10px;
+  margin-top:12px;
+}
+.daily-date-row{
+  display:grid;
+  grid-template-columns:86px minmax(0,1fr);
+  gap:12px;
+  align-items:start;
+  border:1px solid #f6e4ee;
+  border-radius:18px;
+  padding:10px;
+  background:rgba(255,255,255,.72);
+}
+.daily-date-row>b{
+  color:var(--shawq-ruby);
+  font-size:11px;
+  letter-spacing:.04em;
+  line-height:1.2;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.daily-winner-stack{
+  display:grid;
+  gap:8px;
+  min-width:0;
+}
+.daily-winner-row{
+  min-width:0;
 }
 .daily-product{
   display:grid;
-  grid-template-columns:58px minmax(0,1fr);
-  gap:11px;
+  grid-template-columns:clamp(38px,4vw,52px) minmax(0,1fr);
+  gap:10px;
   align-items:center;
 }
 .daily-product img,.thumb-fallback{
-  width:58px;
-  height:58px;
+  width:clamp(38px,4vw,52px);
+  height:clamp(38px,4vw,52px);
   border-radius:16px;
   object-fit:cover;
   background:#fff5fb;
@@ -208,31 +243,29 @@ body{
   font-size:26px;
   font-weight:800;
 }
-.daily-product strong,.daily-ad strong{
+.daily-product strong,.daily-ad-winner strong{
   display:block;
   color:var(--shawq-ink);
   line-height:1.25;
   white-space:normal;
+  overflow-wrap:anywhere;
 }
-.daily-product small,.daily-ad small{
+.daily-product small,.daily-ad-winner small{
   display:block;
   color:var(--shawq-muted);
   font-size:11px;
   font-weight:850;
   margin-top:3px;
+  line-height:1.25;
 }
-.daily-ad{
-  border-top:1px solid #f2ddeb;
-  padding-top:10px;
+.daily-ad-winner{
+  border:1px solid #f6e4ee;
+  border-radius:15px;
+  padding:9px 10px;
+  background:#fff;
 }
-.daily-ad span{
-  display:block;
-  color:var(--shawq-ruby);
-  font-size:10px;
-  font-weight:950;
-  letter-spacing:.06em;
-  text-transform:uppercase;
-  margin-bottom:3px;
+.daily-ad-winner.empty{
+  color:var(--shawq-muted);
 }
 .country-roas-card .panel-title{margin-bottom:12px}
 .country-roas-card .country-list{
@@ -294,7 +327,15 @@ body{
 .danger-note span{color:#98202d}
 @media(max-width:1500px){.top-finance{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:900px){.top-finance{grid-template-columns:repeat(2,minmax(0,1fr))}.country-head{align-items:flex-start}.country-roas-number{white-space:nowrap}}
-@media(max-width:760px){.top-finance{grid-template-columns:1fr}.daily-highlight-list{grid-template-columns:1fr}.country-head{display:grid}.country-roas-number{justify-self:start}}
+@media(max-width:760px){.top-finance{grid-template-columns:1fr}.daily-leader-board{grid-template-columns:1fr}.daily-date-row{grid-template-columns:1fr}.country-head{display:grid}.country-roas-number{justify-self:start}}
+
+/* Final responsive finance and daily-leader polish. */
+.top-finance{grid-template-columns:repeat(6,minmax(0,1fr))}
+.top-finance .finance-card{padding:14px}
+.top-finance .finance-card strong{font-size:clamp(26px,2.2vw,34px)}
+@media(max-width:1320px){.top-finance{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:900px){.top-finance{grid-template-columns:repeat(2,minmax(0,1fr))}.daily-leader-board{grid-template-columns:1fr}.daily-date-row{grid-template-columns:74px minmax(0,1fr)}}
+@media(max-width:560px){.daily-date-row{grid-template-columns:1fr}.daily-leader-heading{display:grid}.daily-leader-heading small{text-align:left}}
 
 /* Responsive data-card refactor: no horizontal scrolling for leadership or campaign tree. */
 .card-leadership{
