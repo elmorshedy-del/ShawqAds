@@ -351,7 +351,16 @@ function aggregateSessionFacts(events = []) {
     const pageViews = list.filter((event) => /page_viewed|page_view/i.test(event.event_name));
     for (let i = 0; i < pageViews.length; i += 1) {
       const current = pageViews[i];
-      const next = pageViews[i + 1] || list.find((event) => new Date(event.ts) > new Date(current.ts) && /visibility_hidden|session_end/i.test(event.event_name));
+      const currentTime = new Date(current.ts).getTime();
+      const nextPage = pageViews[i + 1];
+      const nextPageTime = nextPage ? new Date(nextPage.ts).getTime() : Infinity;
+      const heartbeatOrEnd = list
+        .filter((event) => {
+          const ts = new Date(event.ts).getTime();
+          return ts > currentTime && ts < nextPageTime && /session_heartbeat|visibility_hidden|session_end/i.test(event.event_name);
+        })
+        .sort((a, b) => new Date(b.ts) - new Date(a.ts))[0];
+      const next = nextPage || heartbeatOrEnd;
       const dwell = next ? Math.max(1, Math.min(1800, Math.round((new Date(next.ts) - new Date(current.ts)) / 1000))) : 0;
       if (dwell > 0) pageFacts.push({ date: current.date, path: current.path, dwell_seconds: dwell, purchased, session_hash: sessionHash });
     }

@@ -119,6 +119,25 @@ function sanitizePixelPayload(value, depth = 0) {
   return out;
 }
 
+function sessionEventStatus() {
+  if (!fs.existsSync(sessionEventsPath)) {
+    return { configured: false, count: 0, sessions: 0, last_received_at: '', path: sessionEventsPath };
+  }
+  const text = fs.readFileSync(sessionEventsPath, 'utf8');
+  const rows = text.split(/\r?\n/).filter(Boolean);
+  const sessions = new Set();
+  let lastReceived = '';
+  for (const line of rows) {
+    try {
+      const event = JSON.parse(line);
+      const session = event.session_id || event.client_id || event.payload?.session_id || event.payload?.client_id || event.payload?.clientId || '';
+      if (session) sessions.add(String(session));
+      lastReceived = event.received_at || lastReceived;
+    } catch {}
+  }
+  return { configured: true, count: rows.length, sessions: sessions.size, last_received_at: lastReceived, path: sessionEventsPath };
+}
+
 async function recordSessionEvent(req, res, url) {
   if (!isSessionEventAuthorized(req, url)) {
     send(res, 401, JSON.stringify({ ok: false, error: 'unauthorized' }));
@@ -138,6 +157,10 @@ async function recordSessionEvent(req, res, url) {
       line_items: payload.line_items || payload.lineItems || [],
       payload,
     });
+    if (url.searchParams.get('dry_run') === '1') {
+      send(res, 200, JSON.stringify({ ok: true, dry_run: true, event_name: event.event_name || '', has_session: Boolean(event.session_id || event.client_id) }));
+      return;
+    }
     fs.mkdirSync(path.dirname(sessionEventsPath), { recursive: true });
     fs.appendFileSync(sessionEventsPath, `${JSON.stringify(event)}\n`);
     send(res, 200, JSON.stringify({ ok: true }));
@@ -404,6 +427,11 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/data/behavior-intelligence.json') {
     await serveData(req, res, 'behavior-intelligence.json', 'fetch:behavior');
+    return;
+  }
+
+  if (url.pathname === '/api/session-events/status') {
+    send(res, 200, JSON.stringify({ ok: true, ...sessionEventStatus() }));
     return;
   }
 
