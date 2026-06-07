@@ -24,6 +24,8 @@ loadEnv();
 const distDir = path.join(__dirname, 'dist');
 const port = Number(process.env.PORT || 3000);
 const refreshKey = process.env.REFRESH_API_KEY || '';
+const sessionEventKey = process.env.SESSION_EVENT_INGEST_KEY || '';
+const sessionEventsPath = process.env.SESSION_EVENTS_PATH || path.join(__dirname, 'data', 'session-events.ndjson');
 const refreshOnStart = process.env.REFRESH_ON_START !== 'false';
 
 const mime = {
@@ -60,6 +62,11 @@ function isAuthorized(req) {
   return Boolean(refreshKey && req.headers.authorization === `Bearer ${refreshKey}`);
 }
 
+function isSessionEventAuthorized(req, url) {
+  if (!sessionEventKey) return true;
+  return req.headers['x-session-event-key'] === sessionEventKey || url.searchParams.get('key') === sessionEventKey;
+}
+
 function dateEnvFromUrl(url) {
   const since = url.searchParams.get('since') || url.searchParams.get('start') || '';
   const until = url.searchParams.get('until') || url.searchParams.get('end') || '';
@@ -83,6 +90,60 @@ function shopifyConfig() {
     store: process.env.SHAWQ_SHOPIFY_STORE || process.env.SHOPIFY_STORE || 'f3e7e9-2.myshopify.com',
     apiVersion: process.env.SHOPIFY_API_VERSION || '2025-10',
   };
+}
+
+function readRequestBody(req, maxBytes = 160000) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk.toString();
+      if (Buffer.byteLength(body) > maxBytes) {
+        reject(new Error('payload too large'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+
+function sanitizePixelPayload(value, depth = 0) {
+  if (depth > 6) return null;
+  if (Array.isArray(value)) return value.slice(0, 80).map((item) => sanitizePixelPayload(item, depth + 1));
+  if (!value || typeof value !== 'object') return value;
+  const out = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (/email|phone|first.?name|last.?name|address1|address2|zip|postal|company|customer/i.test(key)) continue;
+    out[key] = sanitizePixelPayload(child, depth + 1);
+  }
+  return out;
+}
+
+async function recordSessionEvent(req, res, url) {
+  if (!isSessionEventAuthorized(req, url)) {
+    send(res, 401, JSON.stringify({ ok: false, error: 'unauthorized' }));
+    return;
+  }
+  try {
+    const text = await readRequestBody(req);
+    const payload = text ? JSON.parse(text) : {};
+    const event = sanitizePixelPayload({
+      received_at: new Date().toISOString(),
+      event_name: payload.event_name || payload.name || payload.eventType || payload.event_type || '',
+      client_id: payload.client_id || payload.clientId || payload.payload?.clientId || '',
+      session_id: payload.session_id || payload.sessionId || '',
+      timestamp: payload.timestamp || payload.ts || payload.context?.timestamp || '',
+      path: payload.path || payload.url || '',
+      country_code: payload.country_code || payload.countryCode || '',
+      line_items: payload.line_items || payload.lineItems || [],
+      payload,
+    });
+    fs.mkdirSync(path.dirname(sessionEventsPath), { recursive: true });
+    fs.appendFileSync(sessionEventsPath, `${JSON.stringify(event)}\n`);
+    send(res, 200, JSON.stringify({ ok: true }));
+  } catch (error) {
+    send(res, 400, JSON.stringify({ ok: false, error: error.message }));
+  }
 }
 
 function queryParamsFromMaybeUrl(value = '') {
@@ -308,13 +369,23 @@ async function warmData() {
   const jobs = [];
   if (process.env.SHAWQ_META_ACCESS_TOKEN && process.env.SHAWQ_META_AD_ACCOUNT_ID) jobs.push(runScript('fetch:meta'));
   if (process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN && process.env.SHAWQ_SHOPIFY_STORE) jobs.push(runScript('fetch:shopify'));
-  if (!jobs.length) return;
-  const results = await Promise.all(jobs);
+  const results = jobs.length ? await Promise.all(jobs) : [];
+  if (process.env.SHAWQ_META_ACCESS_TOKEN || process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN) results.push(await runScript('fetch:behavior'));
   results.forEach((r) => { if (r.code !== 0) console.warn(r.output); });
 }
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'access-control-allow-origin': '*',
+      'access-control-allow-methods': 'POST, OPTIONS',
+      'access-control-allow-headers': 'content-type, x-session-event-key',
+      'access-control-max-age': '86400',
+    });
+    res.end();
+    return;
+  }
 
   if (url.pathname === '/health') {
     send(res, 200, JSON.stringify({ ok: true, service: 'shawq-adset-radar' }));
@@ -328,6 +399,17 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/data/shopify-products.json') {
     await serveData(req, res, 'shopify-products.json', 'fetch:shopify');
+    return;
+  }
+
+  if (url.pathname === '/api/data/behavior-intelligence.json') {
+    await serveData(req, res, 'behavior-intelligence.json', 'fetch:behavior');
+    return;
+  }
+
+  if (url.pathname === '/api/session-events' && req.method === 'POST') {
+    res.setHeader('access-control-allow-origin', '*');
+    await recordSessionEvent(req, res, url);
     return;
   }
 
@@ -348,7 +430,8 @@ const server = http.createServer(async (req, res) => {
     }
     const env = dateEnvFromUrl(url);
     const [meta, shopify] = await Promise.all([runScript('fetch:meta', env), runScript('fetch:shopify', env)]);
-    send(res, meta.code || shopify.code ? 500 : 200, JSON.stringify({ ok: !(meta.code || shopify.code), meta, shopify }));
+    const behavior = await runScript('fetch:behavior', env);
+    send(res, meta.code || shopify.code || behavior.code ? 500 : 200, JSON.stringify({ ok: !(meta.code || shopify.code || behavior.code), meta, shopify, behavior }));
     return;
   }
 

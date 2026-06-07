@@ -93,6 +93,29 @@ function fallbackShopify() {
   };
 }
 
+function fallbackBehavior() {
+  return {
+    source: 'sample-behavior',
+    generated_at: new Date().toISOString(),
+    period: { since: '2026-06-03', until: '2026-06-03', shopify_timezone: 'Europe/Istanbul', meta_timezone: 'Europe/Istanbul' },
+    extraction: {
+      abandoned_checkouts: { source: 'Shopify abandoned checkouts', configured: false, ok: false, count: 0, note: 'Connect Shopify abandoned checkout API to populate checkout friction.' },
+      meta_payment: { source: 'Meta AddPaymentInfo actions', configured: false, ok: false, count: 0, note: 'Connect Meta payment-info actions to populate submit-payment friction immediately.' },
+      meta_demographics: { source: 'Meta age/gender breakdown', configured: false, ok: false, count: 0, note: 'Connect Meta demographic breakdowns to populate gender friction.' },
+      session_events: { source: 'First-party Shopify customer-events pixel', configured: false, ok: false, count: 0, sessions: 0, note: 'Install the session event pixel to populate payment-submit, dwell, and journey intelligence.' },
+    },
+    scoring: { method: 'Bayesian shrinkage toward site average plus support-weighted excess abandons' },
+    facts: [],
+    meta_demographics_rows: [],
+    page_facts: [],
+    journey_rows: [],
+    matrix: { checkout: { global: { exposed: 0, abandoned: 0, rate: 0 }, products: [], countries: [], gender: [] }, submit_payment: { global: { exposed: 0, abandoned: 0, rate: 0 }, products: [], countries: [], gender: [] } },
+    dwell_pages: [],
+    journeys: { totals: { purchasers: 0, non_purchasers: 0 }, steps: [], paths: [] },
+    pixel_contract: { endpoint: '/api/session-events', recommended_events: ['page_viewed', 'product_viewed', 'product_added_to_cart', 'checkout_started', 'payment_info_submitted', 'checkout_completed', 'visibility_hidden'] },
+  };
+}
+
 async function fetchJsonWithFallback(apiPath, staticPath, fallbackFactory) {
   for (const target of [apiPath, staticPath]) {
     try {
@@ -941,6 +964,205 @@ function topWinners(items, primaryKey, secondaryKey) {
   return { winners: tied, tieCount: tied.length };
 }
 
+function rateLabel(value) {
+  return Number.isFinite(Number(value)) ? `${Math.round(Number(value || 0) * 100)}%` : 'n/a';
+}
+
+function confidenceSlug(value = '') {
+  return slug(value || 'Insufficient');
+}
+
+function behaviorMedian(values = []) {
+  const arr = values.map(Number).filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
+  if (!arr.length) return 0;
+  const mid = Math.floor(arr.length / 2);
+  return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+}
+
+function scoreBehaviorRows(rows, { priorStrength = 20, globalRate = 0 } = {}) {
+  return rows.map((row) => {
+    const exposed = Number(row.exposed || 0);
+    const abandoned = Number(row.abandoned || 0);
+    const rawRate = exposed ? abandoned / exposed : 0;
+    const shrunkRate = (abandoned + priorStrength * globalRate) / ((exposed + priorStrength) || 1);
+    const excessRate = shrunkRate - globalRate;
+    const supportWeight = Math.min(1, Math.sqrt(exposed / 30));
+    let confidence = 'Insufficient';
+    if (exposed >= 100 && abandoned >= 8 && excessRate > 0.05) confidence = 'High Confidence';
+    else if (exposed >= 50 && abandoned >= 8 && excessRate > 0.10) confidence = 'Actionable';
+    else if (exposed >= 20 && abandoned >= 3 && excessRate > 0.05) confidence = 'Directional';
+    else if (exposed >= 8) confidence = 'Watch';
+    return {
+      ...row,
+      raw_rate: rawRate,
+      shrunk_rate: shrunkRate,
+      site_rate: globalRate,
+      vs_site_pp: (shrunkRate - globalRate) * 100,
+      excess_abandons: Math.max(0, excessRate * exposed),
+      risk_score: Math.max(0, excessRate) * supportWeight * 100,
+      confidence,
+    };
+  }).sort((a, b) => b.excess_abandons - a.excess_abandons || b.shrunk_rate - a.shrunk_rate || b.exposed - a.exposed);
+}
+
+function rollupBehaviorFacts(facts, step, dimension) {
+  const scoped = (facts || []).filter((fact) => fact.step === step);
+  const totalExposed = sum(scoped, 'exposed');
+  const totalAbandoned = sum(scoped, 'abandoned');
+  const globalRate = totalExposed ? totalAbandoned / totalExposed : 0;
+  const map = new Map();
+  scoped.forEach((fact) => {
+    const key = dimension === 'product'
+      ? String(fact.source === 'meta_add_payment_info' ? `${fact.family || 'Other'}:${fact.subtype || fact.product || 'Unknown product'}` : (fact.product_id || fact.variant_id || fact.product || 'unknown_product'))
+      : String(fact.country_code || 'UNKNOWN');
+    const row = map.get(key) || {
+      key,
+      product_id: fact.product_id || '',
+      product: fact.product || 'Unknown product',
+      family: fact.family || 'Other',
+      subtype: fact.subtype || 'Unknown',
+      image_url: fact.image_url || '',
+      country_code: fact.country_code || '',
+      country: fact.country || countryNameFromCode(fact.country_code || ''),
+      exposed: 0,
+      abandoned: 0,
+      completed: 0,
+      units: 0,
+      value_usd: 0,
+      countries_map: new Map(),
+    };
+    row.exposed += Number(fact.exposed || 0);
+    row.abandoned += Number(fact.abandoned || 0);
+    row.completed += Number(fact.completed || 0);
+    row.units += Number(fact.units || 0);
+    row.value_usd += Number(fact.value_usd || 0);
+    if (!row.image_url && fact.image_url) row.image_url = fact.image_url;
+    if (fact.country_code) {
+      const c = row.countries_map.get(fact.country_code) || { country_code: fact.country_code, country: fact.country || countryNameFromCode(fact.country_code), exposed: 0, abandoned: 0 };
+      c.exposed += Number(fact.exposed || 0);
+      c.abandoned += Number(fact.abandoned || 0);
+      row.countries_map.set(fact.country_code, c);
+    }
+    map.set(key, row);
+  });
+  const rows = [...map.values()].map((row) => {
+    const countries = [...row.countries_map.values()].sort((a, b) => b.abandoned - a.abandoned || b.exposed - a.exposed).slice(0, 4);
+    const out = { ...row, countries };
+    delete out.countries_map;
+    return out;
+  });
+  return { global: { exposed: totalExposed, abandoned: totalAbandoned, rate: globalRate }, rows: scoreBehaviorRows(rows, { priorStrength: dimension === 'country' ? 30 : 20, globalRate }) };
+}
+
+function countryNameFromCode(code) {
+  try {
+    return code ? new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code : 'Unknown';
+  } catch {
+    return code || 'Unknown';
+  }
+}
+
+function demographicsBehaviorRollup(rows = []) {
+  const byAgeGender = new Map();
+  rows.forEach((row) => {
+    const key = `${row.age || 'unknown'} · ${row.gender || 'unknown'}`;
+    const cur = byAgeGender.get(key) || { key, segment: key, age: row.age || 'unknown', gender: row.gender || 'unknown', exposed_checkout: 0, abandoned_checkout: 0, exposed_payment: 0, abandoned_payment: 0, purchases: 0 };
+    cur.exposed_checkout += Number(row.checkout_initiated || 0);
+    cur.abandoned_checkout += Math.max(0, Number(row.checkout_initiated || 0) - Number(row.purchases || 0));
+    cur.exposed_payment += Number(row.payment_info || 0);
+    cur.abandoned_payment += Math.max(0, Number(row.payment_info || 0) - Number(row.purchases || 0));
+    cur.purchases += Number(row.purchases || 0);
+    byAgeGender.set(key, cur);
+  });
+  const rowsList = [...byAgeGender.values()];
+  const checkoutExposure = sum(rowsList, 'exposed_checkout');
+  const checkoutAbandoned = sum(rowsList, 'abandoned_checkout');
+  const paymentExposure = sum(rowsList, 'exposed_payment');
+  const paymentAbandoned = sum(rowsList, 'abandoned_payment');
+  const checkoutRows = rowsList.filter((row) => Number(row.exposed_checkout || 0) > 0);
+  const paymentRows = rowsList.filter((row) => Number(row.exposed_payment || 0) > 0);
+  return {
+    checkout: scoreBehaviorRows(checkoutRows.map((row) => ({ ...row, exposed: row.exposed_checkout, abandoned: row.abandoned_checkout })), { priorStrength: 40, globalRate: checkoutExposure ? checkoutAbandoned / checkoutExposure : 0 }).slice(0, 8),
+    submit_payment: scoreBehaviorRows(paymentRows.map((row) => ({ ...row, exposed: row.exposed_payment, abandoned: row.abandoned_payment })), { priorStrength: 40, globalRate: paymentExposure ? paymentAbandoned / paymentExposure : 0 }).slice(0, 8),
+  };
+}
+
+function dwellBehaviorRollup(pageFacts = []) {
+  const byPath = new Map();
+  pageFacts.forEach((fact) => {
+    const row = byPath.get(fact.path) || { path: fact.path, sessions: new Set(), purchaser_values: [], non_purchaser_values: [] };
+    row.sessions.add(fact.session_hash || `${fact.path}-${row.sessions.size}`);
+    if (fact.purchased) row.purchaser_values.push(fact.dwell_seconds);
+    else row.non_purchaser_values.push(fact.dwell_seconds);
+    byPath.set(fact.path, row);
+  });
+  return [...byPath.values()].map((row) => {
+    const purchaserMedian = behaviorMedian(row.purchaser_values);
+    const nonPurchaserMedian = behaviorMedian(row.non_purchaser_values);
+    return {
+      path: row.path,
+      sessions: row.sessions.size,
+      median_dwell_seconds: behaviorMedian([...row.purchaser_values, ...row.non_purchaser_values]),
+      purchaser_median_dwell_seconds: purchaserMedian,
+      non_purchaser_median_dwell_seconds: nonPurchaserMedian,
+      dwell_gap_seconds: nonPurchaserMedian - purchaserMedian,
+      read: nonPurchaserMedian > purchaserMedian + 20 ? 'Friction watch' : purchaserMedian >= nonPurchaserMedian ? 'Consideration path' : 'Neutral',
+    };
+  }).sort((a, b) => b.non_purchaser_median_dwell_seconds - a.non_purchaser_median_dwell_seconds || b.sessions - a.sessions).slice(0, 8);
+}
+
+function journeyBehaviorRollup(journeyRows = []) {
+  const totals = { purchasers: 0, non_purchasers: 0 };
+  const pageMap = new Map();
+  const pathMap = new Map();
+  journeyRows.forEach((row) => {
+    const cohort = row.purchased ? 'purchasers' : 'non_purchasers';
+    totals[cohort] += 1;
+    (row.path_sequence || []).forEach((path, index) => {
+      const key = `${index}:${path}`;
+      const cur = pageMap.get(key) || { step: index + 1, path, purchasers: 0, non_purchasers: 0 };
+      cur[cohort] += 1;
+      pageMap.set(key, cur);
+    });
+    const pathKey = (row.path_sequence || []).join(' → ');
+    if (pathKey) {
+      const curPath = pathMap.get(pathKey) || { path_sequence: row.path_sequence || [], purchasers: 0, non_purchasers: 0 };
+      curPath[cohort] += 1;
+      pathMap.set(pathKey, curPath);
+    }
+  });
+  const steps = [...pageMap.values()].map((row) => {
+    const purchaserSupport = totals.purchasers ? row.purchasers / totals.purchasers : 0;
+    const nonPurchaserSupport = totals.non_purchasers ? row.non_purchasers / totals.non_purchasers : 0;
+    return { ...row, purchaser_support: purchaserSupport, non_purchaser_support: nonPurchaserSupport, lift: nonPurchaserSupport ? purchaserSupport / nonPurchaserSupport : 0 };
+  }).sort((a, b) => a.step - b.step || b.purchaser_support - a.purchaser_support).slice(0, 10);
+  const paths = [...pathMap.values()].map((row) => ({ ...row, purchaser_support: totals.purchasers ? row.purchasers / totals.purchasers : 0, non_purchaser_support: totals.non_purchasers ? row.non_purchasers / totals.non_purchasers : 0 }))
+    .sort((a, b) => (b.purchasers + b.non_purchasers) - (a.purchasers + a.non_purchasers)).slice(0, 4);
+  return { totals, steps, paths };
+}
+
+function filterBehaviorByDateRange(behavior, range) {
+  const facts = filterRowsByDateRange(behavior?.facts || [], range);
+  const demographicRows = filterRowsByDateRange(behavior?.meta_demographics_rows || [], range);
+  const pageFacts = filterRowsByDateRange(behavior?.page_facts || [], range);
+  const journeyRows = filterRowsByDateRange(behavior?.journey_rows || [], range);
+  const checkoutProducts = rollupBehaviorFacts(facts, 'checkout', 'product');
+  const checkoutCountries = rollupBehaviorFacts(facts, 'checkout', 'country');
+  const paymentProducts = rollupBehaviorFacts(facts, 'submit_payment', 'product');
+  const paymentCountries = rollupBehaviorFacts(facts, 'submit_payment', 'country');
+  const demographics = demographicsBehaviorRollup(demographicRows);
+  return {
+    ...behavior,
+    period: { ...(behavior?.period || {}), since: range.since, until: range.until },
+    matrix: {
+      checkout: { global: checkoutProducts.global, products: checkoutProducts.rows, countries: checkoutCountries.rows, gender: demographics.checkout },
+      submit_payment: { global: paymentProducts.global, products: paymentProducts.rows, countries: paymentCountries.rows, gender: demographics.submit_payment },
+    },
+    dwell_pages: dwellBehaviorRollup(pageFacts),
+    journeys: journeyBehaviorRollup(journeyRows),
+  };
+}
+
 function nextSort(current, key) {
   return { key, dir: current?.key === key && current?.dir === 'desc' ? 'asc' : 'desc' };
 }
@@ -1056,6 +1278,156 @@ function DailySalesHighlights({ lines, range }) {
           </div>)}
         </div>
       </article>
+    </div>
+  </section>;
+}
+
+function ExtractionStatus({ behavior }) {
+  const items = [
+    ['Checkout abandon', behavior?.extraction?.abandoned_checkouts],
+    ['Payment abandon', behavior?.extraction?.meta_payment],
+    ['Gender slice', behavior?.extraction?.meta_demographics],
+    ['Session pixel', behavior?.extraction?.session_events],
+  ];
+  return <div className="behavior-status-strip">
+    {items.map(([label, status]) => {
+      const ok = Boolean(status?.ok);
+      return <span key={label} className={ok ? 'ready' : 'building'} title={status?.error || status?.note || ''}>
+        <i>{ok ? '●' : '○'}</i>
+        <b>{label}</b>
+        <small>{ok ? `${compact(status?.count || status?.sessions || 0)} rows` : 'extracting path ready'}</small>
+      </span>;
+    })}
+  </div>;
+}
+
+function BehaviorStepCell({ row, label, global }) {
+  if (!row || !Number(row.exposed || 0)) return <div className="behavior-step-cell empty"><b>{label}</b><strong>n/a</strong><small>No events reached this step yet</small></div>;
+  return <div className={`behavior-step-cell ${confidenceSlug(row.confidence)}`}>
+    <b>{label}</b>
+    <strong>{row.abandoned}/{row.exposed}</strong>
+    <small>{rateLabel(row.shrunk_rate)} shrunk abandon rate · site {rateLabel(global?.rate || 0)}</small>
+    <div className="behavior-mini-facts">
+      <span>{Number(row.vs_site_pp || 0) >= 0 ? '+' : ''}{Number(row.vs_site_pp || 0).toFixed(1)}pp vs site</span>
+      <span>{Number(row.excess_abandons || 0).toFixed(1)} excess</span>
+    </div>
+    <em>{row.confidence}</em>
+  </div>;
+}
+
+function BehaviorProductMatrix({ behavior }) {
+  const checkoutRows = behavior?.matrix?.checkout?.products || [];
+  const paymentRows = behavior?.matrix?.submit_payment?.products || [];
+  const checkoutByKey = new Map(checkoutRows.map((row) => [row.key, row]));
+  const paymentByKey = new Map(paymentRows.map((row) => [row.key, row]));
+  const keys = [...new Set([...checkoutByKey.keys(), ...paymentByKey.keys()])];
+  const rows = keys.map((key) => {
+    const checkout = checkoutByKey.get(key);
+    const payment = paymentByKey.get(key);
+    const main = checkout || payment || {};
+    return { key, main, checkout, payment, score: Number(checkout?.excess_abandons || 0) + Number(payment?.excess_abandons || 0) };
+  }).sort((a, b) => b.score - a.score || Number(b.main.exposed || 0) - Number(a.main.exposed || 0)).slice(0, 8);
+  return <div className="behavior-matrix">
+    {rows.length ? rows.map(({ key, main, checkout, payment }) => <article className="behavior-product-row" key={key}>
+      <div className="behavior-product-cell">
+        {main.image_url ? <img src={main.image_url} alt="" /> : <span className="thumb-fallback">{(main.family || 'S').slice(0, 1)}</span>}
+        <div>
+          <b>{main.product || 'Unknown product'}</b>
+          <small>{main.family || 'Other'} · {main.subtype || 'Unknown'}</small>
+        </div>
+      </div>
+      <BehaviorStepCell row={checkout} label="Checkout" global={behavior?.matrix?.checkout?.global} />
+      <BehaviorStepCell row={payment} label="Submit payment" global={behavior?.matrix?.submit_payment?.global} />
+      <div className="behavior-annotation-strip">
+        {(checkout?.countries || payment?.countries || []).slice(0, 3).map((country) => <span className="behavior-chip" key={country.country_code}>{countryFlag(country.country_code)} {country.country_code || 'UNK'} {country.abandoned}/{country.exposed}</span>)}
+        {!(checkout?.countries || payment?.countries || []).length ? <span className="behavior-chip muted">No country split yet</span> : null}
+      </div>
+    </article>) : <div className="behavior-empty">
+      <b>No abandonment rows in this date window yet</b>
+      <span>Checkout abandonments come from Shopify abandoned checkouts. Submit-payment rows come from Meta AddPaymentInfo now, with exact session-level rows added when the customer-events pixel sends `payment_info_submitted`.</span>
+    </div>}
+  </div>;
+}
+
+function BehaviorSegmentPanel({ title, rows, type }) {
+  return <article className="behavior-segment-panel">
+    <div className="behavior-panel-head"><h3>{title}</h3><small>Rate + denominator, not raw count</small></div>
+    <div className="behavior-segment-list">
+      {(rows || []).slice(0, 6).map((row) => <div className="behavior-segment-row" key={`${type}-${row.key || row.segment || row.country_code}`}>
+        <b>{type === 'country' ? <><span className="flag">{countryFlag(row.country_code)}</span>{row.country || row.country_code || 'Unknown'}</> : row.segment || row.gender || 'Unknown'}</b>
+        <span>{row.abandoned}/{row.exposed}</span>
+        <small>{rateLabel(row.shrunk_rate)} · {row.confidence}</small>
+      </div>)}
+      {!(rows || []).length ? <div className="behavior-empty compact"><b>No segment rows yet</b><span>Extraction route is wired; data appears after the source has rows.</span></div> : null}
+    </div>
+  </article>;
+}
+
+function DwellPagesPanel({ pages }) {
+  return <article className="behavior-panel">
+    <div className="behavior-panel-head"><h3>Pages with dwell</h3><small>High dwell + exit can mean friction</small></div>
+    <div className="behavior-dwell-grid">
+      {(pages || []).slice(0, 6).map((page) => {
+        const width = Math.min(100, Math.max(8, Number(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0) / 6));
+        return <div className="dwell-page-card" key={page.path}>
+          <b>{page.path}</b>
+          <span>{Math.round(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0)}s non-purchaser dwell</span>
+          <div className="dwell-meter"><i style={{ width: `${width}%` }} /></div>
+          <small>{page.sessions} sessions · {page.read || 'Neutral'}</small>
+        </div>;
+      })}
+      {!(pages || []).length ? <div className="behavior-empty compact"><b>No dwell rows yet</b><span>The session pixel will calculate dwell between page views and visibility/session-end events.</span></div> : null}
+    </div>
+  </article>;
+}
+
+function JourneyComparisonPanel({ journeys }) {
+  const steps = journeys?.steps || [];
+  return <article className="behavior-panel journey-panel">
+    <div className="behavior-panel-head"><h3>Purchaser vs non-purchaser journey</h3><small>Shared page sequence and divergence</small></div>
+    <div className="journey-compare">
+      <div className="journey-column">
+        <b>Purchasers common path</b>
+        {steps.filter((row) => row.purchasers > 0).slice(0, 5).map((row) => <div className="journey-step" key={`p-${row.step}-${row.path}`}>
+          <span>{row.step}</span><strong>{row.path}</strong><small>{Math.round(row.purchaser_support * 100)}% support · lift {Number(row.lift || 0).toFixed(1)}x</small>
+        </div>)}
+        {!steps.some((row) => row.purchasers > 0) ? <div className="behavior-empty compact"><b>No purchaser path yet</b><span>Waiting for session path + checkout_completed events.</span></div> : null}
+      </div>
+      <div className="journey-column">
+        <b>Non-purchasers common path</b>
+        {steps.filter((row) => row.non_purchasers > 0).slice(0, 5).map((row) => <div className="journey-step" key={`n-${row.step}-${row.path}`}>
+          <span>{row.step}</span><strong>{row.path}</strong><small>{Math.round(row.non_purchaser_support * 100)}% support · {row.non_purchasers} sessions</small>
+        </div>)}
+        {!steps.some((row) => row.non_purchasers > 0) ? <div className="behavior-empty compact"><b>No non-purchaser path yet</b><span>Waiting for page_viewed events from sessions that do not purchase.</span></div> : null}
+      </div>
+    </div>
+  </article>;
+}
+
+function BehaviorAnalyticsModule({ behavior }) {
+  const checkoutCountries = behavior?.matrix?.checkout?.countries || [];
+  const paymentCountries = behavior?.matrix?.submit_payment?.countries || [];
+  const checkoutGender = behavior?.matrix?.checkout?.gender || [];
+  const paymentGender = behavior?.matrix?.submit_payment?.gender || [];
+  return <section className="behavior-zone">
+    <div className="panel-title product-title">
+      <div>
+        <h2>Behavior friction matrix</h2>
+        <p>Checkout abandonment comes from Shopify abandoned checkouts + paid checkout exposures. Submit-payment uses Meta AddPaymentInfo now; dwell and page journeys use first-party session events.</p>
+      </div>
+      <span>{behavior?.period?.since} - {behavior?.period?.until}</span>
+    </div>
+    <ExtractionStatus behavior={behavior} />
+    <BehaviorProductMatrix behavior={behavior} />
+    <div className="behavior-overview-grid">
+      <BehaviorSegmentPanel title="Checkout countries" rows={checkoutCountries} type="country" />
+      <BehaviorSegmentPanel title="Submit-payment countries" rows={paymentCountries} type="country" />
+      <BehaviorSegmentPanel title="Checkout age / gender" rows={checkoutGender} type="gender" />
+      <BehaviorSegmentPanel title="Payment age / gender" rows={paymentGender} type="gender" />
+    </div>
+    <div className="behavior-lower-grid">
+      <DwellPagesPanel pages={behavior?.dwell_pages || []} />
+      <JourneyComparisonPanel journeys={behavior?.journeys || {}} />
     </div>
   </section>;
 }
@@ -1251,6 +1623,7 @@ function CampaignPerformanceTable({ attribution }) {
 function App() {
   const [raw, setRaw] = useState(null);
   const [shopify, setShopify] = useState(null);
+  const [behaviorRaw, setBehaviorRaw] = useState(null);
   const [selected, setSelected] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [query, setQuery] = useState('');
@@ -1273,6 +1646,9 @@ function App() {
   }, []);
   useEffect(() => {
     fetchJsonWithFallback('/api/data/shopify-products.json', '/data/shopify-products.json', fallbackShopify).then(setShopify);
+  }, []);
+  useEffect(() => {
+    fetchJsonWithFallback('/api/data/behavior-intelligence.json', '/data/behavior-intelligence.json', fallbackBehavior).then(setBehaviorRaw);
   }, []);
   useEffect(() => {
     saleSoundEnabledRef.current = saleSoundEnabled;
@@ -1332,6 +1708,7 @@ function App() {
 
   const baseData = raw || fallbackData();
   const baseProductData = shopify || fallbackShopify();
+  const baseBehaviorData = behaviorRaw || fallbackBehavior();
   const loadedBounds = useMemo(() => loadedDateRange(baseData, baseProductData), [baseData, baseProductData]);
   useEffect(() => {
     if (!loadedBounds.since || !loadedBounds.until) return;
@@ -1347,6 +1724,7 @@ function App() {
   const activeDateRange = useMemo(() => clampDateRange(dateRange.since ? dateRange : presetDateRange(datePreset, loadedBounds), loadedBounds), [dateRange, datePreset, loadedBounds]);
   const data = useMemo(() => filterMetaDataByDateRange(baseData, activeDateRange), [baseData, activeDateRange]);
   const productData = useMemo(() => filterShopifyByDateRange(baseProductData, activeDateRange), [baseProductData, activeDateRange]);
+  const behaviorData = useMemo(() => filterBehaviorByDateRange(baseBehaviorData, activeDateRange), [baseBehaviorData, activeDateRange]);
   function handleDatePreset(nextPreset) {
     setDatePreset(nextPreset);
     if (nextPreset === 'custom') {
@@ -1435,6 +1813,7 @@ function App() {
       </section>
       <BusinessMetricPanel rows={businessRows} active={activeBusiness} windowKey={businessWindow} setWindowKey={setBusinessWindow} fxText={fxText} />
       <DailySalesHighlights lines={productData.order_lines || []} range={activeDateRange} />
+      <BehaviorAnalyticsModule behavior={behaviorData} />
 
       <CampaignPerformanceTable attribution={campaignAttribution} />
 

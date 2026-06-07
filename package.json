@@ -9,7 +9,8 @@
     "preview": "vite preview --host 127.0.0.1 --port 5178",
     "fetch:meta": "node scripts/fetch-meta-insights.mjs",
     "fetch:shopify": "node scripts/fetch-shopify-products.mjs",
-    "fetch:all": "npm run fetch:meta && npm run fetch:shopify",
+    "fetch:behavior": "node scripts/fetch-behavior-intelligence.mjs",
+    "fetch:all": "npm run fetch:meta && npm run fetch:shopify && npm run fetch:behavior",
     "start": "node server.mjs",
     "build:deploy": "vite build"
   },
