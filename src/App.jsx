@@ -1885,10 +1885,10 @@ function App() {
   const [dateRange, setDateRange] = useState({ since: '', until: '' });
   const [customRange, setCustomRange] = useState({ since: '', until: '' });
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
-  const [saleSoundEnabled, setSaleSoundEnabled] = useState(false);
+  const [saleSoundEnabled, setSaleSoundEnabled] = useState(true);
   const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '' });
   const saleAudioRef = useRef(null);
-  const saleSoundEnabledRef = useRef(false);
+  const saleSoundEnabledRef = useRef(true);
   const lastSaleIdRef = useRef('');
   const saleInitializedRef = useRef(false);
   const saleFlashTimerRef = useRef(null);
@@ -1924,8 +1924,9 @@ function App() {
   }
 
   async function enableSaleSound() {
-    const played = await playSaleChime();
-    setSaleSoundEnabled(Boolean(played));
+    setSaleSoundEnabled(true);
+    saleSoundEnabledRef.current = true;
+    await playSaleChime();
   }
 
   useEffect(() => {
