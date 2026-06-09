@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { productTaxonomyForName } from '../src/lib/productMapping.js';
 
 const envPaths = [process.env.ENV_FILE, path.resolve('.env')].filter(Boolean);
 for (const envPath of envPaths) {
@@ -15,22 +16,59 @@ for (const envPath of envPaths) {
 
 const token = process.env.SHAWQ_META_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN;
 const account = (process.env.SHAWQ_META_AD_ACCOUNT_ID || process.env.META_AD_ACCOUNT_ID || '').replace(/^act_/, '');
-const since = process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
-const until = process.env.UNTIL || new Date().toISOString().slice(0, 10);
+const requestedSince = process.env.META_SINCE || process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
+const requestedUntil = process.env.META_UNTIL || process.env.UNTIL || '';
 const graphVersion = process.env.META_GRAPH_VERSION || 'v20.0';
 if (!token || !account) {
   console.error('Missing SHAWQ_META_ACCESS_TOKEN or SHAWQ_META_AD_ACCOUNT_ID.');
   process.exit(1);
 }
 
+function dateInTimezone(date = new Date(), timeZone = 'UTC') {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function zonedDateTimeToUnix(date, timeZone, endOfDay = false) {
+  const [year, month, day] = String(date || '').split('-').map(Number);
+  const hour = endOfDay ? 23 : 0;
+  const minute = endOfDay ? 59 : 0;
+  const second = endOfDay ? 59 : 0;
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second, endOfDay ? 999 : 0);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = Object.fromEntries(formatter
+    .formatToParts(new Date(utcGuess))
+    .filter((part) => part.type !== 'literal')
+    .map((part) => [part.type, Number(part.value)]));
+  const zonedAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, endOfDay ? 999 : 0);
+  return Math.floor((utcGuess - (zonedAsUtc - utcGuess)) / 1000);
+}
+
 const adsetFields = [
   'date_start', 'date_stop', 'campaign_id', 'campaign_name', 'adset_id', 'adset_name',
-  'spend', 'impressions', 'reach', 'frequency', 'cpm', 'ctr', 'clicks', 'actions', 'action_values', 'purchase_roas'
+  'spend', 'impressions', 'reach', 'frequency', 'cpm', 'ctr', 'clicks',
+  'inline_link_clicks', 'inline_link_click_ctr', 'outbound_clicks', 'outbound_clicks_ctr',
+  'actions', 'action_values', 'purchase_roas'
 ].join(',');
 
 const adFields = [
   'date_start', 'date_stop', 'campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name',
-  'spend', 'impressions', 'reach', 'frequency', 'cpm', 'ctr', 'clicks', 'actions', 'action_values', 'purchase_roas'
+  'spend', 'impressions', 'reach', 'frequency', 'cpm', 'ctr', 'clicks',
+  'inline_link_clicks', 'inline_link_click_ctr', 'outbound_clicks', 'outbound_clicks_ctr',
+  'actions', 'action_values', 'purchase_roas'
 ].join(',');
 
 async function graphGet(url) {
@@ -43,7 +81,7 @@ async function graphGet(url) {
 async function getAccountMetadata() {
   const base = new URL(`https://graph.facebook.com/${graphVersion}/act_${account}`);
   base.searchParams.set('access_token', token);
-  base.searchParams.set('fields', 'currency,account_status,name');
+  base.searchParams.set('fields', 'currency,account_status,name,timezone_id,timezone_name,timezone_offset_hours_utc');
   try {
     return await graphGet(base.toString());
   } catch (error) {
@@ -53,37 +91,111 @@ async function getAccountMetadata() {
 }
 
 const fxCache = new Map();
-async function fxRate(date, fromCurrency, toCurrency) {
+function parseFxPayload(data, toCurrency) {
+  const to = String(toCurrency || 'USD').toUpperCase();
+  return {
+    rate: Number(data?.rate ?? data?.rates?.[to] ?? 0),
+    rate_date: data?.date || '',
+  };
+}
+
+async function fxRateInfo(date, fromCurrency, toCurrency) {
   const from = String(fromCurrency || 'USD').toUpperCase();
   const to = String(toCurrency || 'USD').toUpperCase();
-  if (from === to) return 1;
+  if (from === to) {
+    return {
+      rate: 1,
+      provider: 'identity',
+      source: 'same_currency',
+      requested_date: date,
+      rate_date: date,
+      from,
+      to,
+    };
+  }
   const key = `${date}:${from}:${to}`;
   if (fxCache.has(key)) return fxCache.get(key);
   const urls = [
-    `https://api.frankfurter.app/${date}?from=${from}&to=${to}`,
-    `https://api.frankfurter.app/latest?from=${from}&to=${to}`,
+    { source: 'frankfurter_v2_daily', url: `https://api.frankfurter.dev/v2/rate/${from}/${to}?date=${date}` },
+    { source: 'frankfurter_v2_latest_fallback', url: `https://api.frankfurter.dev/v2/rate/${from}/${to}` },
+    { source: 'frankfurter_v1_daily_fallback', url: `https://api.frankfurter.app/${date}?from=${from}&to=${to}` },
+    { source: 'frankfurter_v1_latest_fallback', url: `https://api.frankfurter.app/latest?from=${from}&to=${to}` },
   ];
-  for (const url of urls) {
+  for (const { source, url } of urls) {
     try {
       const res = await fetch(url);
       if (!res.ok) continue;
       const data = await res.json();
-      const rate = Number(data?.rates?.[to] || 0);
+      const { rate, rate_date } = parseFxPayload(data, to);
       if (rate > 0) {
-        fxCache.set(key, rate);
-        return rate;
+        const info = {
+          rate,
+          provider: 'Frankfurter',
+          source,
+          requested_date: date,
+          rate_date: rate_date || (source.includes('latest') ? 'latest' : date),
+          from,
+          to,
+        };
+        fxCache.set(key, info);
+        return info;
       }
     } catch {}
   }
   console.warn(`Could not fetch FX rate ${from}->${to} for ${date}; using 1.`);
-  fxCache.set(key, 1);
-  return 1;
+  const fallback = {
+    rate: 1,
+    provider: 'fallback',
+    source: 'identity_after_fx_failure',
+    requested_date: date,
+    rate_date: date,
+    from,
+    to,
+  };
+  fxCache.set(key, fallback);
+  return fallback;
 }
-const fxToUsd = (date, fromCurrency) => fxRate(date, fromCurrency, 'USD');
-const fxToTry = (date, fromCurrency) => fxRate(date, fromCurrency, 'TRY');
+
+async function fxContext(date, fromCurrency) {
+  const [usd, tryRate] = await Promise.all([
+    fxRateInfo(date, fromCurrency, 'USD'),
+    fxRateInfo(date, fromCurrency, 'TRY'),
+  ]);
+  return {
+    fx_to_usd: usd.rate,
+    fx_to_usd_provider: usd.provider,
+    fx_to_usd_source: usd.source,
+    fx_to_usd_requested_date: usd.requested_date,
+    fx_to_usd_rate_date: usd.rate_date,
+    fx_to_try: tryRate.rate,
+    fx_to_try_provider: tryRate.provider,
+    fx_to_try_source: tryRate.source,
+    fx_to_try_requested_date: tryRate.requested_date,
+    fx_to_try_rate_date: tryRate.rate_date,
+  };
+}
 
 async function getInsights({ level, fields, start, end, breakdowns }) {
   const base = new URL(`https://graph.facebook.com/${graphVersion}/act_${account}/insights`);
+  base.searchParams.set('access_token', token);
+  base.searchParams.set('level', level);
+  base.searchParams.set('time_increment', '1');
+  base.searchParams.set('limit', '500');
+  base.searchParams.set('fields', fields);
+  if (breakdowns) base.searchParams.set('breakdowns', breakdowns);
+  base.searchParams.set('time_range', JSON.stringify({ since: start, until: end }));
+  let url = base.toString();
+  const rows = [];
+  while (url) {
+    const data = await graphGet(url);
+    rows.push(...(data.data || []));
+    url = data.paging?.next || null;
+  }
+  return rows;
+}
+
+async function getObjectInsights({ objectId, level, fields, start, end, breakdowns }) {
+  const base = new URL(`https://graph.facebook.com/${graphVersion}/${objectId}/insights`);
   base.searchParams.set('access_token', token);
   base.searchParams.set('level', level);
   base.searchParams.set('time_increment', '1');
@@ -106,8 +218,8 @@ async function getActivities(start, end) {
   base.searchParams.set('access_token', token);
   base.searchParams.set('limit', '500');
   base.searchParams.set('fields', 'event_time,event_type,translated_event_type,object_id,object_name,object_type,extra_data');
-  base.searchParams.set('since', Math.floor(new Date(`${start}T00:00:00Z`).getTime() / 1000));
-  base.searchParams.set('until', Math.floor(new Date(`${end}T23:59:59Z`).getTime() / 1000));
+  base.searchParams.set('since', zonedDateTimeToUnix(start, metaReportingTimezone, false));
+  base.searchParams.set('until', zonedDateTimeToUnix(end, metaReportingTimezone, true));
   let url = base.toString();
   const rows = [];
   while (url) {
@@ -136,16 +248,18 @@ function metricFromActions(actions = [], exact = [], includes = []) {
   return 0;
 }
 
-function productFamilyForAdName(name) {
-  const text = String(name || '').toLowerCase();
-  if (/al\s*madaan|madaan/.test(text)) return 'Al Madaan';
-  if (/skirt|zaytoun|kuffiyah.*skirt|kuffiya.*skirt|vescarts?\s*skirt|vescartes?\s*skirt|vescarts?\s*skit|vescartes?\s*skit/.test(text)) return 'Skirts';
-  if (/crewneck|\b98\b|vescarts?\s*98|vescartes?\s*98/.test(text)) return 'Crewnecks';
-  if (/hoodie/.test(text)) return 'Hoodies';
-  if (/(denim|pants|jeans)/.test(text) && !/skirt/.test(text)) return 'Denim pants';
-  if (/t-?shirt|long\s*sleeve|\btop\b|\btops\b|shirt/.test(text)) return 'Tops';
-  if (/kuffiyah|kuffiya/.test(text)) return 'Kuffiyah accessory';
-  return 'unknown_product';
+function numericMetric(value) {
+  if (Array.isArray(value)) return metricFromActions(value, ['outbound_click', 'link_click'], ['outbound', 'link_click']);
+  return Number(value || 0);
+}
+
+function clickThroughCtr({ impressions, inlineLinkClicks, inlineLinkCtr, outboundCtr, ctrAll }) {
+  const inlineCtr = Number(inlineLinkCtr || 0);
+  if (inlineCtr > 0) return { ctr: inlineCtr, source: 'inline_link_click_ctr' };
+  const outbound = numericMetric(outboundCtr);
+  if (outbound > 0) return { ctr: outbound, source: 'outbound_clicks_ctr' };
+  if (impressions && inlineLinkClicks) return { ctr: inlineLinkClicks / impressions * 100, source: 'computed_inline_link_clicks' };
+  return { ctr: Number(ctrAll || 0), source: 'ctr_all_fallback' };
 }
 
 function countryName(code) {
@@ -162,13 +276,25 @@ async function normalizeInsightRow(r, accountCurrency) {
   const impressions = Number(r.impressions || 0);
   const clicks = Number(r.clicks || 0);
   const reach = Number(r.reach || 0);
-  const fx_to_usd = await fxToUsd(date, accountCurrency);
-  const fx_to_try = await fxToTry(date, accountCurrency);
+  const fx = await fxContext(date, accountCurrency);
   const purchaseValue = metricFromActions(r.action_values, ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'], ['purchase']);
   const purchases = metricFromActions(r.actions, ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'], ['purchase']);
   const addToCart = metricFromActions(r.actions, ['offsite_conversion.fb_pixel_add_to_cart', 'omni_add_to_cart', 'add_to_cart'], ['add_to_cart']);
   const checkoutInitiated = metricFromActions(r.actions, ['offsite_conversion.fb_pixel_initiate_checkout', 'omni_initiated_checkout', 'initiate_checkout', 'initiated_checkout'], ['initiate_checkout', 'initiated_checkout']);
   const linkClicks = metricFromActions(r.actions, ['link_click'], ['link_click']);
+  const inlineLinkClicks = Number(r.inline_link_clicks || linkClicks || 0);
+  const outboundClicks = numericMetric(r.outbound_clicks);
+  const ctrAll = Number(r.ctr || (impressions ? clicks / impressions * 100 : 0));
+  const clickCtr = clickThroughCtr({
+    impressions,
+    inlineLinkClicks,
+    inlineLinkCtr: r.inline_link_click_ctr,
+    outboundCtr: r.outbound_clicks_ctr,
+    ctrAll,
+  });
+  const product = productTaxonomyForName(r.ad_name || r.adset_name || r.campaign_name);
+  const fx_to_usd = fx.fx_to_usd;
+  const fx_to_try = fx.fx_to_try;
   const spend_usd = spend * fx_to_usd;
   const spend_try = spend * fx_to_try;
   const purchase_value_usd = purchaseValue * fx_to_usd;
@@ -183,19 +309,22 @@ async function normalizeInsightRow(r, accountCurrency) {
     adset_name: r.adset_name || '',
     ad_id: r.ad_id || '',
     ad_name: r.ad_name || '',
-    product_family: productFamilyForAdName(r.ad_name || r.adset_name || r.campaign_name),
+    product_family: product.family,
+    product_subtype: product.subtype,
     spend,
     spend_currency: accountCurrency,
-    fx_to_usd,
-    fx_to_try,
+    ...fx,
     spend_usd,
     spend_try,
     impressions,
     reach,
     frequency: Number(r.frequency || (reach ? impressions / reach : 0)),
     clicks_all: clicks,
-    link_clicks: linkClicks,
-    ctr: Number(r.ctr || (impressions ? clicks / impressions * 100 : 0)),
+    link_clicks: inlineLinkClicks,
+    outbound_clicks: outboundClicks,
+    ctr_all: ctrAll,
+    ctr: clickCtr.ctr,
+    ctr_source: clickCtr.source,
     cpm: Number(r.cpm || (impressions ? spend / impressions * 1000 : 0)),
     cpm_usd: impressions ? spend_usd / impressions * 1000 : 0,
     cpm_try: impressions ? spend_try / impressions * 1000 : 0,
@@ -221,6 +350,7 @@ function emptyAggregate(extra = {}) {
     reach: 0,
     clicks_all: 0,
     link_clicks: 0,
+    outbound_clicks: 0,
     purchases: 0,
     add_to_cart: 0,
     checkout_initiated: 0,
@@ -235,7 +365,7 @@ function emptyAggregate(extra = {}) {
 }
 
 function addToAggregate(target, r) {
-  for (const key of ['spend', 'spend_usd', 'spend_try', 'impressions', 'reach', 'clicks_all', 'link_clicks', 'purchases', 'add_to_cart', 'checkout_initiated', 'purchase_value', 'purchase_value_usd', 'purchase_value_try']) {
+  for (const key of ['spend', 'spend_usd', 'spend_try', 'impressions', 'reach', 'clicks_all', 'link_clicks', 'outbound_clicks', 'purchases', 'add_to_cart', 'checkout_initiated', 'purchase_value', 'purchase_value_usd', 'purchase_value_try']) {
     target[key] += Number(r[key] || 0);
   }
   if (Number(r.spend || 0) > 0) target.active_days_set.add(r.date);
@@ -254,9 +384,12 @@ function finalizeAggregate(row) {
   delete out.countries_set;
   delete out.ads_set;
   delete out.adsets_set;
-  out.ctr = out.impressions ? out.clicks_all / out.impressions * 100 : 0;
+  out.ctr_all = out.impressions ? out.clicks_all / out.impressions * 100 : 0;
+  out.ctr = out.impressions ? out.link_clicks / out.impressions * 100 : 0;
+  out.ctr_source = 'aggregate_link_clicks';
   out.cpm_usd = out.impressions ? out.spend_usd / out.impressions * 1000 : 0;
   out.cpm_try = out.impressions ? out.spend_try / out.impressions * 1000 : 0;
+  out.reach_per_dollar = out.spend_usd ? out.reach / out.spend_usd : 0;
   out.cpa_usd = out.purchases ? out.spend_usd / out.purchases : 0;
   out.cpa_try = out.purchases ? out.spend_try / out.purchases : 0;
   out.roas = out.spend ? out.purchase_value / out.spend : 0;
@@ -277,6 +410,85 @@ function aggregateBy(rows, keyFn, seedFn) {
   return [...map.values()].map(finalizeAggregate);
 }
 
+function fxMetaFromRow(row = {}) {
+  return {
+    fx_to_usd: row.fx_to_usd,
+    fx_to_usd_provider: row.fx_to_usd_provider,
+    fx_to_usd_source: row.fx_to_usd_source,
+    fx_to_usd_requested_date: row.fx_to_usd_requested_date,
+    fx_to_usd_rate_date: row.fx_to_usd_rate_date,
+    fx_to_try: row.fx_to_try,
+    fx_to_try_provider: row.fx_to_try_provider,
+    fx_to_try_source: row.fx_to_try_source,
+    fx_to_try_requested_date: row.fx_to_try_requested_date,
+    fx_to_try_rate_date: row.fx_to_try_rate_date,
+  };
+}
+
+function attachFxMetaByDate(rows, sourceRows) {
+  const byDate = new Map();
+  for (const row of sourceRows || []) if (row.date && !byDate.has(row.date)) byDate.set(row.date, fxMetaFromRow(row));
+  return rows.map((row) => ({ ...row, ...(byDate.get(row.date) || {}) }));
+}
+
+function aggregateNormalizedDeliveryByDate(rows = []) {
+  const byDate = new Map();
+  for (const row of rows) {
+    const cur = byDate.get(row.date) || {
+      date: row.date,
+      spend: 0,
+      spend_usd: 0,
+      spend_try: 0,
+      impressions: 0,
+      reach: 0,
+      purchases: 0,
+      purchase_value: 0,
+      purchase_value_usd: 0,
+      purchase_value_try: 0,
+    };
+    cur.spend += Number(row.spend || 0);
+    cur.spend_usd += Number(row.spend_usd || 0);
+    cur.spend_try += Number(row.spend_try || 0);
+    cur.impressions += Number(row.impressions || 0);
+    cur.reach += Number(row.reach || 0);
+    cur.purchases += Number(row.purchases || 0);
+    cur.purchase_value += Number(row.purchase_value || 0);
+    cur.purchase_value_usd += Number(row.purchase_value_usd || 0);
+    cur.purchase_value_try += Number(row.purchase_value_try || 0);
+    byDate.set(row.date, cur);
+  }
+  return attachFxMetaByDate([...byDate.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((row) => ({
+      ...row,
+      frequency: row.reach ? row.impressions / row.reach : 0,
+      cpm: row.impressions ? row.spend / row.impressions * 1000 : 0,
+      cpm_usd: row.impressions ? row.spend_usd / row.impressions * 1000 : 0,
+      cpm_try: row.impressions ? row.spend_try / row.impressions * 1000 : 0,
+      reach_per_dollar: row.spend_usd ? row.reach / row.spend_usd : 0,
+      roas: row.spend ? row.purchase_value / row.spend : 0,
+    })), rows);
+}
+
+async function campaignCountryDelivery({ campaignId, since: start, until: end, country = 'US' }) {
+  const raw = await getObjectInsights({ objectId: campaignId, level: 'adset', fields: adsetFields, start, end, breakdowns: 'country' });
+  const normalized = [];
+  for (const row of raw) {
+    if (country && row.country !== country) continue;
+    normalized.push(await normalizeInsightRow(row, accountCurrency));
+  }
+  return aggregateNormalizedDeliveryByDate(normalized).filter((row) => Number(row.impressions || 0) > 0 || Number(row.spend || 0) > 0 || Number(row.purchases || 0) > 0);
+}
+
+function activePeriod(rows = [], fallback = {}) {
+  const active = rows.filter((row) => Number(row.spend || 0) > 0 || Number(row.impressions || 0) > 0 || Number(row.reach || 0) > 0 || Number(row.purchases || 0) > 0);
+  return {
+    since: active[0]?.date || fallback.since || '',
+    until: active[active.length - 1]?.date || fallback.until || '',
+    days: active.length,
+  };
+}
+
 function isUsaRow(r) {
   const text = `${r.campaign_name || ''} ${r.adset_name || ''}`;
   return /\bUSA\b|\bUS\b|_US|US_/i.test(text) && !/AUS|Australia/i.test(text);
@@ -284,6 +496,12 @@ function isUsaRow(r) {
 
 const accountMeta = await getAccountMetadata();
 const accountCurrency = String(accountMeta.currency || process.env.META_ACCOUNT_CURRENCY || 'TRY').toUpperCase();
+const metaReportingTimezone = process.env.SHAWQ_META_REPORTING_TIMEZONE
+  || process.env.META_REPORTING_TIMEZONE
+  || accountMeta.timezone_name
+  || 'Europe/Istanbul';
+const since = requestedSince;
+const until = requestedUntil || dateInTimezone(new Date(), metaReportingTimezone);
 const previousOutPath = path.resolve('public/data/adset-radar.json');
 let previousAdsetChanges = [];
 try {
@@ -298,6 +516,64 @@ const adCountryRawRows = await getInsights({ level: 'ad', fields: adFields, star
 const adCountryDaily = [];
 for (const row of adCountryRawRows) adCountryDaily.push(await normalizeInsightRow(row, accountCurrency));
 
+const deliveryComparisonConfig = {
+  historical: {
+    label: 'Testing_USA_ABO',
+    campaign_id: '120238099120200138',
+    requested_since: '2026-02-23',
+    requested_until: '2026-04-12',
+  },
+  current: {
+    label: 'USA_CBO launch',
+    campaign_id: '120243127929760138',
+    requested_since: process.env.USA_LAUNCH_START || '2026-06-06',
+    requested_until: until,
+  },
+};
+
+let deliveryComparison = {
+  ok: false,
+  error: '',
+  country_code: 'US',
+  country: 'United States',
+  metric_note: 'Delivery metrics are from Meta. The dashboard overlays Shopify-derived sales from the Shopify comparison export.',
+  historical: { ...deliveryComparisonConfig.historical, period: { since: '', until: '', days: 0 }, rows: [] },
+  current: { ...deliveryComparisonConfig.current, period: { since: '', until: '', days: 0 }, rows: [] },
+};
+try {
+  const [historicalRows, currentRows] = await Promise.all([
+    campaignCountryDelivery({
+      campaignId: deliveryComparisonConfig.historical.campaign_id,
+      since: deliveryComparisonConfig.historical.requested_since,
+      until: deliveryComparisonConfig.historical.requested_until,
+      country: 'US',
+    }),
+    campaignCountryDelivery({
+      campaignId: deliveryComparisonConfig.current.campaign_id,
+      since: deliveryComparisonConfig.current.requested_since,
+      until: deliveryComparisonConfig.current.requested_until,
+      country: 'US',
+    }),
+  ]);
+  deliveryComparison = {
+    ...deliveryComparison,
+    ok: true,
+    historical: {
+      ...deliveryComparisonConfig.historical,
+      period: activePeriod(historicalRows, { since: deliveryComparisonConfig.historical.requested_since, until: deliveryComparisonConfig.historical.requested_until }),
+      rows: historicalRows,
+    },
+    current: {
+      ...deliveryComparisonConfig.current,
+      period: activePeriod(currentRows, { since: deliveryComparisonConfig.current.requested_since, until: deliveryComparisonConfig.current.requested_until }),
+      rows: currentRows,
+    },
+  };
+} catch (error) {
+  deliveryComparison = { ...deliveryComparison, error: error.message };
+  console.warn(`Could not fetch USA_ABO delivery comparison: ${error.message}`);
+}
+
 const usaRows = currentAdsetCountryRows.filter((r) => r.country === 'US');
 const usaMarchRows = marchAdsetCountryRows.filter((r) => r.country === 'US');
 const byAdset = new Map();
@@ -306,16 +582,16 @@ for (const r of usaRows) {
   const impressions = Number(r.impressions || 0);
   const reach = Number(r.reach || 0);
   const spend = Number(r.spend || 0);
-  const fx_to_usd = await fxToUsd(r.date_start, accountCurrency);
-  const fx_to_try = await fxToTry(r.date_start, accountCurrency);
+  const fx = await fxContext(r.date_start, accountCurrency);
+  const fx_to_usd = fx.fx_to_usd;
+  const fx_to_try = fx.fx_to_try;
   const spend_usd = spend * fx_to_usd;
   const spend_try = spend * fx_to_try;
   adset.rows.push({
     date: r.date_start,
     spend,
     spend_currency: accountCurrency,
-    fx_to_usd,
-    fx_to_try,
+    ...fx,
     spend_usd,
     spend_try,
     impressions,
@@ -324,6 +600,7 @@ for (const r of usaRows) {
     cpm: Number(r.cpm || (impressions ? spend / impressions * 1000 : 0)),
     cpm_usd: impressions ? spend_usd / impressions * 1000 : 0,
     cpm_try: impressions ? spend_try / impressions * 1000 : 0,
+    reach_per_dollar: spend_usd ? reach / spend_usd : 0,
   });
   byAdset.set(r.adset_id, adset);
 }
@@ -333,24 +610,29 @@ const avg = (arr, key) => arr.length ? arr.reduce((a, r) => a + Number(r[key] ||
 async function aggregateAdsetByDate(rows) {
   const byDate = new Map();
   for (const r of rows) {
-    const cur = byDate.get(r.date_start) || { date: r.date_start, spend: 0, spend_usd: 0, spend_try: 0, impressions: 0, reach: 0 };
+    const cur = byDate.get(r.date_start) || { date: r.date_start, spend: 0, spend_usd: 0, spend_try: 0, impressions: 0, reach: 0, fx: null };
     const spend = Number(r.spend || 0);
-    const fx_to_usd = await fxToUsd(r.date_start, accountCurrency);
-    const fx_to_try = await fxToTry(r.date_start, accountCurrency);
+    const fx = await fxContext(r.date_start, accountCurrency);
+    const fx_to_usd = fx.fx_to_usd;
+    const fx_to_try = fx.fx_to_try;
     cur.spend += spend;
     cur.spend_usd += spend * fx_to_usd;
     cur.spend_try += spend * fx_to_try;
     cur.impressions += Number(r.impressions || 0);
     cur.reach += Number(r.reach || 0);
+    cur.fx = cur.fx || fx;
     byDate.set(r.date_start, cur);
   }
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)).map((r) => ({
     ...r,
+    ...(r.fx || {}),
+    fx: undefined,
     spend_currency: accountCurrency,
     frequency: r.reach ? r.impressions / r.reach : 0,
     cpm: r.impressions ? r.spend / r.impressions * 1000 : 0,
     cpm_usd: r.impressions ? r.spend_usd / r.impressions * 1000 : 0,
     cpm_try: r.impressions ? r.spend_try / r.impressions * 1000 : 0,
+    reach_per_dollar: r.spend_usd ? r.reach / r.spend_usd : 0,
   }));
 }
 const dailyMetrics = await aggregateAdsetByDate(usaRows);
@@ -390,12 +672,21 @@ const finalAdsetChanges = activitiesFailed && previousAdsetChanges.length ? prev
 
 const allAdsets = aggregateBy(adCountryDaily, (r) => r.adset_id, (r) => ({ adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name }))
   .sort((a, b) => b.spend_usd - a.spend_usd);
-const ads = aggregateBy(adCountryDaily, (r) => r.ad_id, (r) => ({ ad_id: r.ad_id, ad_name: r.ad_name, adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name, product_family: r.product_family }))
+const accountDailyMetrics = attachFxMetaByDate(aggregateBy(adCountryDaily, (r) => r.date, (r) => ({ date: r.date })), adCountryDaily)
+  .sort((a, b) => a.date.localeCompare(b.date));
+const ads = aggregateBy(adCountryDaily, (r) => r.ad_id, (r) => ({ ad_id: r.ad_id, ad_name: r.ad_name, adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name, product_family: r.product_family, product_subtype: r.product_subtype }))
   .sort((a, b) => b.purchases - a.purchases || b.purchase_value_usd - a.purchase_value_usd || b.spend_usd - a.spend_usd);
 const countries = aggregateBy(adCountryDaily, (r) => r.country_code, (r) => ({ country_code: r.country_code, country: r.country }))
   .sort((a, b) => b.purchase_value_usd - a.purchase_value_usd || b.purchases - a.purchases || b.spend_usd - a.spend_usd);
 const productFamilies = aggregateBy(adCountryDaily, (r) => r.product_family, (r) => ({ product_family: r.product_family }))
   .sort((a, b) => b.purchases - a.purchases || b.purchase_value_usd - a.purchase_value_usd || b.spend_usd - a.spend_usd);
+const productSubtypes = aggregateBy(adCountryDaily, (r) => `${r.product_family}::${r.product_subtype}`, (r) => ({ product_family: r.product_family, product_subtype: r.product_subtype }))
+  .sort((a, b) => b.purchases - a.purchases || b.purchase_value_usd - a.purchase_value_usd || b.spend_usd - a.spend_usd);
+const fxRates = [...new Map(adCountryDaily.map((r) => [r.date, {
+  date: r.date,
+  account_currency: accountCurrency,
+  ...fxMetaFromRow(r),
+}])).values()].sort((a, b) => a.date.localeCompare(b.date));
 
 const out = {
   generated_at: new Date().toISOString(),
@@ -403,10 +694,14 @@ const out = {
   account_id: `act_${account}`,
   account_currency: accountCurrency,
   account_name: accountMeta.name || '',
+  account_timezone: metaReportingTimezone,
+  account_timezone_id: accountMeta.timezone_id || '',
+  account_timezone_offset_hours_utc: accountMeta.timezone_offset_hours_utc ?? '',
   analysis_window: { since, until },
   delivery_scope: 'usa_adsets_only',
   baseline_window: { since: '2026-03-01', until: '2026-03-31', label: 'March USA benchmark' },
   usa_filter: 'campaign/adset name contains USA, US, _US, or US_ and excludes AUS/Australia',
+  delivery_comparison: deliveryComparison,
   data_coverage: {
     adset_daily_rows: currentAdsetRows.length,
     adset_country_daily_rows: currentAdsetCountryRows.length,
@@ -415,6 +710,11 @@ const out = {
     usa_adsets: [...byAdset.values()].filter((a) => a.rows.some((r) => r.spend > 0)).length,
     ads: ads.length,
     countries: countries.length,
+  },
+  fx_rates: {
+    provider: 'Frankfurter',
+    note: 'Meta account spend is converted from account currency to USD using the date-specific Frankfurter v2 rate first; latest/v1 endpoints are only fallbacks and are labeled per date.',
+    rates: fxRates,
   },
   adset_changes: finalAdsetChanges,
   march_baseline: {
@@ -427,12 +727,14 @@ const out = {
     reach: avg(dailyMarch, 'reach'),
     impressions: avg(dailyMarch, 'impressions'),
   },
+  account_daily_metrics: accountDailyMetrics,
   daily_metrics: dailyMetrics,
   adsets: [...byAdset.values()].filter((a) => a.rows.some((r) => r.spend > 0)),
   all_adsets: allAdsets,
   ads,
   countries,
   product_families: productFamilies,
+  product_subtypes: productSubtypes,
   ad_country_daily: adCountryDaily,
 };
 const outPath = path.resolve('public/data/adset-radar.json');
@@ -440,3 +742,4 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
 console.log(`Wrote ${out.data_coverage.usa_adsets} USA ad sets, ${ads.length} ads, ${countries.length} countries, and ${out.adset_changes.length} change markers (${out.adset_changes.filter((c) => c.is_budget_change).length} budget) to ${outPath}`);
 console.log(`Backfill window: ${since} to ${until}; March baseline freq=${out.march_baseline.frequency.toFixed(2)} cpm_usd=${out.march_baseline.cpm_usd.toFixed(2)} reach=${Math.round(out.march_baseline.reach)}`);
+if (out.delivery_comparison?.ok) console.log(`USA_ABO comparison: ${out.delivery_comparison.historical.label} ${out.delivery_comparison.historical.period.since} to ${out.delivery_comparison.historical.period.until}; ${out.delivery_comparison.current.label} ${out.delivery_comparison.current.period.since} to ${out.delivery_comparison.current.period.until}`);
