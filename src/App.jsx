@@ -1083,7 +1083,7 @@ function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
   const statusText = monitor.status === 'live' ? 'Live Shopify sales monitor' : monitor.status === 'checking' ? 'Checking Shopify sales' : 'Sale monitor paused';
   const items = sale?.line_items || [];
   const detail = sale ? `${sale.name} · ${saleMoney(sale)} · ${sale.item_count || 0} item${Number(sale.item_count || 0) === 1 ? '' : 's'}` : 'Waiting for the next paid order';
-  const orderTime = sale?.created_at ? `Ordered ${saleTime(sale.created_at)}` : '';
+  const orderTime = sale?.created_at ? saleTime(sale.created_at) : '';
   const country = sale?.country?.code ? `${countryFlag(sale.country.code)} ${sale.country.name || sale.country.code}` : 'Country pending';
   const attribution = sale?.matched_ad?.ad_name || sale?.attribution_label || 'Unattributed in Shopify';
   return <section className={`sale-monitor ${monitor.fresh ? 'fresh' : ''}`}>
@@ -1091,7 +1091,8 @@ function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
       <span className={`sale-dot ${monitor.status === 'live' ? 'on' : ''}`} />
       <div>
         <b><BellRing size={15} />{monitor.fresh ? 'New Shopify sale' : statusText}</b>
-        <small>{detail} · {country}{orderTime ? ` · ${orderTime}` : ''}</small>
+        <small className="sale-summary-line">{detail} · {country}</small>
+        {orderTime ? <span className="sale-order-time"><CalendarDays size={13} />Order time <strong>{orderTime}</strong></span> : null}
         {items.length ? <div className="sale-items">{items.map((item) => <em key={`${item.title}-${item.quantity}`}>{item.quantity}x {item.title}</em>)}</div> : sale?.product_title ? <em>{sale.product_title}</em> : null}
         {sale ? <strong className="sale-source">Ad/source: {attribution}</strong> : null}
       </div>

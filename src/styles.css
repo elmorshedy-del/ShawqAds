@@ -832,3 +832,8 @@ body{
 }
 @media(max-width:1100px){.comparison-summary,.comparison-summary div{grid-template-columns:repeat(2,minmax(0,1fr))}.behavior-dev-summary{display:grid}.behavior-dev-summary em,.behavior-dev-summary::after{justify-self:start}}
 @media(max-width:760px){.comparison-summary,.comparison-summary div{grid-template-columns:1fr}.comparison-title{display:grid}.comparison-title span{justify-self:start}.behavior-dev-summary b{font-size:22px}}
+
+.sale-order-time{display:inline-flex;align-items:center;gap:6px;margin-top:7px;padding:5px 9px;border:1px solid #f0d4e1;border-radius:999px;background:#fff8fc;color:var(--shawq-ruby);font-size:11px;font-weight:900;line-height:1;box-shadow:0 8px 18px rgba(224,46,146,.08)}
+.sale-order-time strong{color:var(--shawq-ink);font-weight:950}
+.sale-monitor.fresh .sale-order-time{background:#fff;border-color:var(--shawq-pink);box-shadow:0 10px 24px rgba(224,46,146,.16)}
+@media(max-width:760px){.sale-order-time{white-space:normal;line-height:1.25;border-radius:14px}}
