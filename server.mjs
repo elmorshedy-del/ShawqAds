@@ -372,6 +372,15 @@ async function serveData(req, res, name, script) {
     return;
   }
 
+  if (!force && !fs.existsSync(file) && !refreshOnStart) {
+    send(res, 503, JSON.stringify({
+      ok: false,
+      error: 'cached data unavailable',
+      detail: 'Automatic data refresh is disabled. Use the authorized refresh endpoint or ship cached public/data files.',
+    }));
+    return;
+  }
+
   if (force || !fs.existsSync(file)) {
     const result = await runScript(script, dateEnvFromUrl(url));
     if (result.code !== 0) {

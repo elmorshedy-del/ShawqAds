@@ -7,6 +7,20 @@ import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
 
 const SALE_POLL_MS = 30000;
+const REPORTING_TIMEZONE = 'America/New_York';
+
+function dateInTimezone(date = new Date(), timeZone = REPORTING_TIMEZONE) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function currentReportingDay() {
+  return dateInTimezone(new Date(), REPORTING_TIMEZONE);
+}
 
 function fallbackData() {
   const dates = Array.from({ length: 32 }, (_, i) => {
@@ -244,6 +258,8 @@ function loadedDateRange(meta, shopify) {
   const metaRange = rangeFromDateSet(metaDates);
   const shopifyRange = rangeFromDateSet(shopifyDates);
   const unionRange = rangeFromDateSet(new Set([...metaDates, ...shopifyDates]));
+  const today = currentReportingDay();
+  const calendarRange = rangeFromDateSet(new Set([...unionRange.dates, today]));
   const commonSince = [metaRange.since, shopifyRange.since].filter(Boolean).sort().at(-1) || unionRange.since;
   const commonUntil = [metaRange.until, shopifyRange.until].filter(Boolean).sort()[0] || unionRange.until;
   const hasCommon = Boolean(commonSince && commonUntil && commonSince <= commonUntil);
@@ -261,12 +277,16 @@ function loadedDateRange(meta, shopify) {
     shopify_until: shopifyRange.until,
     union_since: unionRange.since,
     union_until: unionRange.until,
+    calendar_since: calendarRange.since,
+    calendar_until: calendarRange.until,
+    today,
+    reporting_timezone: REPORTING_TIMEZONE,
     is_common: hasCommon,
   };
 }
 function normalizeDateRange(range, bounds) {
-  let since = range?.since || bounds?.since || '';
-  let until = range?.until || bounds?.until || '';
+  let since = range?.since || bounds?.calendar_since || bounds?.since || '';
+  let until = range?.until || bounds?.calendar_until || bounds?.until || '';
   if (since && until && since > until) [since, until] = [until, since];
   return { since, until };
 }
@@ -463,13 +483,15 @@ function clampDateRange(range, bounds) {
   const normalized = normalizeDateRange(range, bounds);
   let since = normalized.since;
   let until = normalized.until;
-  if (bounds?.since && since < bounds.since) since = bounds.since;
-  if (bounds?.until && until > bounds.until) until = bounds.until;
+  const minDate = bounds?.calendar_since || bounds?.since || '';
+  const maxDate = bounds?.calendar_until || bounds?.until || '';
+  if (minDate && since < minDate) since = minDate;
+  if (maxDate && until > maxDate) until = maxDate;
   if (since && until && since > until) since = until;
   return { since, until };
 }
 function presetDateRange(preset, bounds) {
-  const end = bounds?.common_until || bounds?.until || '';
+  const end = bounds?.today || currentReportingDay();
   if (!end) return { since: '', until: '' };
   if (preset === 'today') return clampDateRange({ since: end, until: end }, bounds);
   if (preset === 'yesterday') {
@@ -1082,8 +1104,8 @@ function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
 
 function DateWindowControl({ range, bounds, preset, isOpen, customRange, onToggle, onPreset, onCustomChange, onApplyCustom }) {
   const presets = [
-    ['today', 'Today', 'Latest loaded day'],
-    ['yesterday', 'Yesterday', 'Previous loaded day'],
+    ['today', 'Today', 'Current Eastern day'],
+    ['yesterday', 'Yesterday', 'Previous Eastern day'],
     ['last7', 'Last week', 'Rolling 7-day view'],
     ['all', 'Matched data', 'All days with Meta + Shopify'],
     ['custom', 'Date range', 'Exact start and end'],
@@ -1101,12 +1123,14 @@ function DateWindowControl({ range, bounds, preset, isOpen, customRange, onToggl
         <small>{key === 'custom' ? presetSubLabel('custom', bounds) : presetSubLabel(key, bounds)}</small>
       </button>)}
       {preset === 'custom' ? <div className="custom-range">
-        <label><span>Start</span><input type="date" min={bounds.since || undefined} max={bounds.until || undefined} value={customRange.since || ''} onInput={(event) => onCustomChange((current) => ({ ...current, since: event.currentTarget.value }))} onChange={(event) => onCustomChange((current) => ({ ...current, since: event.target.value }))} /></label>
-        <label><span>End</span><input type="date" min={bounds.since || undefined} max={bounds.until || undefined} value={customRange.until || ''} onInput={(event) => onCustomChange((current) => ({ ...current, until: event.currentTarget.value }))} onChange={(event) => onCustomChange((current) => ({ ...current, until: event.target.value }))} /></label>
+        <label><span>Start</span><input type="date" min={bounds.calendar_since || bounds.since || undefined} max={bounds.calendar_until || bounds.until || undefined} value={customRange.since || ''} onInput={(event) => onCustomChange((current) => ({ ...current, since: event.currentTarget.value }))} onChange={(event) => onCustomChange((current) => ({ ...current, since: event.target.value }))} /></label>
+        <label><span>End</span><input type="date" min={bounds.calendar_since || bounds.since || undefined} max={bounds.calendar_until || bounds.until || undefined} value={customRange.until || ''} onInput={(event) => onCustomChange((current) => ({ ...current, until: event.currentTarget.value }))} onChange={(event) => onCustomChange((current) => ({ ...current, until: event.target.value }))} /></label>
         <button type="button" className="apply-range" onClick={onApplyCustom}>Apply range</button>
       </div> : null}
       <p>
-        Available: {bounds.since || 'n/a'} - {bounds.until || 'n/a'}
+        Calendar: {bounds.calendar_since || bounds.since || 'n/a'} - {bounds.calendar_until || bounds.until || 'n/a'}
+        {bounds.reporting_timezone ? ` · Today uses ${bounds.reporting_timezone}` : ''}
+        {bounds.since ? ` · Loaded: ${bounds.since} - ${bounds.until}` : ''}
         {bounds.common_since ? ` · Matched Meta+Shopify: ${bounds.common_since} - ${bounds.common_until}` : ''}
         {bounds.meta_until ? ` · Meta latest ${bounds.meta_until}` : ''}
         {bounds.shopify_until ? ` · Shopify latest ${bounds.shopify_until}` : ''}

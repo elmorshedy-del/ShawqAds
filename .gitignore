@@ -6,6 +6,9 @@ node_modules/
 dist/
 .DS_Store
 public/data/*.json
+!public/data/adset-radar.json
+!public/data/behavior-intelligence.json
+!public/data/shopify-products.json
 qa-*.png
 qa-dashboard.png
 coverage/
