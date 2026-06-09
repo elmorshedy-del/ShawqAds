@@ -38,6 +38,12 @@ function dateInTimezone(date = new Date(), timeZone = 'UTC') {
   }).format(date);
 }
 
+function shiftDate(date, days) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 function zonedDateTimeToUtcIso(date, timeZone, endOfDay = false) {
   const [year, month, day] = String(date || '').split('-').map(Number);
   const hour = endOfDay ? 23 : 0;
@@ -104,17 +110,19 @@ const reportingTimezone = process.env.SHAWQ_SHOPIFY_REPORTING_TIMEZONE
   || shopMetadata.iana_timezone
   || 'Europe/Istanbul';
 const since = requestedSince;
-const until = requestedUntil || dateInTimezone(new Date(), reportingTimezone);
+const currentReportingDay = dateInTimezone(new Date(), reportingTimezone);
+const latestCompletedDay = shiftDate(currentReportingDay, -1);
+const until = requestedUntil || latestCompletedDay;
 const startIso = zonedDateTimeToUtcIso(since, reportingTimezone, false);
 const endIso = zonedDateTimeToUtcIso(until, reportingTimezone, true);
 
-async function getOrders() {
+async function getOrdersBetween(startDate = since, endDate = until) {
   const rows = [];
   let url = new URL(`https://${store}/admin/api/${apiVersion}/orders.json`);
   url.searchParams.set('status', 'any');
   url.searchParams.set('limit', '250');
-  url.searchParams.set('created_at_min', startIso);
-  url.searchParams.set('created_at_max', endIso);
+  url.searchParams.set('created_at_min', zonedDateTimeToUtcIso(startDate, reportingTimezone, false));
+  url.searchParams.set('created_at_max', zonedDateTimeToUtcIso(endDate, reportingTimezone, true));
   url.searchParams.set('order', 'created_at asc');
   url.searchParams.set('fields', fields);
   while (url) {
@@ -128,6 +136,10 @@ async function getOrders() {
     url = next ? new URL(next.slice(next.indexOf('<') + 1, next.indexOf('>'))) : null;
   }
   return rows;
+}
+
+async function getOrders() {
+  return getOrdersBetween(since, until);
 }
 
 function taxonomyFor(title) {
@@ -258,6 +270,149 @@ for (const o of included) {
   }
 }
 
+function refundQuantityForLine(order, lineItemId) {
+  let total = 0;
+  for (const ref of order.refunds || []) {
+    for (const rli of ref.refund_line_items || []) {
+      if (String(rli.line_item_id || '') === String(lineItemId || '')) total += Number(rli.quantity || 0);
+    }
+  }
+  return total;
+}
+
+function normalizeMatchText(value = '') {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function campaignMatches(attribution, patterns = []) {
+  const fields = [
+    attribution?.campaign_hint,
+    attribution?.match_hints?.campaign_name,
+    attribution?.utm?.utm_campaign,
+    attribution?.note_attributes?.utm_campaign,
+    attribution?.note_attributes?.utm_campaign_first,
+    attribution?.note_attributes?.utm_campaign_last,
+    attribution?.note_attributes?.campaign,
+    attribution?.note_attributes?.campaign_name,
+  ].map(normalizeMatchText).filter(Boolean);
+  const needles = patterns.map(normalizeMatchText).filter(Boolean);
+  return needles.some((needle) => fields.some((field) => field === needle || field.includes(needle) || needle.includes(field)));
+}
+
+function emptyComparisonDay(date) {
+  return {
+    date,
+    orders: 0,
+    units: 0,
+    revenue_usd: 0,
+    matched_orders: 0,
+    country_orders: 0,
+    country_units: 0,
+    country_revenue_usd: 0,
+    unmatched_country_orders: 0,
+  };
+}
+
+async function shopifyComparisonPeriod(config) {
+  const windowUntil = config.completed_until || config.requested_until || until;
+  const dates = [];
+  for (let d = new Date(`${config.requested_since}T00:00:00Z`); d <= new Date(`${windowUntil}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  const byDate = new Map(dates.map((date) => [date, emptyComparisonDay(date)]));
+  const rows = await getOrdersBetween(config.requested_since, windowUntil);
+  const includedRows = rows.filter((o) => !o.cancelled_at && includeStatus.has(o.financial_status));
+  for (const order of includedRows) {
+    const orderDate = dayFor(order);
+    if (!byDate.has(orderDate)) continue;
+    const country = countryFor(order);
+    if (config.country_code && country.code !== config.country_code) continue;
+    const day = byDate.get(orderDate);
+    const orderRevenue = Number(order.current_total_price || order.total_price || 0);
+    const orderUnits = (order.line_items || []).reduce((total, li) => {
+      const qty = Number(li.quantity || 0);
+      const refundQty = refundQuantityForLine(order, li.id);
+      return total + Math.max(0, qty - refundQty);
+    }, 0);
+    day.country_orders += 1;
+    day.country_units += orderUnits;
+    day.country_revenue_usd += orderRevenue;
+    const attribution = attributionFor(order);
+    if (!campaignMatches(attribution, config.campaign_patterns || [])) {
+      day.unmatched_country_orders += 1;
+      continue;
+    }
+    day.orders += 1;
+    day.matched_orders += 1;
+    day.revenue_usd += orderRevenue;
+    day.units += orderUnits;
+  }
+  const outputRows = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  return {
+    ...config,
+    requested_until: config.requested_until || windowUntil,
+    completed_until: windowUntil,
+    rows: outputRows,
+    totals: {
+      orders: outputRows.reduce((a, row) => a + Number(row.orders || 0), 0),
+      units: outputRows.reduce((a, row) => a + Number(row.units || 0), 0),
+      revenue_usd: outputRows.reduce((a, row) => a + Number(row.revenue_usd || 0), 0),
+      country_orders: outputRows.reduce((a, row) => a + Number(row.country_orders || 0), 0),
+      country_units: outputRows.reduce((a, row) => a + Number(row.country_units || 0), 0),
+      country_revenue_usd: outputRows.reduce((a, row) => a + Number(row.country_revenue_usd || 0), 0),
+      unmatched_country_orders: outputRows.reduce((a, row) => a + Number(row.unmatched_country_orders || 0), 0),
+    },
+  };
+}
+
+async function buildShopifyDeliveryComparison() {
+  const configs = {
+    historical: {
+      label: 'Testing_USA_ABO',
+      country_code: 'US',
+      country: 'United States',
+      requested_since: '2026-02-23',
+      requested_until: '2026-04-12',
+      completed_until: '2026-04-12',
+      campaign_patterns: ['Testing_USA_ABO', 'Testing USA ABO'],
+    },
+    current: {
+      label: 'USA_CBO launch',
+      country_code: 'US',
+      country: 'United States',
+      requested_since: process.env.USA_LAUNCH_START || '2026-06-06',
+      requested_until: until,
+      completed_until: until,
+      campaign_patterns: ['USA_CBO', 'USA CBO'],
+    },
+  };
+  try {
+    const [historical, current] = await Promise.all([
+      shopifyComparisonPeriod(configs.historical),
+      shopifyComparisonPeriod(configs.current),
+    ]);
+    return {
+      ok: true,
+      source: 'Shopify',
+      metric_note: 'Sales are Shopify paid orders matched to US country and campaign UTM/name. Current campaign rows stop at the latest completed Shopify reporting day.',
+      country_code: 'US',
+      country: 'United States',
+      historical,
+      current,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.message,
+      source: 'Shopify',
+      country_code: 'US',
+      country: 'United States',
+      historical: { ...configs.historical, rows: [], totals: {} },
+      current: { ...configs.current, rows: [], totals: {} },
+    };
+  }
+}
+
 const familyTotals = new Map();
 const countryRows = new Map();
 const productTotals = new Map();
@@ -343,12 +498,14 @@ const cumulative = allDates.map((date) => {
 const countries = [...countryRows.values()].map((r) => ({ ...r, unique_products: r.unique_products_set.size, unique_products_set: undefined })).sort((a, b) => b.units - a.units);
 const products = [...productTotals.values()].sort((a, b) => b.units - a.units);
 const daily = [...dailyByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+const deliveryComparison = await buildShopifyDeliveryComparison();
 const out = {
   source: 'Shopify',
   generated_at: new Date().toISOString(),
   period: {
     since,
     until,
+    completed_until: until,
     timezone: reportingTimezone,
     shop_timezone: shopMetadata.iana_timezone || '',
     shop_timezone_label: shopMetadata.timezone || '',
@@ -362,6 +519,7 @@ const out = {
   countries,
   cumulative,
   order_lines: orderLines,
+  delivery_comparison: deliveryComparison,
 };
 const outPath = path.resolve('public/data/shopify-products.json');
 fs.mkdirSync(path.dirname(outPath), { recursive: true });

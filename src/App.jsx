@@ -138,11 +138,12 @@ function aggregateRows(adsets) {
   const byDate = new Map();
   adsets.forEach((adset) => {
     adset.rows?.forEach((r) => {
-      const cur = byDate.get(r.date) || { date: r.date, spend: 0, spend_usd: 0, impressions: 0, reach: 0 };
+      const cur = byDate.get(r.date) || { date: r.date, spend: 0, spend_usd: 0, impressions: 0, reach: 0, purchases: 0 };
       cur.spend += Number(r.spend || 0);
       cur.spend_usd += Number(r.spend_usd ?? r.spend ?? 0);
       cur.impressions += Number(r.impressions || 0);
       cur.reach += Number(r.reach || 0);
+      cur.purchases += Number(r.purchases || 0);
       byDate.set(r.date, cur);
     });
   });
@@ -150,6 +151,7 @@ function aggregateRows(adsets) {
     ...r,
     frequency: r.reach ? r.impressions / r.reach : 0,
     cpm: r.impressions ? (r.spend_usd / r.impressions) * 1000 : 0,
+    reach_per_dollar: r.spend_usd ? r.reach / r.spend_usd : 0,
   }));
 }
 
@@ -164,6 +166,50 @@ function avg(rows, key) {
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
 }
 function sum(rows, key) { return rows.reduce((a, r) => a + Number(r[key] || 0), 0); }
+function reachPerDollar(row = {}) {
+  const spendUsd = Number(row.spend_usd ?? row.spend ?? 0);
+  return spendUsd > 0 ? Number(row.reach || 0) / spendUsd : 0;
+}
+function movingAverage(values = [], window = 3) {
+  return values.map((_, index) => {
+    const start = Math.max(0, index - window + 1);
+    const slice = values.slice(start, index + 1).filter((value) => Number.isFinite(Number(value)));
+    return slice.length ? slice.reduce((a, b) => a + Number(b || 0), 0) / slice.length : 0;
+  });
+}
+function byDate(rows = []) {
+  return new Map((rows || []).filter((row) => row?.date).map((row) => [row.date, row]));
+}
+function rowUntil(row, completedUntil) {
+  return !completedUntil || !row?.date || row.date <= completedUntil;
+}
+function attachShopifySales(rows = [], shopifyRows = [], options = {}) {
+  const shopifyByDate = byDate(shopifyRows);
+  const completedUntil = options.completedUntil || '';
+  const fallbackToCountrySales = Boolean(options.fallbackToCountrySales);
+  return (rows || [])
+    .filter((row) => rowUntil(row, completedUntil))
+    .map((row) => {
+      const shop = shopifyByDate.get(row.date) || {};
+      const matchedOrders = Number(shop.orders || 0);
+      const countryOrders = Number(shop.country_orders || 0);
+      const useCountryFallback = fallbackToCountrySales && matchedOrders === 0 && countryOrders > 0;
+      const shopifySales = useCountryFallback ? countryOrders : matchedOrders;
+      const matchedRevenue = Number(shop.revenue_usd || 0);
+      const fallbackRevenue = Number(shop.country_revenue_usd || 0);
+      return {
+        ...row,
+        reach_per_dollar: reachPerDollar(row),
+        shopify_sales: shopifySales,
+        shopify_units: useCountryFallback ? Number(shop.country_units || 0) : Number(shop.units || 0),
+        shopify_revenue_usd: useCountryFallback ? fallbackRevenue : matchedRevenue,
+        shopify_sales_source: useCountryFallback ? 'US country orders fallback' : 'campaign-matched orders',
+        shopify_matched_orders: Number(shop.matched_orders || shop.orders || 0),
+        shopify_country_orders: countryOrders,
+        shopify_unmatched_country_orders: Number(shop.unmatched_country_orders || 0),
+      };
+    });
+}
 function delta(cur, base) { return base ? ((cur - base) / base) * 100 : 0; }
 function localKey(parts) { return parts.filter(Boolean).join('::'); }
 function normalizedIdentity(value) { return String(value || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
@@ -266,6 +312,7 @@ function finalizeMetaAggregate(row) {
   out.ctr_source = out.link_clicks ? 'windowed_link_clicks' : 'windowed_no_link_clicks';
   out.cpm_usd = out.impressions ? out.spend_usd / out.impressions * 1000 : 0;
   out.cpm_try = out.impressions ? out.spend_try / out.impressions * 1000 : 0;
+  out.reach_per_dollar = out.spend_usd ? out.reach / out.spend_usd : 0;
   out.cpa_usd = out.purchases ? out.spend_usd / out.purchases : 0;
   out.roas = out.spend_usd ? out.purchase_value_usd / out.spend_usd : 0;
   return out;
@@ -422,7 +469,7 @@ function clampDateRange(range, bounds) {
   return { since, until };
 }
 function presetDateRange(preset, bounds) {
-  const end = bounds?.until || '';
+  const end = bounds?.common_until || bounds?.until || '';
   if (!end) return { since: '', until: '' };
   if (preset === 'today') return clampDateRange({ since: end, until: end }, bounds);
   if (preset === 'yesterday') {
@@ -568,15 +615,19 @@ function enrichAdset(adset, march) {
   const histFrequency = avg(prev, 'frequency') || avg(rows, 'frequency');
   const histCpm = avg(prev, 'cpm_usd') || avg(rows, 'cpm_usd') || avg(prev, 'cpm') || avg(rows, 'cpm');
   const histReach = avg(prev, 'reach') || avg(rows, 'reach');
+  const histReachPerDollar = avg(prev.map((row) => ({ ...row, reach_per_dollar: reachPerDollar(row) })), 'reach_per_dollar')
+    || avg(rows.map((row) => ({ ...row, reach_per_dollar: reachPerDollar(row) })), 'reach_per_dollar');
   const current = {
     frequency: Number(last.frequency || avg(rows.slice(-3), 'frequency') || 0),
     cpm: Number(last.cpm_usd || last.cpm || avg(rows.slice(-3), 'cpm_usd') || avg(rows.slice(-3), 'cpm') || 0),
     reach: Number(last.reach || avg(rows.slice(-3), 'reach') || 0),
+    reach_per_dollar: Number(last.reach_per_dollar || reachPerDollar(last) || avg(rows.slice(-3).map((row) => ({ ...row, reach_per_dollar: reachPerDollar(row) })), 'reach_per_dollar') || 0),
     impressions: Number(last.impressions || avg(rows.slice(-3), 'impressions') || 0),
     spend: Number(last.spend_usd || last.spend || avg(rows.slice(-3), 'spend_usd') || avg(rows.slice(-3), 'spend') || 0),
   };
-  const histDelta = { frequency: delta(current.frequency, histFrequency), cpm: delta(current.cpm, histCpm), reach: delta(current.reach, histReach) };
-  const marchDelta = { frequency: delta(current.frequency, march.frequency), cpm: delta(current.cpm, march.cpm), reach: delta(current.reach, march.reach) };
+  const marchReachPerDollar = Number(march.reach_per_dollar || reachPerDollar(march));
+  const histDelta = { frequency: delta(current.frequency, histFrequency), cpm: delta(current.cpm, histCpm), reach: delta(current.reach, histReach), reach_per_dollar: delta(current.reach_per_dollar, histReachPerDollar) };
+  const marchDelta = { frequency: delta(current.frequency, march.frequency), cpm: delta(current.cpm, march.cpm), reach: delta(current.reach, march.reach), reach_per_dollar: delta(current.reach_per_dollar, marchReachPerDollar) };
   let status = 'healthy';
   if (rows.length < 4 || sum(rows, 'spend') < 100) status = 'insufficient';
   else if (histDelta.frequency > 35 && histDelta.cpm > 25 && histDelta.reach < -8) status = 'expensive reach';
@@ -617,33 +668,192 @@ function sparkOption(rows, metric, color) {
   return { animation: false, grid: { left: 0, right: 0, top: 4, bottom: 0 }, xAxis: { type: 'category', show: false, data: rows.map((r) => r.date) }, yAxis: { type: 'value', show: false, scale: true }, series: [{ type: 'line', data: rows.map((r) => Number(r[metric] || 0)), smooth: true, symbol: 'none', lineStyle: { color, width: 2 }, areaStyle: { color: `${color}22` } }] };
 }
 
-function trendOption(rows, march, changes) {
-  const dates = rows.map((r) => r.date);
-  const reach = rows.map((r) => Number(r.reach || 0));
-  const maxReach = Math.max(...reach, march.reach || 0, 1);
+function trendOption(rows, march, changes, shopifyDaily = []) {
+  const latestShopifyDate = [...(shopifyDaily || []).map((row) => row.date).filter(Boolean)].sort().at(-1) || '';
+  const chartRows = attachShopifySales(rows, shopifyDaily, { completedUntil: latestShopifyDate });
+  const dates = chartRows.map((r) => r.date);
+  const reachPerDollarValues = chartRows.map((r) => reachPerDollar(r));
+  const maxReachPerDollar = Math.max(...reachPerDollarValues, reachPerDollar(march), 1);
+  const maxSales = Math.max(...chartRows.map((r) => Number(r.shopify_sales || 0)), 1);
   const showUsaBaseline = Boolean(march?.applies);
+  const marchReachPerDollar = reachPerDollar(march);
   return {
-    color: ['#067c73', '#e09113', '#1d64d8', '#c81e2c'],
+    animation: false,
+    color: ['#067c73', '#e09113', '#d63f8c', '#1d64d8', '#c81e2c'],
     tooltip: { trigger: 'axis', backgroundColor: '#111827', borderColor: '#111827', textStyle: { color: '#fff' }, formatter: (params) => {
       const i = params[0].dataIndex;
-      const r = rows[i];
+      const r = chartRows[i];
       const editsForDay = (changes || []).filter((c) => c.date === r.date);
       const orderedEdits = [...editsForDay].sort((a, b) => Number(Boolean(b.is_budget_change)) - Number(Boolean(a.is_budget_change)));
       const budgetCount = orderedEdits.filter((c) => c.is_budget_change).length;
       const edits = orderedEdits.length ? `${budgetCount ? `${budgetCount} BUDGET change${budgetCount === 1 ? '' : 's'} · ` : ''}${orderedEdits.length} total edit${orderedEdits.length === 1 ? '' : 's'}<br/>${orderedEdits.slice(0, 4).map((c) => `${c.is_budget_change ? 'BUDGET: ' : ''}${c.object_name || 'Ad set'}: ${c.label || c.event_type || 'changed'}`).join('<br/>')}` : '';
-      return `<b>${r.date}</b><br/>Frequency: ${r.frequency.toFixed(2)}<br/>CPM: ${money.format(r.cpm)}<br/>Unique impressions / reach: ${compact(r.reach)}<br/>Spend: ${money.format(r.spend_usd ?? r.spend ?? 0)}${edits ? `<br/><span style="color:#ffb4b4">● ${edits}</span>` : ''}`;
+      return `<b>${r.date}</b><br/>Frequency: ${Number(r.frequency || 0).toFixed(2)}<br/>CPM: ${money.format(r.cpm_usd ?? r.cpm ?? 0)}<br/>Shopify sales: ${compact(r.shopify_sales || 0)}<br/>Unique reach / $: ${reachPerDollar(r).toFixed(1)}<br/>Unique reach: ${compact(r.reach || 0)}<br/>Spend: ${money.format(r.spend_usd ?? r.spend ?? 0)}${edits ? `<br/><span style="color:#ffb4b4">● ${edits}</span>` : ''}`;
     } },
     legend: { top: 0, right: 18, itemGap: 22, textStyle: { color: '#394150', fontWeight: 600 } },
-    grid: { left: 48, right: 68, top: 48, bottom: 58 },
+    grid: { left: 48, right: 148, top: 48, bottom: 58 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 18, borderColor: '#d8d4ca', fillerColor: '#0a766630' }],
     xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#d8d4ca' } }, axisLabel: { color: '#697386' } },
-    yAxis: [{ type: 'value', name: 'Frequency / reach index', min: 0, axisLabel: { color: '#067c73' }, splitLine: { lineStyle: { color: '#ece7db', type: 'dashed' } } }, { type: 'value', name: 'CPM', axisLabel: { color: '#e09113', formatter: '${value}' }, splitLine: { show: false } }],
+    yAxis: [
+      { type: 'value', name: 'Frequency', min: 0, axisLabel: { color: '#067c73' }, splitLine: { lineStyle: { color: '#ece7db', type: 'dashed' } } },
+      { type: 'value', name: 'CPM', axisLabel: { color: '#e09113', formatter: '${value}' }, splitLine: { show: false } },
+      { type: 'value', name: 'Sales', min: 0, max: Math.max(3, Math.ceil(maxSales * 1.3)), offset: 48, axisLabel: { color: '#d63f8c' }, splitLine: { show: false } },
+      { type: 'value', name: 'Reach / $', min: 0, max: Math.ceil(maxReachPerDollar * 1.2), offset: 96, axisLabel: { color: '#1d64d8' }, splitLine: { show: false } },
+    ],
     series: [
-      { name: 'Frequency', type: 'line', smooth: true, symbolSize: 6, data: rows.map((r) => Number(r.frequency || 0)), markLine: showUsaBaseline ? { silent: true, symbol: 'none', data: [{ yAxis: march.frequency, name: 'March freq' }], lineStyle: { color: '#067c73', type: 'dashed', opacity: 0.55 } } : undefined, markPoint: { data: groupedChangePointsForRows(rows, changes), label: { show: false }, tooltip: { formatter: (p) => `<b>${p.data.value}</b><br/>${(p.data.examples || []).join('<br/>')}` } } },
-      { name: 'CPM', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 6, data: rows.map((r) => Number(r.cpm || 0)), markLine: showUsaBaseline ? { silent: true, symbol: 'none', data: [{ yAxis: march.cpm, name: 'March CPM' }], lineStyle: { color: '#e09113', type: 'dashed', opacity: 0.55 } } : undefined },
-      { name: 'Unique impressions / reach index', type: 'line', smooth: true, symbolSize: 5, data: reach.map((v) => (v / maxReach) * 3), lineStyle: { width: 2 }, areaStyle: { opacity: 0.08 } },
+      { name: 'Frequency', type: 'line', smooth: true, symbolSize: 6, data: chartRows.map((r) => Number(r.frequency || 0)), markLine: showUsaBaseline ? { silent: true, symbol: 'none', data: [{ yAxis: march.frequency, name: 'March freq' }], lineStyle: { color: '#067c73', type: 'dashed', opacity: 0.55 } } : undefined, markPoint: { data: groupedChangePointsForRows(chartRows, changes), label: { show: false }, tooltip: { formatter: (p) => `<b>${p.data.value}</b><br/>${(p.data.examples || []).join('<br/>')}` } } },
+      { name: 'CPM', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 6, data: chartRows.map((r) => Number(r.cpm_usd ?? r.cpm ?? 0)), markLine: showUsaBaseline ? { silent: true, symbol: 'none', data: [{ yAxis: march.cpm, name: 'March CPM' }], lineStyle: { color: '#e09113', type: 'dashed', opacity: 0.55 } } : undefined },
+      { name: 'Shopify sales', type: 'line', yAxisIndex: 2, smooth: true, symbolSize: 7, data: chartRows.map((r) => Number(r.shopify_sales || 0)), lineStyle: { width: 3 }, areaStyle: { opacity: 0.06 } },
+      { name: 'Unique reach / $', type: 'line', yAxisIndex: 3, smooth: true, symbolSize: 5, data: reachPerDollarValues, lineStyle: { width: 2 }, areaStyle: { opacity: 0.08 }, markLine: showUsaBaseline && marchReachPerDollar ? { silent: true, symbol: 'none', data: [{ yAxis: marchReachPerDollar, name: 'March reach/$' }], lineStyle: { color: '#1d64d8', type: 'dashed', opacity: 0.55 } } : undefined },
     ],
   };
+}
+
+function comparisonRows(period = {}, shopifyPeriod = {}) {
+  const matchedOrders = Number(shopifyPeriod.totals?.orders || 0);
+  const countryOrders = Number(shopifyPeriod.totals?.country_orders || 0);
+  return attachShopifySales(period.rows || [], shopifyPeriod.rows || [], {
+    completedUntil: shopifyPeriod.completed_until || shopifyPeriod.period?.until || shopifyPeriod.requested_until || '',
+    fallbackToCountrySales: matchedOrders === 0 && countryOrders > 0,
+  });
+}
+
+function comparisonStats(period = {}, shopifyPeriod = {}) {
+  const rows = comparisonRows(period, shopifyPeriod);
+  return {
+    since: rows[0]?.date || period.period?.since || shopifyPeriod.requested_since || '',
+    until: rows.at(-1)?.date || period.period?.until || shopifyPeriod.completed_until || '',
+    days: rows.length,
+    sales: sum(rows, 'shopify_sales'),
+    revenue: sum(rows, 'shopify_revenue_usd'),
+    spend: sum(rows, 'spend_usd'),
+    reach: sum(rows, 'reach'),
+    avgFrequency: avg(rows, 'frequency'),
+    avgCpm: avg(rows, 'cpm_usd') || avg(rows, 'cpm'),
+    avgReachPerDollar: avg(rows, 'reach_per_dollar'),
+  };
+}
+
+function deliveryComparisonOption(comparison = {}, shopifyComparison = {}) {
+  const historical = comparison.historical || {};
+  const current = comparison.current || {};
+  const periods = [
+    { key: 'historical', label: historical.label || 'Historical USA_ABO', legend: 'Old', lineType: 'dashed', rows: comparisonRows(historical, shopifyComparison.historical || {}) },
+    { key: 'current', label: current.label || 'June USA launch', legend: 'June', lineType: 'solid', rows: comparisonRows(current, shopifyComparison.current || {}) },
+  ];
+  const maxDays = Math.max(...periods.map((period) => period.rows.length), 1);
+  const dayLabels = Array.from({ length: maxDays }, (_, i) => `Day ${i + 1}`);
+  const allRows = periods.flatMap((period) => period.rows);
+  const maxReachPerDollar = Math.max(...allRows.map((r) => reachPerDollar(r)), 1);
+  const maxSales = Math.max(...allRows.map((r) => Number(r.shopify_sales || 0)), 1);
+  const metricValue = (row, metric) => {
+    if (metric === 'frequency') return Number(row.frequency || 0);
+    if (metric === 'cpm') return Number(row.cpm_usd ?? row.cpm ?? 0);
+    if (metric === 'sales') return Number(row.shopify_sales || 0);
+    if (metric === 'reach_per_dollar') return reachPerDollar(row);
+    return 0;
+  };
+  const makeSeries = (period, metric, label, yAxisIndex = 0) => {
+    const rawValues = period.rows.map((row) => metricValue(row, metric));
+    const smoothedValues = period.key === 'historical' && metric === 'sales' ? movingAverage(rawValues, 3) : rawValues;
+    const metricLabel = period.key === 'historical' && metric === 'sales' ? 'Shopify sales (3d avg)' : label;
+    const legendLabel = metric === 'sales'
+      ? (period.key === 'historical' ? 'Sales 3d' : 'Sales')
+      : metric === 'reach_per_dollar'
+        ? 'Reach/$'
+        : label;
+    return {
+      name: `${period.legend} ${legendLabel}`,
+      type: 'line',
+      smooth: true,
+      yAxisIndex,
+      symbolSize: metric === 'sales' ? 7 : 5,
+      data: period.rows.map((row, index) => ({ value: smoothedValues[index], actual: rawValues[index], raw: row, day: index + 1, period: period.label, metricLabel, metric, smoothed: smoothedValues[index] !== rawValues[index] })),
+      lineStyle: { width: metric === 'sales' ? 3.2 : 2.2, type: period.lineType, opacity: period.key === 'historical' ? 0.74 : 1 },
+      itemStyle: { opacity: period.key === 'historical' ? 0.74 : 1 },
+      emphasis: { focus: 'series' },
+    };
+  };
+  return {
+    animation: false,
+    color: periods.flatMap(() => ['#0b766c', '#c98834', '#d63f8c', '#2f65d9']),
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: '#211018',
+      borderColor: '#211018',
+      textStyle: { color: '#fff' },
+      formatter: (params) => {
+        const groups = new Map();
+        params.filter((p) => p.data?.raw).forEach((p) => {
+          const key = p.data.period;
+          const row = p.data.raw;
+          if (!groups.has(key)) groups.set(key, { row, lines: [] });
+          const metric = p.data.metric;
+          let value = metric === 'cpm' ? money.format(p.value) : metric === 'reach_per_dollar' ? Number(p.value || 0).toFixed(1) : metric === 'frequency' ? Number(p.value || 0).toFixed(2) : Number(p.value || 0).toFixed(p.data.smoothed ? 1 : 0);
+          if (metric === 'sales' && p.data.smoothed) value = `${value} (actual ${compact(p.data.actual || 0)})`;
+          groups.get(key).lines.push(`${p.marker}${p.data.metricLabel}: ${value}`);
+        });
+        return [...groups.entries()].map(([label, group]) => `<b>${label} · ${group.row.date}</b><br/>${group.lines.join('<br/>')}<br/>Spend: ${money.format(group.row.spend_usd || 0)}<br/>Unique reach: ${compact(group.row.reach || 0)}<br/>Shopify revenue: ${money.format(group.row.shopify_revenue_usd || 0)}<br/>Sales source: ${group.row.shopify_sales_source || 'Shopify orders'}`).join('<br/><br/>');
+      },
+    },
+    legend: { top: 0, left: 0, right: 0, type: 'plain', itemGap: 14, textStyle: { color: '#5f4a56', fontWeight: 850, fontSize: 11 }, pageIconColor: '#d63f8c' },
+    grid: { left: 48, right: 148, top: 64, bottom: 42 },
+    xAxis: { type: 'category', data: dayLabels, axisLine: { lineStyle: { color: '#efd4e3' } }, axisLabel: { color: '#7b6672', fontWeight: 800 } },
+    yAxis: [
+      { type: 'value', name: 'Frequency', min: 0, axisLabel: { color: '#0b766c' }, splitLine: { lineStyle: { color: '#f4e4ee', type: 'dashed' } } },
+      { type: 'value', name: 'CPM', axisLabel: { color: '#c98834', formatter: '${value}' }, splitLine: { show: false } },
+      { type: 'value', name: 'Sales', min: 0, max: Math.max(3, Math.ceil(maxSales * 1.35)), offset: 52, axisLabel: { color: '#d63f8c' }, splitLine: { show: false } },
+      { type: 'value', name: 'Reach / $', min: 0, max: Math.ceil(maxReachPerDollar * 1.2), offset: 104, axisLabel: { color: '#2f65d9' }, splitLine: { show: false } },
+    ],
+    series: periods.flatMap((period) => [
+      makeSeries(period, 'frequency', 'Frequency'),
+      makeSeries(period, 'cpm', 'CPM', 1),
+      makeSeries(period, 'sales', 'Shopify sales', 2),
+      makeSeries(period, 'reach_per_dollar', 'Unique reach / $', 3),
+    ]),
+  };
+}
+
+function DeliveryComparisonPanel({ comparison, shopifyComparison }) {
+  const ok = Boolean(comparison?.ok);
+  const historical = comparison?.historical || {};
+  const current = comparison?.current || {};
+  const historicalShopify = shopifyComparison?.historical || {};
+  const currentShopify = shopifyComparison?.current || {};
+  const historicalStats = comparisonStats(historical, historicalShopify);
+  const currentStats = comparisonStats(current, currentShopify);
+  const shopifyOk = Boolean(shopifyComparison?.ok);
+  const usesCountryFallback = [...comparisonRows(historical, historicalShopify), ...comparisonRows(current, currentShopify)]
+    .some((row) => row.shopify_sales_source === 'US country orders fallback');
+  return <section className="comparison-panel chart-panel">
+    <div className="panel-title comparison-title">
+      <div>
+        <h2>USA_ABO history vs June USA launch</h2>
+        <p>Dashed lines show Testing_USA_ABO from February until it ended. Solid lines show the USA launch from June 06 onward. Sales are Shopify-derived orders; delivery is Meta reach, frequency, CPM, and spend.</p>
+      </div>
+      <span>{comparison?.country_code || 'US'} comparison</span>
+    </div>
+    {ok ? <>
+      <div className="comparison-summary">
+        {[{ label: historical.label || 'Testing_USA_ABO', period: historical.period, stats: historicalStats, type: 'historical' }, { label: current.label || 'USA_CBO launch', period: current.period, stats: currentStats, type: 'current' }].map((item) => <article key={item.type} className={item.type}>
+          <b>{item.label}</b>
+          <small>{item.stats.since || item.period?.since || 'n/a'} - {item.stats.until || item.period?.until || 'n/a'} · {item.stats.days || 0} completed days</small>
+          <div>
+            <span><strong>{compact(item.stats.sales)}</strong><em>Shopify sales</em></span>
+            <span><strong>{money.format(item.stats.spend)}</strong><em>spend</em></span>
+            <span><strong>{item.stats.avgFrequency.toFixed(2)}</strong><em>avg freq</em></span>
+            <span><strong>{money.format(item.stats.avgCpm)}</strong><em>avg CPM</em></span>
+            <span><strong>{item.stats.avgReachPerDollar.toFixed(1)}</strong><em>reach / $</em></span>
+          </div>
+        </article>)}
+      </div>
+      {usesCountryFallback ? <div className="unresolved-note"><b>Shopify sales fallback is active.</b><span>Where campaign UTM is missing, the comparison uses completed US Shopify country orders for the US launch period instead of Meta purchases.</span></div> : null}
+      {!shopifyOk ? <div className="unresolved-note warn-note"><b>Shopify campaign sales were not available for this comparison.</b><span>The chart still shows Meta delivery, but Shopify sales will stay at zero until Shopify comparison rows are generated.</span></div> : null}
+      <ReactECharts option={deliveryComparisonOption(comparison, shopifyComparison)} style={{ height: 430 }} />
+    </> : <div className="behavior-empty compact">
+      <b>USA comparison is not available yet</b>
+      <span>{comparison?.error || 'The Meta comparison fetch did not return rows for the historical/current campaign pair.'}</span>
+    </div>}
+  </section>;
 }
 
 function productGrowthOption(shopify) {
@@ -1326,7 +1536,8 @@ function BehaviorProductMatrix({ behavior }) {
     const payment = paymentByKey.get(key);
     const main = checkout || payment || {};
     return { key, main, checkout, payment, score: Number(checkout?.excess_abandons || 0) + Number(payment?.excess_abandons || 0) };
-  }).sort((a, b) => b.score - a.score || Number(b.main.exposed || 0) - Number(a.main.exposed || 0)).slice(0, 8);
+  }).filter(({ checkout, payment }) => Number(checkout?.abandoned || 0) > 0 || Number(payment?.abandoned || 0) > 0)
+    .sort((a, b) => b.score - a.score || Number(b.main.exposed || 0) - Number(a.main.exposed || 0)).slice(0, 6);
   return <div className="behavior-matrix">
     {rows.length ? rows.map(({ key, main, checkout, payment }) => <article className="behavior-product-row" key={key}>
       <div className="behavior-product-cell">
@@ -1350,24 +1561,26 @@ function BehaviorProductMatrix({ behavior }) {
 }
 
 function BehaviorSegmentPanel({ title, rows, type }) {
+  const visibleRows = (rows || []).filter((row) => Number(row.exposed || 0) > 0 && Number(row.abandoned || 0) > 0).slice(0, 5);
   return <article className="behavior-segment-panel">
     <div className="behavior-panel-head"><h3>{title}</h3><small>Rate + denominator, not raw count</small></div>
     <div className="behavior-segment-list">
-      {(rows || []).slice(0, 6).map((row) => <div className="behavior-segment-row" key={`${type}-${row.key || row.segment || row.country_code}`}>
+      {visibleRows.map((row) => <div className="behavior-segment-row" key={`${type}-${row.key || row.segment || row.country_code}`}>
         <b>{type === 'country' ? <><span className="flag">{countryFlag(row.country_code)}</span>{row.country || row.country_code || 'Unknown'}</> : row.segment || row.gender || 'Unknown'}</b>
         <span>{row.abandoned}/{row.exposed}</span>
         <small>{rateLabel(row.shrunk_rate)} · {row.confidence}</small>
       </div>)}
-      {!(rows || []).length ? <div className="behavior-empty compact"><b>No segment rows yet</b><span>Extraction route is wired; data appears after the source has rows.</span></div> : null}
+      {!visibleRows.length ? <div className="behavior-empty compact"><b>No actionable segment rows yet</b><span>Rows with zero abandonments are hidden until they become useful.</span></div> : null}
     </div>
   </article>;
 }
 
 function DwellPagesPanel({ pages }) {
+  const visiblePages = (pages || []).filter((page) => Number(page.sessions || 0) > 0 && Number(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0) > 0).slice(0, 6);
   return <article className="behavior-panel">
     <div className="behavior-panel-head"><h3>Pages with dwell</h3><small>High dwell + exit can mean friction</small></div>
     <div className="behavior-dwell-grid">
-      {(pages || []).slice(0, 6).map((page) => {
+      {visiblePages.map((page) => {
         const width = Math.min(100, Math.max(8, Number(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0) / 6));
         return <div className="dwell-page-card" key={page.path}>
           <b>{page.path}</b>
@@ -1376,7 +1589,7 @@ function DwellPagesPanel({ pages }) {
           <small>{page.sessions} sessions · {page.read || 'Neutral'}</small>
         </div>;
       })}
-      {!(pages || []).length ? <div className="behavior-empty compact"><b>No dwell rows yet</b><span>The session pixel will calculate dwell between page views and visibility/session-end events.</span></div> : null}
+      {!visiblePages.length ? <div className="behavior-empty compact"><b>No dwell rows yet</b><span>The session pixel will calculate dwell once page-view sessions are populated.</span></div> : null}
     </div>
   </article>;
 }
@@ -1404,31 +1617,44 @@ function JourneyComparisonPanel({ journeys }) {
   </article>;
 }
 
-function BehaviorAnalyticsModule({ behavior }) {
+function BehaviorAnalyticsModule({ behavior, collapsed = false }) {
+  const [open, setOpen] = useState(!collapsed);
   const checkoutCountries = behavior?.matrix?.checkout?.countries || [];
   const paymentCountries = behavior?.matrix?.submit_payment?.countries || [];
   const checkoutGender = behavior?.matrix?.checkout?.gender || [];
   const paymentGender = behavior?.matrix?.submit_payment?.gender || [];
-  return <section className="behavior-zone">
-    <div className="panel-title product-title">
-      <div>
-        <h2>Behavior friction matrix</h2>
-        <p>Checkout abandonment comes from Shopify abandoned checkouts + paid checkout exposures. Submit-payment uses Meta AddPaymentInfo now; dwell and page journeys use first-party session events.</p>
-      </div>
-      <span>{behavior?.period?.since} - {behavior?.period?.until}</span>
-    </div>
-    <ExtractionStatus behavior={behavior} />
-    <BehaviorProductMatrix behavior={behavior} />
-    <div className="behavior-overview-grid">
-      <BehaviorSegmentPanel title="Checkout countries" rows={checkoutCountries} type="country" />
-      <BehaviorSegmentPanel title="Submit-payment countries" rows={paymentCountries} type="country" />
-      <BehaviorSegmentPanel title="Checkout age / gender" rows={checkoutGender} type="gender" />
-      <BehaviorSegmentPanel title="Payment age / gender" rows={paymentGender} type="gender" />
-    </div>
-    <div className="behavior-lower-grid">
-      <DwellPagesPanel pages={behavior?.dwell_pages || []} />
-      <JourneyComparisonPanel journeys={behavior?.journeys || {}} />
-    </div>
+  return <section className="behavior-zone behavior-dev-zone">
+    <article className={`behavior-dev-details ${open ? 'is-open' : ''}`}>
+      <button type="button" className="behavior-dev-summary" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+        <div>
+          <span>Still in development</span>
+          <b>Session intelligence, abandonment, and journeys</b>
+          <small>Collapsed by default so unfinished behavior data stays out of the main operating view.</small>
+        </div>
+        <em>{behavior?.period?.since} - {behavior?.period?.until}</em>
+      </button>
+      {open ? <div className="behavior-dev-body">
+        <div className="panel-title product-title">
+          <div>
+            <h2>Behavior friction matrix</h2>
+            <p>Checkout abandonment comes from Shopify abandoned checkouts + paid checkout exposures. Submit-payment uses Meta AddPaymentInfo now; dwell and page journeys use first-party session events.</p>
+          </div>
+          <span>{behavior?.period?.since} - {behavior?.period?.until}</span>
+        </div>
+        <ExtractionStatus behavior={behavior} />
+        <BehaviorProductMatrix behavior={behavior} />
+        <div className="behavior-overview-grid">
+          <BehaviorSegmentPanel title="Checkout countries" rows={checkoutCountries} type="country" />
+          <BehaviorSegmentPanel title="Submit-payment countries" rows={paymentCountries} type="country" />
+          <BehaviorSegmentPanel title="Checkout age / gender" rows={checkoutGender} type="gender" />
+          <BehaviorSegmentPanel title="Payment age / gender" rows={paymentGender} type="gender" />
+        </div>
+        <div className="behavior-lower-grid">
+          <DwellPagesPanel pages={behavior?.dwell_pages || []} />
+          <JourneyComparisonPanel journeys={behavior?.journeys || {}} />
+        </div>
+      </div> : null}
+    </article>
   </section>;
 }
 
@@ -1755,9 +1981,10 @@ function App() {
   const otherChangeCount = selectedChanges.length - budgetChangeCount;
   const overall = trendRows[trendRows.length - 1] || {};
   const histRows = trendRows.slice(0, -1);
-  const hist = { frequency: avg(histRows, 'frequency'), cpm: avg(histRows, 'cpm'), reach: avg(histRows, 'reach') };
-  const overallDelta = { frequency: delta(overall.frequency, hist.frequency), cpm: delta(overall.cpm, hist.cpm), reach: delta(overall.reach, hist.reach) };
-  const marchDelta = { frequency: delta(overall.frequency, march.frequency), cpm: delta(overall.cpm, march.cpm), reach: delta(overall.reach, march.reach) };
+  const marchReachPerDollar = reachPerDollar(march);
+  const hist = { frequency: avg(histRows, 'frequency'), cpm: avg(histRows, 'cpm'), reach: avg(histRows, 'reach'), reach_per_dollar: avg(histRows, 'reach_per_dollar') };
+  const overallDelta = { frequency: delta(overall.frequency, hist.frequency), cpm: delta(overall.cpm, hist.cpm), reach: delta(overall.reach, hist.reach), reach_per_dollar: delta(reachPerDollar(overall), hist.reach_per_dollar) };
+  const marchDelta = { frequency: delta(overall.frequency, march.frequency), cpm: delta(overall.cpm, march.cpm), reach: delta(overall.reach, march.reach), reach_per_dollar: delta(reachPerDollar(overall), marchReachPerDollar) };
   const sourceLabel = data.source === 'sample-data' ? 'Sample fallback' : 'Meta API';
   const productSourceLabel = productData.source?.includes('sample') ? 'Sample Shopify' : 'Shopify';
   const accountDaily = useMemo(() => {
@@ -1785,6 +2012,8 @@ function App() {
   const campaignAttribution = useMemo(() => buildCampaignAttribution(data, productData), [data, productData]);
   const productRows = productData.products || [];
   const adRows = data.ads || [];
+  const deliveryComparison = baseData.delivery_comparison || {};
+  const deliveryShopifyComparison = baseProductData.delivery_comparison || {};
   const baselineCopy = march.applies ? 'March USA baseline shown because this frequency view is USA ad sets only.' : 'No March baseline on this view because it is not USA-only.';
   const fxText = fxAuditText(data);
   const adsetPerfById = useMemo(() => new Map((data.all_adsets || []).map((row) => [row.adset_id, row])), [data]);
@@ -1813,15 +2042,14 @@ function App() {
       </section>
       <BusinessMetricPanel rows={businessRows} active={activeBusiness} windowKey={businessWindow} setWindowKey={setBusinessWindow} fxText={fxText} />
       <DailySalesHighlights lines={productData.order_lines || []} range={activeDateRange} />
-      <BehaviorAnalyticsModule behavior={behaviorData} />
 
       <CampaignPerformanceTable attribution={campaignAttribution} />
 
       <section className="cards secondary-cards">
         <Card title="Frequency" value={(overall.frequency || 0).toFixed(2)} sub={march.applies ? `March ${Number(march.frequency || 0).toFixed(2)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.frequency)} vs own history`} tone={overallDelta.frequency > 20 ? 'bad' : overallDelta.frequency > 8 ? 'warn' : 'good'} rows={trendRows} metric="frequency" color="#9a1b22" />
         <Card title="CPM" value={money.format(overall.cpm || 0)} sub={march.applies ? `March ${money.format(march.cpm || 0)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.cpm)} vs own history`} tone={overallDelta.cpm > 25 ? 'bad' : overallDelta.cpm > 12 ? 'warn' : 'good'} rows={trendRows} metric="cpm" color="#c98834" />
-        <Card title="Unique impressions / reach" value={compact(overall.reach || 0)} sub={march.applies ? `March ${compact(march.reach || 0)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.reach)} vs own history`} tone={overallDelta.reach < -10 ? 'bad' : overallDelta.reach < -4 ? 'warn' : 'good'} rows={trendRows} metric="reach" color="#6f2a30" />
-        {march.applies ? <section className="benchmark-card"><span>Vs March USA benchmark</span><div><b className={marchDelta.frequency > 20 ? 'bad' : 'warn'}>{pct(marchDelta.frequency)}</b><small>Frequency</small></div><div><b className={marchDelta.cpm > 20 ? 'bad' : 'warn'}>{pct(marchDelta.cpm)}</b><small>CPM</small></div><div><b className={marchDelta.reach < -8 ? 'bad' : 'good'}>{pct(marchDelta.reach)}</b><small>Reach</small></div></section> : <section className="benchmark-card muted-benchmark"><span>March baseline disabled</span><p>This chart is not a USA-only frequency view, so the USA March benchmark is intentionally hidden.</p></section>}
+        <Card title="Unique reach / $" value={reachPerDollar(overall).toFixed(1)} sub={march.applies ? `March ${marchReachPerDollar.toFixed(1)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.reach_per_dollar)} vs own history`} tone={overallDelta.reach_per_dollar < -10 ? 'bad' : overallDelta.reach_per_dollar < -4 ? 'warn' : 'good'} rows={trendRows} metric="reach_per_dollar" color="#1d64d8" />
+        {march.applies ? <section className="benchmark-card"><span>Vs March USA benchmark</span><div><b className={marchDelta.frequency > 20 ? 'bad' : 'warn'}>{pct(marchDelta.frequency)}</b><small>Frequency</small></div><div><b className={marchDelta.cpm > 20 ? 'bad' : 'warn'}>{pct(marchDelta.cpm)}</b><small>CPM</small></div><div><b className={marchDelta.reach_per_dollar < -8 ? 'bad' : 'good'}>{pct(marchDelta.reach_per_dollar)}</b><small>Reach / $</small></div></section> : <section className="benchmark-card muted-benchmark"><span>March baseline disabled</span><p>This chart is not a USA-only frequency view, so the USA March benchmark is intentionally hidden.</p></section>}
       </section>
 
       <section className="leadership-zone">
@@ -1835,9 +2063,11 @@ function App() {
         <strong><i className="dot normal" /> {otherChangeCount} other edits</strong>
       </section>
 
-      <section className="workbench"><div className="chart-panel"><div className="panel-title"><h2>Daily delivery shape</h2><p>Dark red dots mark budget/bid changes. Dashed lines are March USA baselines.</p></div><ReactECharts option={trendOption(trendRows, march, selectedChanges)} style={{ height: 438 }} /></div><aside className="rank-panel"><div className="panel-title"><h2>Ad sets ranked</h2><p>Risk comes from rising frequency/CPM plus falling unique reach.</p></div>{filtered.slice(0, 9).map((a, i) => <div className={`rank-row ${slug(a.status)}`} key={a.adset_id}><strong>{i+1}</strong><div><b>{a.adset_name}</b><small>{a.campaign_name}</small></div><span>{statusLabels[a.status]}</span></div>)}</aside></section>
+      <DeliveryComparisonPanel comparison={deliveryComparison} shopifyComparison={deliveryShopifyComparison} />
 
-      <section className="table-panel"><div className="panel-title"><h2>Ad set decision table</h2><p>Use this before scaling: healthy delivery is rising unique reach, not just higher spend. ROAS is calculated from each ad set's own spend and purchase value.</p></div><div className="table-wrap"><table><thead><tr><th>Ad set</th><th>Campaign</th><th>Status</th><th>Sales</th><th>ROAS</th><th>Meta spend</th><th>Active days</th><th>Freq</th><th>CPM</th><th>Unique imp. / reach</th><th>Freq vs hist</th><th>CPM vs hist</th><th>Reach vs hist</th><th>Freq vs Mar</th><th>CPM vs Mar</th><th>Reach vs Mar</th><th>Action</th></tr></thead><tbody>{filtered.map((a) => { const perf = adsetPerfById.get(a.adset_id) || {}; return <tr key={a.adset_id}><td className="name-cell"><b>{a.adset_name}</b></td><td className="name-cell">{a.campaign_name}</td><td><span className={`pill ${slug(a.status)}`}>{statusLabels[a.status]}</span></td><td>{perf.purchases || 0}</td><td>{Number(perf.roas || 0).toFixed(2)}x</td><td>{money.format(perf.spend_usd || a.current.spend || 0)}</td><td>{a.activeDays}</td><td>{a.current.frequency.toFixed(2)}</td><td>{money.format(a.current.cpm)}</td><td>{compact(a.current.reach)}</td><td className={a.histDelta.frequency > 18 ? 'bad' : a.histDelta.frequency > 8 ? 'warn' : 'good'}>{pct(a.histDelta.frequency)}</td><td className={a.histDelta.cpm > 20 ? 'bad' : a.histDelta.cpm > 10 ? 'warn' : 'good'}>{pct(a.histDelta.cpm)}</td><td className={a.histDelta.reach < -10 ? 'bad' : 'good'}>{pct(a.histDelta.reach)}</td><td>{pct(a.marchDelta.frequency)}</td><td>{pct(a.marchDelta.cpm)}</td><td>{pct(a.marchDelta.reach)}</td><td className="name-cell"><b>{a.recommendation}</b></td></tr>; })}</tbody></table></div></section>
+      <section className="workbench"><div className="chart-panel"><div className="panel-title"><h2>Daily delivery shape</h2><p>Dark red dots mark budget/bid changes. Dashed lines are March USA baselines. Sales are Shopify orders and partial days are hidden.</p></div><ReactECharts option={trendOption(trendRows, march, selectedChanges, productData.daily || [])} style={{ height: 438 }} /></div><aside className="rank-panel"><div className="panel-title"><h2>Ad sets ranked</h2><p>Risk comes from rising frequency/CPM plus falling unique reach per dollar.</p></div>{filtered.slice(0, 9).map((a, i) => <div className={`rank-row ${slug(a.status)}`} key={a.adset_id}><strong>{i+1}</strong><div><b>{a.adset_name}</b><small>{a.campaign_name}</small></div><span>{statusLabels[a.status]}</span></div>)}</aside></section>
+
+      <section className="table-panel"><div className="panel-title"><h2>Ad set decision table</h2><p>Use this before scaling: healthy delivery is rising unique reach per dollar, not just higher spend. ROAS is calculated from each ad set's own spend and purchase value.</p></div><div className="table-wrap"><table><thead><tr><th>Ad set</th><th>Campaign</th><th>Status</th><th>Sales</th><th>ROAS</th><th>Meta spend</th><th>Active days</th><th>Freq</th><th>CPM</th><th>Reach / $</th><th>Freq vs hist</th><th>CPM vs hist</th><th>Reach/$ vs hist</th><th>Freq vs Mar</th><th>CPM vs Mar</th><th>Reach/$ vs Mar</th><th>Action</th></tr></thead><tbody>{filtered.map((a) => { const perf = adsetPerfById.get(a.adset_id) || {}; return <tr key={a.adset_id}><td className="name-cell"><b>{a.adset_name}</b></td><td className="name-cell">{a.campaign_name}</td><td><span className={`pill ${slug(a.status)}`}>{statusLabels[a.status]}</span></td><td>{perf.purchases || 0}</td><td>{Number(perf.roas || 0).toFixed(2)}x</td><td>{money.format(perf.spend_usd || a.current.spend || 0)}</td><td>{a.activeDays}</td><td>{a.current.frequency.toFixed(2)}</td><td>{money.format(a.current.cpm)}</td><td>{Number(a.current.reach_per_dollar || 0).toFixed(1)}</td><td className={a.histDelta.frequency > 18 ? 'bad' : a.histDelta.frequency > 8 ? 'warn' : 'good'}>{pct(a.histDelta.frequency)}</td><td className={a.histDelta.cpm > 20 ? 'bad' : a.histDelta.cpm > 10 ? 'warn' : 'good'}>{pct(a.histDelta.cpm)}</td><td className={a.histDelta.reach_per_dollar < -10 ? 'bad' : 'good'}>{pct(a.histDelta.reach_per_dollar)}</td><td>{pct(a.marchDelta.frequency)}</td><td>{pct(a.marchDelta.cpm)}</td><td>{pct(a.marchDelta.reach_per_dollar)}</td><td className="name-cell"><b>{a.recommendation}</b></td></tr>; })}</tbody></table></div></section>
 
       <section className="product-zone">
         <div className="panel-title product-title"><div><h2>Product demand after launch</h2><p>{productSourceLabel} sold-unit view for {productData.period?.since} - {productData.period?.until}. Lines are cumulative monthly sold units by product family.</p></div><span>{(productData.families || []).reduce((a, f) => a + Number(f.units || 0), 0)} merch units</span></div>
@@ -1845,6 +2075,7 @@ function App() {
         <OverallProducts products={productData.products || []} />
         <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2><p>Each line is one product family. Similar apparel categories use different color + stroke + marker shapes to stay readable.</p></div><ReactECharts option={productGrowthOption(productData)} style={{ height: 390 }} /></div><div className="country-card country-roas-card"><div className="panel-title"><h2>Country sales + ROAS</h2><p>ROAS here is Shopify country revenue divided by Meta country spend. No Meta-only purchase value is used.</p></div><div className="country-list">{(productData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); const metaCountry = countryMetaByCode.get(c.country_code); const countryRoas = shopifyCountryRoas(c, metaCountry); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span className="country-roas-number">{countryRoas.toFixed(2)}x ROAS</span></div><div className="country-metrics"><span>{c.units} units</span><span>{money.format(c.revenue_usd || 0)} Shopify</span><span>{money.format(metaCountry?.spend_usd || 0)} Meta spend</span><span>{c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} subtypes={c.subtypes || {}} /><div className="mix-labels">{entries.slice(0, 6).map(([f,u]) => <small key={f} title={mixTooltip(f, u, c.units, c.subtypes || {})}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {c.units ? Math.round((u / c.units) * 100) : 0}%</small>)}</div></div>; })}</div></div></section>
       </section>
+      <BehaviorAnalyticsModule behavior={behaviorData} collapsed />
     </section>
   </main>;
 }

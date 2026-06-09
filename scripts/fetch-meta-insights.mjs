@@ -194,6 +194,25 @@ async function getInsights({ level, fields, start, end, breakdowns }) {
   return rows;
 }
 
+async function getObjectInsights({ objectId, level, fields, start, end, breakdowns }) {
+  const base = new URL(`https://graph.facebook.com/${graphVersion}/${objectId}/insights`);
+  base.searchParams.set('access_token', token);
+  base.searchParams.set('level', level);
+  base.searchParams.set('time_increment', '1');
+  base.searchParams.set('limit', '500');
+  base.searchParams.set('fields', fields);
+  if (breakdowns) base.searchParams.set('breakdowns', breakdowns);
+  base.searchParams.set('time_range', JSON.stringify({ since: start, until: end }));
+  let url = base.toString();
+  const rows = [];
+  while (url) {
+    const data = await graphGet(url);
+    rows.push(...(data.data || []));
+    url = data.paging?.next || null;
+  }
+  return rows;
+}
+
 async function getActivities(start, end) {
   const base = new URL(`https://graph.facebook.com/${graphVersion}/act_${account}/activities`);
   base.searchParams.set('access_token', token);
@@ -370,6 +389,7 @@ function finalizeAggregate(row) {
   out.ctr_source = 'aggregate_link_clicks';
   out.cpm_usd = out.impressions ? out.spend_usd / out.impressions * 1000 : 0;
   out.cpm_try = out.impressions ? out.spend_try / out.impressions * 1000 : 0;
+  out.reach_per_dollar = out.spend_usd ? out.reach / out.spend_usd : 0;
   out.cpa_usd = out.purchases ? out.spend_usd / out.purchases : 0;
   out.cpa_try = out.purchases ? out.spend_try / out.purchases : 0;
   out.roas = out.spend ? out.purchase_value / out.spend : 0;
@@ -411,6 +431,64 @@ function attachFxMetaByDate(rows, sourceRows) {
   return rows.map((row) => ({ ...row, ...(byDate.get(row.date) || {}) }));
 }
 
+function aggregateNormalizedDeliveryByDate(rows = []) {
+  const byDate = new Map();
+  for (const row of rows) {
+    const cur = byDate.get(row.date) || {
+      date: row.date,
+      spend: 0,
+      spend_usd: 0,
+      spend_try: 0,
+      impressions: 0,
+      reach: 0,
+      purchases: 0,
+      purchase_value: 0,
+      purchase_value_usd: 0,
+      purchase_value_try: 0,
+    };
+    cur.spend += Number(row.spend || 0);
+    cur.spend_usd += Number(row.spend_usd || 0);
+    cur.spend_try += Number(row.spend_try || 0);
+    cur.impressions += Number(row.impressions || 0);
+    cur.reach += Number(row.reach || 0);
+    cur.purchases += Number(row.purchases || 0);
+    cur.purchase_value += Number(row.purchase_value || 0);
+    cur.purchase_value_usd += Number(row.purchase_value_usd || 0);
+    cur.purchase_value_try += Number(row.purchase_value_try || 0);
+    byDate.set(row.date, cur);
+  }
+  return attachFxMetaByDate([...byDate.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((row) => ({
+      ...row,
+      frequency: row.reach ? row.impressions / row.reach : 0,
+      cpm: row.impressions ? row.spend / row.impressions * 1000 : 0,
+      cpm_usd: row.impressions ? row.spend_usd / row.impressions * 1000 : 0,
+      cpm_try: row.impressions ? row.spend_try / row.impressions * 1000 : 0,
+      reach_per_dollar: row.spend_usd ? row.reach / row.spend_usd : 0,
+      roas: row.spend ? row.purchase_value / row.spend : 0,
+    })), rows);
+}
+
+async function campaignCountryDelivery({ campaignId, since: start, until: end, country = 'US' }) {
+  const raw = await getObjectInsights({ objectId: campaignId, level: 'adset', fields: adsetFields, start, end, breakdowns: 'country' });
+  const normalized = [];
+  for (const row of raw) {
+    if (country && row.country !== country) continue;
+    normalized.push(await normalizeInsightRow(row, accountCurrency));
+  }
+  return aggregateNormalizedDeliveryByDate(normalized).filter((row) => Number(row.impressions || 0) > 0 || Number(row.spend || 0) > 0 || Number(row.purchases || 0) > 0);
+}
+
+function activePeriod(rows = [], fallback = {}) {
+  const active = rows.filter((row) => Number(row.spend || 0) > 0 || Number(row.impressions || 0) > 0 || Number(row.reach || 0) > 0 || Number(row.purchases || 0) > 0);
+  return {
+    since: active[0]?.date || fallback.since || '',
+    until: active[active.length - 1]?.date || fallback.until || '',
+    days: active.length,
+  };
+}
+
 function isUsaRow(r) {
   const text = `${r.campaign_name || ''} ${r.adset_name || ''}`;
   return /\bUSA\b|\bUS\b|_US|US_/i.test(text) && !/AUS|Australia/i.test(text);
@@ -438,6 +516,64 @@ const adCountryRawRows = await getInsights({ level: 'ad', fields: adFields, star
 const adCountryDaily = [];
 for (const row of adCountryRawRows) adCountryDaily.push(await normalizeInsightRow(row, accountCurrency));
 
+const deliveryComparisonConfig = {
+  historical: {
+    label: 'Testing_USA_ABO',
+    campaign_id: '120238099120200138',
+    requested_since: '2026-02-23',
+    requested_until: '2026-04-12',
+  },
+  current: {
+    label: 'USA_CBO launch',
+    campaign_id: '120243127929760138',
+    requested_since: process.env.USA_LAUNCH_START || '2026-06-06',
+    requested_until: until,
+  },
+};
+
+let deliveryComparison = {
+  ok: false,
+  error: '',
+  country_code: 'US',
+  country: 'United States',
+  metric_note: 'Delivery metrics are from Meta. The dashboard overlays Shopify-derived sales from the Shopify comparison export.',
+  historical: { ...deliveryComparisonConfig.historical, period: { since: '', until: '', days: 0 }, rows: [] },
+  current: { ...deliveryComparisonConfig.current, period: { since: '', until: '', days: 0 }, rows: [] },
+};
+try {
+  const [historicalRows, currentRows] = await Promise.all([
+    campaignCountryDelivery({
+      campaignId: deliveryComparisonConfig.historical.campaign_id,
+      since: deliveryComparisonConfig.historical.requested_since,
+      until: deliveryComparisonConfig.historical.requested_until,
+      country: 'US',
+    }),
+    campaignCountryDelivery({
+      campaignId: deliveryComparisonConfig.current.campaign_id,
+      since: deliveryComparisonConfig.current.requested_since,
+      until: deliveryComparisonConfig.current.requested_until,
+      country: 'US',
+    }),
+  ]);
+  deliveryComparison = {
+    ...deliveryComparison,
+    ok: true,
+    historical: {
+      ...deliveryComparisonConfig.historical,
+      period: activePeriod(historicalRows, { since: deliveryComparisonConfig.historical.requested_since, until: deliveryComparisonConfig.historical.requested_until }),
+      rows: historicalRows,
+    },
+    current: {
+      ...deliveryComparisonConfig.current,
+      period: activePeriod(currentRows, { since: deliveryComparisonConfig.current.requested_since, until: deliveryComparisonConfig.current.requested_until }),
+      rows: currentRows,
+    },
+  };
+} catch (error) {
+  deliveryComparison = { ...deliveryComparison, error: error.message };
+  console.warn(`Could not fetch USA_ABO delivery comparison: ${error.message}`);
+}
+
 const usaRows = currentAdsetCountryRows.filter((r) => r.country === 'US');
 const usaMarchRows = marchAdsetCountryRows.filter((r) => r.country === 'US');
 const byAdset = new Map();
@@ -464,6 +600,7 @@ for (const r of usaRows) {
     cpm: Number(r.cpm || (impressions ? spend / impressions * 1000 : 0)),
     cpm_usd: impressions ? spend_usd / impressions * 1000 : 0,
     cpm_try: impressions ? spend_try / impressions * 1000 : 0,
+    reach_per_dollar: spend_usd ? reach / spend_usd : 0,
   });
   byAdset.set(r.adset_id, adset);
 }
@@ -495,6 +632,7 @@ async function aggregateAdsetByDate(rows) {
     cpm: r.impressions ? r.spend / r.impressions * 1000 : 0,
     cpm_usd: r.impressions ? r.spend_usd / r.impressions * 1000 : 0,
     cpm_try: r.impressions ? r.spend_try / r.impressions * 1000 : 0,
+    reach_per_dollar: r.spend_usd ? r.reach / r.spend_usd : 0,
   }));
 }
 const dailyMetrics = await aggregateAdsetByDate(usaRows);
@@ -563,6 +701,7 @@ const out = {
   delivery_scope: 'usa_adsets_only',
   baseline_window: { since: '2026-03-01', until: '2026-03-31', label: 'March USA benchmark' },
   usa_filter: 'campaign/adset name contains USA, US, _US, or US_ and excludes AUS/Australia',
+  delivery_comparison: deliveryComparison,
   data_coverage: {
     adset_daily_rows: currentAdsetRows.length,
     adset_country_daily_rows: currentAdsetCountryRows.length,
@@ -603,3 +742,4 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
 console.log(`Wrote ${out.data_coverage.usa_adsets} USA ad sets, ${ads.length} ads, ${countries.length} countries, and ${out.adset_changes.length} change markers (${out.adset_changes.filter((c) => c.is_budget_change).length} budget) to ${outPath}`);
 console.log(`Backfill window: ${since} to ${until}; March baseline freq=${out.march_baseline.frequency.toFixed(2)} cpm_usd=${out.march_baseline.cpm_usd.toFixed(2)} reach=${Math.round(out.march_baseline.reach)}`);
+if (out.delivery_comparison?.ok) console.log(`USA_ABO comparison: ${out.delivery_comparison.historical.label} ${out.delivery_comparison.historical.period.since} to ${out.delivery_comparison.historical.period.until}; ${out.delivery_comparison.current.label} ${out.delivery_comparison.current.period.since} to ${out.delivery_comparison.current.period.until}`);
