@@ -27,6 +27,9 @@ const refreshKey = process.env.REFRESH_API_KEY || '';
 const sessionEventKey = process.env.SESSION_EVENT_INGEST_KEY || '';
 const sessionEventsPath = process.env.SESSION_EVENTS_PATH || path.join(__dirname, 'data', 'session-events.ndjson');
 const refreshOnStart = process.env.REFRESH_ON_START !== 'false';
+const shopifyReportingTimezone = process.env.SHAWQ_SHOPIFY_REPORTING_TIMEZONE
+  || process.env.SHOPIFY_REPORTING_TIMEZONE
+  || 'Europe/Istanbul';
 
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -82,6 +85,15 @@ function dateEnvFromUrl(url) {
     env.SHOPIFY_UNTIL = until;
   }
   return env;
+}
+
+function dateInTimezone(date = new Date(), timeZone = shopifyReportingTimezone) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
 }
 
 function shopifyConfig() {
@@ -344,13 +356,76 @@ function summarizeOrder(order) {
   };
 }
 
+function summarizeCurrentDayOrders(orders = []) {
+  const date = dateInTimezone(new Date(), shopifyReportingTimezone);
+  const todayOrders = orders.filter((order) => dateInTimezone(new Date(order.created_at || Date.now()), shopifyReportingTimezone) === date);
+  const orderLines = [];
+  let revenue = 0;
+  let units = 0;
+  for (const order of todayOrders) {
+    const country = orderCountry(order);
+    const attribution = orderAttribution(order);
+    const lineItems = order.line_items || [];
+    const orderRevenue = Number(order.current_total_price || order.total_price || 0);
+    const merchandiseSubtotal = lineItems.reduce((total, item) => total + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+    revenue += orderRevenue;
+    lineItems.forEach((item, index) => {
+      const quantity = Number(item.quantity || 0);
+      if (!quantity) return;
+      const subtotal = Number(item.price || 0) * quantity;
+      const lineRevenue = merchandiseSubtotal
+        ? orderRevenue * (subtotal / merchandiseSubtotal)
+        : orderRevenue / Math.max(1, lineItems.length);
+      const taxonomy = productTaxonomyForName(item.title);
+      units += quantity;
+      orderLines.push({
+        order_id: String(order.id || ''),
+        order_name: order.name || '',
+        date,
+        created_at: order.created_at || '',
+        country_code: country.code || '',
+        country: country.name || country.code || 'Unknown',
+        product: item.title || '',
+        product_id: String(item.product_id || ''),
+        variant_id: String(item.variant_id || ''),
+        image_url: '',
+        quantity,
+        line_item_subtotal_usd: subtotal,
+        order_revenue_usd: orderRevenue,
+        line_revenue_usd: lineRevenue,
+        family: taxonomy.family || 'Other',
+        subtype: taxonomy.subtype || 'Other',
+        attribution,
+        live_today: true,
+      });
+      if (index === lineItems.length - 1) {
+        const allocated = orderLines
+          .filter((line) => line.order_id === String(order.id || ''))
+          .reduce((total, line) => total + Number(line.line_revenue_usd || 0), 0);
+        const drift = orderRevenue - allocated;
+        if (Math.abs(drift) > 0.000001) orderLines[orderLines.length - 1].line_revenue_usd += drift;
+      }
+    });
+  }
+  return {
+    date,
+    timezone: shopifyReportingTimezone,
+    source: 'shopify_live_orders',
+    coverage_note: 'Uses live Shopify orders for the developing reporting day until the full daily cache refresh runs.',
+    orders: todayOrders.length,
+    units,
+    revenue_usd: revenue,
+    order_lines: orderLines,
+  };
+}
+
 async function fetchLatestShopifySale() {
   const { token, store, apiVersion } = shopifyConfig();
   if (!token || !store) return { ok: false, configured: false, error: 'Shopify token or store is not configured', sale: null };
 
   const url = new URL(`https://${store}/admin/api/${apiVersion}/orders.json`);
   url.searchParams.set('status', 'any');
-  url.searchParams.set('limit', '20');
+  url.searchParams.set('limit', '100');
   url.searchParams.set('order', 'created_at desc');
   url.searchParams.set('fields', 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,currency,presentment_currency,line_items,shipping_address,billing_address,landing_site,landing_site_ref,referring_site,source_name,source_identifier,note_attributes,tags');
 
@@ -359,8 +434,15 @@ async function fetchLatestShopifySale() {
   if (!response.ok) throw new Error(`Shopify latest-sale ${response.status}: ${text.slice(0, 600)}`);
   const data = JSON.parse(text);
   const includeStatus = new Set(['paid', 'partially_paid', 'partially_refunded']);
-  const sale = (data.orders || []).find((order) => !order.cancelled_at && includeStatus.has(order.financial_status));
-  return { ok: true, configured: true, checked_at: new Date().toISOString(), sale: sale ? summarizeOrder(sale) : null };
+  const paidOrders = (data.orders || []).filter((order) => !order.cancelled_at && includeStatus.has(order.financial_status));
+  const sale = paidOrders[0];
+  return {
+    ok: true,
+    configured: true,
+    checked_at: new Date().toISOString(),
+    sale: sale ? summarizeOrder(sale) : null,
+    today_summary: summarizeCurrentDayOrders(paidOrders),
+  };
 }
 
 async function serveData(req, res, name, script) {

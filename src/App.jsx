@@ -230,6 +230,61 @@ function normalizedIdentity(value) { return String(value || '').toLowerCase().re
 function adRollupKey(row) {
   return normalizedIdentity(row.ad_name) || row.ad_id || localKey([row.adset_id, row.ad_name]);
 }
+function normalizeAttributionKey(value) {
+  return normalizedIdentity(value).replace(/[^a-z0-9]+/g, '');
+}
+function shopifyAdHints(line = {}) {
+  const attribution = line.attribution || {};
+  const hints = attribution.match_hints || {};
+  return [
+    hints.ad_id,
+    hints.ad_name,
+    attribution.ad_hint,
+    attribution.utm?.ad_id,
+    attribution.utm?.utm_content,
+    attribution.utm?.ad,
+  ].filter(Boolean);
+}
+function enrichAdsWithShopifySales(ads = [], orderLines = []) {
+  const rows = (ads || []).map((ad) => ({
+    ...ad,
+    shopify_sales: 0,
+    shopify_units: 0,
+    shopify_revenue_usd: 0,
+    shopify_roas: 0,
+    shopify_attribution_source: 'shopify_order_attribution',
+    shopify_order_ids: new Set(),
+  }));
+  const byKey = new Map();
+  rows.forEach((ad) => {
+    [
+      ad.ad_id,
+      ad.ad_name,
+      normalizeAttributionKey(ad.ad_id),
+      normalizeAttributionKey(ad.ad_name),
+    ].filter(Boolean).forEach((key) => byKey.set(String(key), ad));
+  });
+  (orderLines || []).forEach((line) => {
+    const target = shopifyAdHints(line)
+      .map((hint) => byKey.get(String(hint)) || byKey.get(normalizeAttributionKey(hint)))
+      .find(Boolean);
+    if (!target) return;
+    const orderKey = line.order_id || line.order_name || `${line.date || ''}:${line.created_at || ''}:${shopifyAdHints(line)[0] || ''}`;
+    if (orderKey) target.shopify_order_ids.add(String(orderKey));
+    target.shopify_units += Number(line.quantity || 0) || 1;
+    target.shopify_revenue_usd += Number(line.line_revenue_usd || 0);
+  });
+  return rows.map((ad) => {
+    const shopifySales = ad.shopify_order_ids.size;
+    const out = {
+      ...ad,
+      shopify_sales: shopifySales,
+      shopify_roas: Number(ad.spend_usd || 0) ? Number(ad.shopify_revenue_usd || 0) / Number(ad.spend_usd || 0) : 0,
+    };
+    delete out.shopify_order_ids;
+    return out;
+  });
+}
 function inDateRange(date, range) {
   if (!date) return false;
   if (range?.since && date < range.since) return false;
@@ -473,6 +528,41 @@ function filterShopifyByDateRange(shopify, range) {
     },
   };
 }
+
+function mergeLiveTodayShopify(shopify, todaySummary) {
+  if (!todaySummary?.date) return shopify;
+  const dailyRow = {
+    date: todaySummary.date,
+    revenue_usd: Number(todaySummary.revenue_usd || 0),
+    orders: Number(todaySummary.orders || 0),
+    units: Number(todaySummary.units || 0),
+    source: todaySummary.source || 'shopify_live_orders',
+  };
+  const existingDaily = shopify?.daily || [];
+  const existingLines = shopify?.order_lines || [];
+  const daily = [
+    ...existingDaily.filter((row) => row.date !== todaySummary.date),
+    dailyRow,
+  ].sort((a, b) => a.date.localeCompare(b.date));
+  const orderLines = [
+    ...existingLines.filter((line) => line.date !== todaySummary.date),
+    ...(todaySummary.order_lines || []),
+  ].sort((a, b) => `${a.date || ''}:${a.created_at || ''}`.localeCompare(`${b.date || ''}:${b.created_at || ''}`));
+  const until = [shopify?.period?.until, todaySummary.date].filter(Boolean).sort().at(-1) || todaySummary.date;
+  return {
+    ...shopify,
+    period: {
+      ...(shopify?.period || {}),
+      until,
+      current_reporting_day: todaySummary.date,
+      live_today_source: todaySummary.source || 'shopify_live_orders',
+      live_today_note: todaySummary.coverage_note || '',
+    },
+    daily,
+    order_lines: orderLines,
+  };
+}
+
 function shiftDate(date, days) {
   if (!date) return '';
   const d = new Date(`${date}T00:00:00Z`);
@@ -1703,8 +1793,8 @@ const PRODUCT_SORT_OPTIONS = [
 ];
 
 const AD_SORT_OPTIONS = [
-  { key: 'purchases', label: 'Sales' },
-  { key: 'roas', label: 'ROAS' },
+  { key: 'shopify_sales', label: 'Sales' },
+  { key: 'shopify_roas', label: 'ROAS' },
   { key: 'ctr', label: 'CTR' },
   { key: 'add_to_cart', label: 'ATC' },
   { key: 'checkout_initiated', label: 'IC' },
@@ -1726,7 +1816,7 @@ const CAMPAIGN_SORT_OPTIONS = [
 
 function LeadershipTables({ products, ads }) {
   const [productSort, setProductSort] = useState({ key: 'units', dir: 'desc' });
-  const [adSort, setAdSort] = useState({ key: 'purchases', dir: 'desc' });
+  const [adSort, setAdSort] = useState({ key: 'shopify_sales', dir: 'desc' });
   const productRows = useMemo(() => sortRowsBy(products, productSort, (row) => row.product), [products, productSort]);
   const adRows = useMemo(() => sortRowsBy(ads, adSort, (row) => row.ad_name), [ads, adSort]);
   const toggleProductSort = (key) => setProductSort((current) => nextSort(current, key));
@@ -1756,8 +1846,8 @@ function LeadershipTables({ products, ads }) {
           <small>{a.product_family || 'unknown_product'} · {a.product_subtype || 'Unknown'}{a.campaign_count ? ` · ${a.campaign_count} campaign${a.campaign_count === 1 ? '' : 's'}` : ''}</small>
         </div>
         <div className="leader-metrics ad-leader-metrics">
-          <MetricChip label="Sales" value={a.purchases || 0} sortKey="purchases" sortState={adSort} onSort={toggleAdSort} />
-          <MetricChip label="ROAS" value={`${Number(a.roas || 0).toFixed(2)}x`} tone={Number(a.roas || 0) >= 2 ? 'good' : 'warn'} sortKey="roas" sortState={adSort} onSort={toggleAdSort} />
+          <MetricChip label="Sales" value={a.shopify_sales || 0} sub="Shopify" sortKey="shopify_sales" sortState={adSort} onSort={toggleAdSort} />
+          <MetricChip label="ROAS" value={`${Number(a.shopify_roas || 0).toFixed(2)}x`} sub="Shopify" tone={Number(a.shopify_roas || 0) >= 2 ? 'good' : 'warn'} sortKey="shopify_roas" sortState={adSort} onSort={toggleAdSort} />
           <MetricChip label="CTR" value={`${Number(a.ctr || 0).toFixed(2)}%`} sortKey="ctr" sortState={adSort} onSort={toggleAdSort} />
           <MetricChip label="ATC" value={a.add_to_cart || 0} sortKey="add_to_cart" sortState={adSort} onSort={toggleAdSort} />
           <MetricChip label="IC" value={a.checkout_initiated || 0} sortKey="checkout_initiated" sortState={adSort} onSort={toggleAdSort} />
@@ -1886,7 +1976,7 @@ function App() {
   const [customRange, setCustomRange] = useState({ since: '', until: '' });
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
   const [saleSoundEnabled, setSaleSoundEnabled] = useState(true);
-  const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '' });
+  const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '', todaySummary: null });
   const saleAudioRef = useRef(null);
   const saleSoundEnabledRef = useRef(true);
   const lastSaleIdRef = useRef('');
@@ -1940,7 +2030,14 @@ function App() {
         const isNewSale = Boolean(sale?.id && saleInitializedRef.current && sale.id !== previousId);
         if (sale?.id) lastSaleIdRef.current = sale.id;
         saleInitializedRef.current = true;
-        setSaleMonitor({ status: payload.configured === false ? 'not_configured' : 'live', sale, checkedAt: payload.checked_at || new Date().toISOString(), fresh: isNewSale, error: '' });
+        setSaleMonitor({
+          status: payload.configured === false ? 'not_configured' : 'live',
+          sale,
+          todaySummary: payload.today_summary || null,
+          checkedAt: payload.checked_at || new Date().toISOString(),
+          fresh: isNewSale,
+          error: '',
+        });
         if (isNewSale) {
           if (saleSoundEnabledRef.current) playSaleChime();
           window.clearTimeout(saleFlashTimerRef.current);
@@ -1960,7 +2057,10 @@ function App() {
   }, []);
 
   const baseData = raw || fallbackData();
-  const baseProductData = shopify || fallbackShopify();
+  const baseProductData = useMemo(
+    () => mergeLiveTodayShopify(shopify || fallbackShopify(), saleMonitor.todaySummary),
+    [shopify, saleMonitor.todaySummary]
+  );
   const baseBehaviorData = behaviorRaw || fallbackBehavior();
   const loadedBounds = useMemo(() => loadedDateRange(baseData, baseProductData), [baseData, baseProductData]);
   useEffect(() => {
@@ -2038,7 +2138,7 @@ function App() {
   }), [allBusinessRows, activeDateRange]);
   const campaignAttribution = useMemo(() => buildCampaignAttribution(data, productData), [data, productData]);
   const productRows = productData.products || [];
-  const adRows = data.ads || [];
+  const adRows = useMemo(() => enrichAdsWithShopifySales(data.ads || [], productData.order_lines || []), [data.ads, productData.order_lines]);
   const deliveryComparison = baseData.delivery_comparison || {};
   const deliveryShopifyComparison = baseProductData.delivery_comparison || {};
   const baselineCopy = march.applies ? 'March USA baseline shown because this frequency view is USA ad sets only.' : 'No March baseline on this view because it is not USA-only.';
@@ -2080,7 +2180,7 @@ function App() {
       </section>
 
       <section className="leadership-zone">
-        <div className="panel-title product-title"><div><h2>Leadership tables</h2><p>Product sales come from Shopify. Ads leadership is one overall Meta rollup per ad across all countries; CTR is click-through/link CTR from Meta.</p></div><span>{adRows.length} ads</span></div>
+        <div className="panel-title product-title"><div><h2>Leadership tables</h2><p>Product sales and ad sales/ROAS come from Shopify order attribution. Ads leadership remains one overall Meta rollup per ad for spend, CTR, ATC, and IC.</p></div><span>{adRows.length} ads</span></div>
         <LeadershipTables products={productRows} ads={adRows} />
       </section>
 
