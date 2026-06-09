@@ -7,7 +7,7 @@ import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
 
 const SALE_POLL_MS = 30000;
-const REPORTING_TIMEZONE = 'America/New_York';
+const REPORTING_TIMEZONE = 'Europe/Istanbul';
 
 function dateInTimezone(date = new Date(), timeZone = REPORTING_TIMEZONE) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -534,7 +534,7 @@ function saleMoney(sale) {
 }
 function saleTime(value) {
   if (!value) return 'No timestamp';
-  return new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return new Date(value).toLocaleString([], { timeZone: REPORTING_TIMEZONE, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
 }
 
 function businessMetricConfig(active) {
@@ -1083,6 +1083,7 @@ function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
   const statusText = monitor.status === 'live' ? 'Live Shopify sales monitor' : monitor.status === 'checking' ? 'Checking Shopify sales' : 'Sale monitor paused';
   const items = sale?.line_items || [];
   const detail = sale ? `${sale.name} · ${saleMoney(sale)} · ${sale.item_count || 0} item${Number(sale.item_count || 0) === 1 ? '' : 's'}` : 'Waiting for the next paid order';
+  const orderTime = sale?.created_at ? `Ordered ${saleTime(sale.created_at)}` : '';
   const country = sale?.country?.code ? `${countryFlag(sale.country.code)} ${sale.country.name || sale.country.code}` : 'Country pending';
   const attribution = sale?.matched_ad?.ad_name || sale?.attribution_label || 'Unattributed in Shopify';
   return <section className={`sale-monitor ${monitor.fresh ? 'fresh' : ''}`}>
@@ -1090,7 +1091,7 @@ function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
       <span className={`sale-dot ${monitor.status === 'live' ? 'on' : ''}`} />
       <div>
         <b><BellRing size={15} />{monitor.fresh ? 'New Shopify sale' : statusText}</b>
-        <small>{detail} · {country}</small>
+        <small>{detail} · {country}{orderTime ? ` · ${orderTime}` : ''}</small>
         {items.length ? <div className="sale-items">{items.map((item) => <em key={`${item.title}-${item.quantity}`}>{item.quantity}x {item.title}</em>)}</div> : sale?.product_title ? <em>{sale.product_title}</em> : null}
         {sale ? <strong className="sale-source">Ad/source: {attribution}</strong> : null}
       </div>
@@ -1104,8 +1105,8 @@ function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
 
 function DateWindowControl({ range, bounds, preset, isOpen, customRange, onToggle, onPreset, onCustomChange, onApplyCustom }) {
   const presets = [
-    ['today', 'Today', 'Current Eastern day'],
-    ['yesterday', 'Yesterday', 'Previous Eastern day'],
+    ['today', 'Today', 'Current Istanbul day'],
+    ['yesterday', 'Yesterday', 'Previous Istanbul day'],
     ['last7', 'Last week', 'Rolling 7-day view'],
     ['all', 'Matched data', 'All days with Meta + Shopify'],
     ['custom', 'Date range', 'Exact start and end'],

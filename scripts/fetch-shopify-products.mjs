@@ -112,7 +112,7 @@ const reportingTimezone = process.env.SHAWQ_SHOPIFY_REPORTING_TIMEZONE
 const since = requestedSince;
 const currentReportingDay = dateInTimezone(new Date(), reportingTimezone);
 const latestCompletedDay = shiftDate(currentReportingDay, -1);
-const until = requestedUntil || latestCompletedDay;
+const until = requestedUntil || currentReportingDay;
 const startIso = zonedDateTimeToUtcIso(since, reportingTimezone, false);
 const endIso = zonedDateTimeToUtcIso(until, reportingTimezone, true);
 
@@ -366,6 +366,7 @@ async function shopifyComparisonPeriod(config) {
 }
 
 async function buildShopifyDeliveryComparison() {
+  const currentComparisonUntil = requestedUntil && requestedUntil < currentReportingDay ? requestedUntil : latestCompletedDay;
   const configs = {
     historical: {
       label: 'Testing_USA_ABO',
@@ -382,7 +383,7 @@ async function buildShopifyDeliveryComparison() {
       country: 'United States',
       requested_since: process.env.USA_LAUNCH_START || '2026-06-06',
       requested_until: until,
-      completed_until: until,
+      completed_until: currentComparisonUntil,
       campaign_patterns: ['USA_CBO', 'USA CBO'],
     },
   };
@@ -428,14 +429,16 @@ for (const date of allDates) {
 
 for (const order of included) {
   const orderDate = dayFor(order);
+  const orderRevenue = Number(order.current_total_price || order.total_price || 0);
   const dailyOrder = dailyByDate.get(orderDate) || { date: orderDate, revenue_usd: 0, orders: 0, units: 0 };
   dailyOrder.orders += 1;
-  dailyOrder.revenue_usd += Number(order.current_total_price || order.total_price || 0);
+  dailyOrder.revenue_usd += orderRevenue;
   dailyByDate.set(orderDate, dailyOrder);
   const c = countryFor(order);
   const attribution = attributionFor(order);
-  if (!countryRows.has(c.code)) countryRows.set(c.code, { country_code: c.code, country: c.name, units: 0, unique_products_set: new Set(), mix: {}, subtypes: {} });
+  if (!countryRows.has(c.code)) countryRows.set(c.code, { country_code: c.code, country: c.name, units: 0, revenue_usd: 0, unique_products_set: new Set(), mix: {}, subtypes: {} });
   const cRow = countryRows.get(c.code);
+  const lineEntries = [];
   for (const li of order.line_items || []) {
     const { family, subtype } = taxonomyFor(li.title);
     if (!family) continue;
@@ -443,12 +446,20 @@ for (const order of included) {
     const refundQty = refunded.get(`${order.id}:${li.id}`) || 0;
     const net = Math.max(0, qty - refundQty);
     if (!net) continue;
+    const lineSubtotal = Number(li.price || 0) * net;
+    const imageMeta = productImages.get(String(li.product_id || '')) || {};
+    lineEntries.push({ li, family, subtype, net, lineSubtotal, imageMeta });
+  }
+  const merchandiseSubtotal = lineEntries.reduce((total, entry) => total + entry.lineSubtotal, 0);
+  lineEntries.forEach((entry, index) => {
+    const { li, family, subtype, net, lineSubtotal, imageMeta } = entry;
     const date = orderDate;
     const dailyUnit = dailyByDate.get(date) || { date, revenue_usd: 0, orders: 0, units: 0 };
     dailyUnit.units += net;
     dailyByDate.set(date, dailyUnit);
-    const lineRevenue = Number(li.price || 0) * net;
-    const imageMeta = productImages.get(String(li.product_id || '')) || {};
+    const lineRevenue = merchandiseSubtotal
+      ? orderRevenue * (lineSubtotal / merchandiseSubtotal)
+      : orderRevenue / Math.max(1, lineEntries.length);
     orderLines.push({
       order_id: String(order.id || ''),
       order_name: order.name || '',
@@ -461,6 +472,8 @@ for (const order of included) {
       variant_id: String(li.variant_id || ''),
       image_url: imageMeta.image_url || '',
       quantity: net,
+      line_item_subtotal_usd: lineSubtotal,
+      order_revenue_usd: orderRevenue,
       line_revenue_usd: lineRevenue,
       family,
       subtype,
@@ -476,6 +489,7 @@ for (const order of included) {
     productRow.revenue_usd += lineRevenue;
     productTotals.set(li.title, productRow);
     cRow.units += net;
+    cRow.revenue_usd += lineRevenue;
     cRow.unique_products_set.add(li.title);
     cRow.mix[family] = (cRow.mix[family] || 0) + net;
     cRow.subtypes[family] = cRow.subtypes[family] || {};
@@ -483,7 +497,7 @@ for (const order of included) {
     const day = cumulativeByDayFamily.get(date) || {};
     day[family] = (day[family] || 0) + net;
     cumulativeByDayFamily.set(date, day);
-  }
+  });
 }
 
 const families = [...familyTotals.values()].sort((a, b) => b.units - a.units);
@@ -505,7 +519,9 @@ const out = {
   period: {
     since,
     until,
-    completed_until: until,
+    completed_until: until < currentReportingDay ? until : latestCompletedDay,
+    current_reporting_day: currentReportingDay,
+    includes_developing_day: until >= currentReportingDay,
     timezone: reportingTimezone,
     shop_timezone: shopMetadata.iana_timezone || '',
     shop_timezone_label: shopMetadata.timezone || '',
