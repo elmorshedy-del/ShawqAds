@@ -1,22 +1,71 @@
 {
   "source": "Shopify",
-  "generated_at": "2026-06-09T21:32:14.005Z",
+  "generated_at": "2026-06-10T05:22:09.077Z",
   "period": {
     "since": "2026-06-03",
-    "until": "2026-06-09",
+    "until": "2026-06-10",
     "completed_until": "2026-06-09",
+    "current_reporting_day": "2026-06-10",
+    "includes_developing_day": true,
     "timezone": "Europe/Istanbul",
     "shop_timezone": "Europe/Istanbul",
     "shop_timezone_label": "(GMT+03:00) Europe/Istanbul",
     "currency": "USD",
     "api_window": {
       "created_at_min": "2026-06-02T21:00:00.000Z",
-      "created_at_max": "2026-06-09T20:59:59.999Z"
+      "created_at_max": "2026-06-10T20:59:59.999Z"
     }
   },
   "orders": {
-    "pulled": 155,
-    "included": 153
+    "pulled": 159,
+    "included": 157
+  },
+  "tips": {
+    "orders": 19,
+    "people": 19,
+    "total_usd": 312.83,
+    "by_date": [
+      {
+        "date": "2026-06-03",
+        "orders": 1,
+        "total_usd": 12.76
+      },
+      {
+        "date": "2026-06-04",
+        "orders": 2,
+        "total_usd": 26.019999999999996
+      },
+      {
+        "date": "2026-06-05",
+        "orders": 2,
+        "total_usd": 48.6
+      },
+      {
+        "date": "2026-06-06",
+        "orders": 1,
+        "total_usd": 9.04
+      },
+      {
+        "date": "2026-06-07",
+        "orders": 5,
+        "total_usd": 95.32
+      },
+      {
+        "date": "2026-06-08",
+        "orders": 4,
+        "total_usd": 42.8
+      },
+      {
+        "date": "2026-06-09",
+        "orders": 3,
+        "total_usd": 62.72
+      },
+      {
+        "date": "2026-06-10",
+        "orders": 1,
+        "total_usd": 15.57
+      }
+    ]
   },
   "daily": [
     {
@@ -60,43 +109,49 @@
       "revenue_usd": 2416.5799999999995,
       "orders": 20,
       "units": 26
+    },
+    {
+      "date": "2026-06-10",
+      "revenue_usd": 568.76,
+      "orders": 4,
+      "units": 7
     }
   ],
   "families": [
     {
       "family": "Tops",
-      "units": 76,
-      "revenue_usd": 6310.148132447408
+      "units": 80,
+      "revenue_usd": 6500.560374076047
     },
     {
       "family": "Denim pants",
-      "units": 34,
-      "revenue_usd": 3366.712920532988
+      "units": 35,
+      "revenue_usd": 3413.767999797779
     },
     {
       "family": "Crewnecks",
       "units": 30,
-      "revenue_usd": 2855.2186365806197
+      "revenue_usd": 2817.3401641345636
     },
     {
       "family": "Hoodies",
-      "units": 23,
-      "revenue_usd": 2470.1519559320195
+      "units": 24,
+      "revenue_usd": 2504.578092485549
     },
     {
       "family": "Skirts",
       "units": 18,
-      "revenue_usd": 1702.6552967542066
+      "revenue_usd": 1677.3667268906008
     },
     {
       "family": "Kuffiyah accessory",
-      "units": 6,
-      "revenue_usd": 224.90219319213617
+      "units": 7,
+      "revenue_usd": 267.05664261545735
     },
     {
       "family": "Art-frame",
       "units": 1,
-      "revenue_usd": 174.83086456061642
+      "revenue_usd": 166.57000000000002
     },
     {
       "family": "Other",
@@ -106,25 +161,25 @@
   ],
   "products": [
     {
-      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
-      "units": 34,
-      "revenue_usd": 3366.712920532988,
-      "family": "Denim pants",
-      "subtype": "Denim pants",
-      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299"
-    },
-    {
       "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
-      "units": 32,
-      "revenue_usd": 2648.292887381219,
+      "units": 35,
+      "revenue_usd": 2891.0612550294104,
       "family": "Tops",
       "subtype": "Short sleeve",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121"
     },
     {
+      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
+      "units": 35,
+      "revenue_usd": 3413.767999797779,
+      "family": "Denim pants",
+      "subtype": "Denim pants",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299"
+    },
+    {
       "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Hoodie (Unisex)",
       "units": 18,
-      "revenue_usd": 1955.4841575109865,
+      "revenue_usd": 1905.5500000000002,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493"
@@ -132,7 +187,7 @@
     {
       "product": "Quote crewneck (Unisex)",
       "units": 16,
-      "revenue_usd": 1428.048070436914,
+      "revenue_usd": 1424.3288550069915,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538"
@@ -140,7 +195,7 @@
     {
       "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Long Sleeve Shirt (Unisex)",
       "units": 14,
-      "revenue_usd": 1208.1293489196655,
+      "revenue_usd": 1148.1274340799546,
       "family": "Tops",
       "subtype": "Long sleeve",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443"
@@ -148,7 +203,7 @@
     {
       "product": "Kuffiyah Engraved Denim Skirt",
       "units": 11,
-      "revenue_usd": 1172.232090642577,
+      "revenue_usd": 1161.1458917486225,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861"
@@ -156,7 +211,7 @@
     {
       "product": "Zahrat Al-Mada'en - زَهرة المدائِن Crewneck (Unisex)",
       "units": 10,
-      "revenue_usd": 1047.176350363705,
+      "revenue_usd": 1026.2313091275719,
       "family": "Crewnecks",
       "subtype": "Other crewneck",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054"
@@ -164,7 +219,7 @@
     {
       "product": "Zahrat Al-Mada'en - زَهرة المدائِن T-shirt (Unisex)",
       "units": 9,
-      "revenue_usd": 800.3320992153689,
+      "revenue_usd": 775.2199485221365,
       "family": "Tops",
       "subtype": "Short sleeve",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407"
@@ -172,47 +227,47 @@
     {
       "product": "QUOTE T-shirt (Unisex)",
       "units": 9,
-      "revenue_usd": 649.4329376607859,
+      "revenue_usd": 629.7646654427155,
       "family": "Tops",
       "subtype": "Short sleeve",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190"
     },
     {
       "product": "Kuffiyah",
-      "units": 6,
-      "revenue_usd": 224.90219319213617,
+      "units": 7,
+      "revenue_usd": 267.05664261545735,
       "family": "Kuffiyah accessory",
       "subtype": "Kuffiyah accessory",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2564_1.jpg?v=1767270820"
     },
     {
-      "product": "Zaytoun Tree Denim Skirt",
-      "units": 5,
-      "revenue_usd": 504.3581216442487,
-      "family": "Skirts",
-      "subtype": "Zaytoun skirt",
-      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/skirt-fixed.jpg?v=1769597744"
-    },
-    {
       "product": "Zahrat Al-Mada'en - زَهرة المدائِن Long Sleeve Shirt (Unisex)",
       "units": 5,
-      "revenue_usd": 473.4116371986505,
+      "revenue_usd": 452.21256592004534,
       "family": "Tops",
       "subtype": "Long sleeve",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-long-sleeve-female-4_png.jpg?v=1779193802"
     },
     {
       "product": "Quote Hoodie (Unisex)",
-      "units": 4,
-      "revenue_usd": 400.49388085459617,
+      "units": 5,
+      "revenue_usd": 500.9280924855491,
       "family": "Hoodies",
       "subtype": "Quote hoodie",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/qoute-off.png?v=1779270408"
     },
     {
+      "product": "Zaytoun Tree Denim Skirt",
+      "units": 5,
+      "revenue_usd": 491.87666666666667,
+      "family": "Skirts",
+      "subtype": "Zaytoun skirt",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/skirt-fixed.jpg?v=1769597744"
+    },
+    {
       "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Crewneck (Unisex)",
       "units": 4,
-      "revenue_usd": 379.9942157799999,
+      "revenue_usd": 366.78000000000003,
       "family": "Crewnecks",
       "subtype": "Ghalabany Al-ShawQ crewneck",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/15_1_1.jpg?v=1745856473"
@@ -220,15 +275,15 @@
     {
       "product": "\"Third najm\" Black T-shirt (Unisex)",
       "units": 4,
-      "revenue_usd": 275.74815909972034,
+      "revenue_usd": 265.45069280543123,
       "family": "Tops",
       "subtype": "Short sleeve",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/24_d6493dce-a07b-4d7a-8842-ea818a1b0301.jpg?v=1774470147"
     },
     {
       "product": "Quote Long Sleeve Shirt (Unisex)",
-      "units": 3,
-      "revenue_usd": 254.80106297200095,
+      "units": 4,
+      "revenue_usd": 338.7238122763556,
       "family": "Tops",
       "subtype": "Long sleeve",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-long-sleeve-female.png?v=1779195190"
@@ -236,7 +291,7 @@
     {
       "product": "Kuffiyah Engraved Palestine Keychain",
       "units": 2,
-      "revenue_usd": 26.06508446738097,
+      "revenue_usd": 24.344168475311992,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2652-3_1.jpg?v=1768574144"
@@ -244,18 +299,10 @@
     {
       "product": "Palestine Art-Frame",
       "units": 1,
-      "revenue_usd": 174.83086456061642,
+      "revenue_usd": 166.57000000000002,
       "family": "Art-frame",
       "subtype": "Art-frame",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Copyofshawqwebsitephdotos_4copy.jpg?v=1756378248"
-    },
-    {
-      "product": "Zahrat Al-Mada'en - زَهرة المدائِن Hoodie (Unisex)",
-      "units": 1,
-      "revenue_usd": 114.17391756643705,
-      "family": "Hoodies",
-      "subtype": "Other hoodie",
-      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/zahrat-hoodie-off.png?v=1779270413"
     },
     {
       "product": "FreeGift",
@@ -264,25 +311,33 @@
       "family": "Other",
       "subtype": "Other",
       "image_url": ""
+    },
+    {
+      "product": "Zahrat Al-Mada'en - زَهرة المدائِن Hoodie (Unisex)",
+      "units": 1,
+      "revenue_usd": 98.10000000000001,
+      "family": "Hoodies",
+      "subtype": "Other hoodie",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/zahrat-hoodie-off.png?v=1779270413"
     }
   ],
   "countries": [
     {
       "country_code": "US",
       "country": "United States",
-      "units": 54,
-      "revenue_usd": 4741.857545939391,
+      "units": 58,
+      "revenue_usd": 4982.8399999999965,
       "mix": {
-        "Tops": 28,
+        "Tops": 31,
         "Crewnecks": 11,
         "Skirts": 3,
-        "Hoodies": 7,
+        "Hoodies": 8,
         "Denim pants": 5
       },
       "subtypes": {
         "Tops": {
-          "Long sleeve": 5,
-          "Short sleeve": 23
+          "Long sleeve": 6,
+          "Short sleeve": 25
         },
         "Crewnecks": {
           "Quote crewneck": 8,
@@ -294,7 +349,7 @@
           "Zaytoun skirt": 1
         },
         "Hoodies": {
-          "Quote hoodie": 2,
+          "Quote hoodie": 3,
           "Ghalabany Al-ShawQ hoodie": 4,
           "Other hoodie": 1
         },
@@ -302,13 +357,13 @@
           "Denim pants": 5
         }
       },
-      "unique_products": 16
+      "unique_products": 17
     },
     {
       "country_code": "AU",
       "country": "Australia",
       "units": 19,
-      "revenue_usd": 1991.2881508849334,
+      "revenue_usd": 1815.3199999999997,
       "mix": {
         "Denim pants": 8,
         "Tops": 5,
@@ -339,7 +394,7 @@
       "country_code": "GB",
       "country": "United Kingdom",
       "units": 17,
-      "revenue_usd": 1634.3521521355613,
+      "revenue_usd": 1631.4200000000003,
       "mix": {
         "Hoodies": 4,
         "Crewnecks": 7,
@@ -372,7 +427,7 @@
       "country_code": "CA",
       "country": "Canada",
       "units": 14,
-      "revenue_usd": 1381.8214256118806,
+      "revenue_usd": 1360.2199999999998,
       "mix": {
         "Hoodies": 5,
         "Tops": 3,
@@ -406,7 +461,7 @@
       "country_code": "DE",
       "country": "Germany",
       "units": 14,
-      "revenue_usd": 1277.349251479399,
+      "revenue_usd": 1302.5,
       "mix": {
         "Tops": 6,
         "Crewnecks": 4,
@@ -438,7 +493,7 @@
       "country_code": "FR",
       "country": "France",
       "units": 13,
-      "revenue_usd": 1126.426334178304,
+      "revenue_usd": 1041.67,
       "mix": {
         "Tops": 3,
         "Denim pants": 4,
@@ -471,7 +526,7 @@
       "country_code": "BE",
       "country": "Belgium",
       "units": 9,
-      "revenue_usd": 839.7077050754203,
+      "revenue_usd": 854.87,
       "mix": {
         "Tops": 6,
         "Skirts": 2,
@@ -495,7 +550,7 @@
       "country_code": "QA",
       "country": "Qatar",
       "units": 8,
-      "revenue_usd": 641.8669981678713,
+      "revenue_usd": 619.2600000000001,
       "mix": {
         "Tops": 6,
         "Denim pants": 1,
@@ -518,7 +573,7 @@
       "country_code": "AE",
       "country": "United Arab Emirates",
       "units": 7,
-      "revenue_usd": 670.1115345754763,
+      "revenue_usd": 699.5600000000001,
       "mix": {
         "Denim pants": 5,
         "Tops": 1,
@@ -541,7 +596,7 @@
       "country_code": "ES",
       "country": "Spain",
       "units": 7,
-      "revenue_usd": 669.000890783611,
+      "revenue_usd": 693.25,
       "mix": {
         "Crewnecks": 2,
         "Tops": 3,
@@ -565,10 +620,41 @@
       "unique_products": 5
     },
     {
+      "country_code": "IT",
+      "country": "Italy",
+      "units": 7,
+      "revenue_usd": 476.42999999999995,
+      "mix": {
+        "Kuffiyah accessory": 2,
+        "Skirts": 1,
+        "Crewnecks": 1,
+        "Tops": 1,
+        "Denim pants": 2
+      },
+      "subtypes": {
+        "Kuffiyah accessory": {
+          "Kuffiyah accessory": 2
+        },
+        "Skirts": {
+          "Kuffiyah skirt": 1
+        },
+        "Crewnecks": {
+          "Other crewneck": 1
+        },
+        "Tops": {
+          "Short sleeve": 1
+        },
+        "Denim pants": {
+          "Denim pants": 2
+        }
+      },
+      "unique_products": 5
+    },
+    {
       "country_code": "NL",
       "country": "Netherlands",
       "units": 5,
-      "revenue_usd": 461.85805887334743,
+      "revenue_usd": 462.75,
       "mix": {
         "Tops": 1,
         "Denim pants": 2,
@@ -589,41 +675,10 @@
       "unique_products": 4
     },
     {
-      "country_code": "IT",
-      "country": "Italy",
-      "units": 5,
-      "revenue_usd": 333.9468450803123,
-      "mix": {
-        "Kuffiyah accessory": 1,
-        "Skirts": 1,
-        "Crewnecks": 1,
-        "Tops": 1,
-        "Denim pants": 1
-      },
-      "subtypes": {
-        "Kuffiyah accessory": {
-          "Kuffiyah accessory": 1
-        },
-        "Skirts": {
-          "Kuffiyah skirt": 1
-        },
-        "Crewnecks": {
-          "Other crewneck": 1
-        },
-        "Tops": {
-          "Short sleeve": 1
-        },
-        "Denim pants": {
-          "Denim pants": 1
-        }
-      },
-      "unique_products": 5
-    },
-    {
       "country_code": "TR",
       "country": "Turkey",
       "units": 5,
-      "revenue_usd": 185.9741176180799,
+      "revenue_usd": 174.51999999999998,
       "mix": {
         "Other": 1,
         "Tops": 4
@@ -643,7 +698,7 @@
       "country_code": "SA",
       "country": "Saudi Arabia",
       "units": 4,
-      "revenue_usd": 376.41507958503325,
+      "revenue_usd": 383.33,
       "mix": {
         "Tops": 1,
         "Denim pants": 3
@@ -659,10 +714,29 @@
       "unique_products": 2
     },
     {
+      "country_code": "DK",
+      "country": "Denmark",
+      "units": 3,
+      "revenue_usd": 286.68,
+      "mix": {
+        "Tops": 2,
+        "Hoodies": 1
+      },
+      "subtypes": {
+        "Tops": {
+          "Short sleeve": 2
+        },
+        "Hoodies": {
+          "Ghalabany Al-ShawQ hoodie": 1
+        }
+      },
+      "unique_products": 2
+    },
+    {
       "country_code": "OM",
       "country": "Oman",
       "units": 3,
-      "revenue_usd": 245.5088522350217,
+      "revenue_usd": 244.17999999999998,
       "mix": {
         "Tops": 3
       },
@@ -677,7 +751,7 @@
       "country_code": "SG",
       "country": "Singapore",
       "units": 3,
-      "revenue_usd": 334.13216367317966,
+      "revenue_usd": 318.44000000000005,
       "mix": {
         "Tops": 2,
         "Art-frame": 1
@@ -692,25 +766,6 @@
         }
       },
       "unique_products": 3
-    },
-    {
-      "country_code": "DK",
-      "country": "Denmark",
-      "units": 2,
-      "revenue_usd": 193.0028941031743,
-      "mix": {
-        "Tops": 1,
-        "Hoodies": 1
-      },
-      "subtypes": {
-        "Tops": {
-          "Short sleeve": 1
-        },
-        "Hoodies": {
-          "Ghalabany Al-ShawQ hoodie": 1
-        }
-      },
-      "unique_products": 2
     }
   ],
   "cumulative": [
@@ -790,6 +845,17 @@
       "Kuffiyah accessory": 6,
       "Art-frame": 1,
       "Other": 1
+    },
+    {
+      "date": "2026-06-10",
+      "Tops": 80,
+      "Denim pants": 35,
+      "Crewnecks": 30,
+      "Hoodies": 24,
+      "Skirts": 18,
+      "Kuffiyah accessory": 7,
+      "Art-frame": 1,
+      "Other": 1
     }
   ],
   "order_lines": [
@@ -805,7 +871,9 @@
       "variant_id": "49352934818090",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 89.01289694045603,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 93.99,
+      "line_revenue_usd": 93.99,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -839,9 +907,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7513630474538",
@@ -855,7 +921,9 @@
       "variant_id": "49352922333482",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 83.71451021780983,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 88.99,
+      "line_revenue_usd": 88.99,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -882,9 +950,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7513839567146",
@@ -898,7 +964,9 @@
       "variant_id": "51553020281130",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-long-sleeve-female-4_png.jpg?v=1779193802",
       "quantity": 2,
-      "line_revenue_usd": 188.62256732620443,
+      "line_item_subtotal_usd": 178,
+      "order_revenue_usd": 178,
+      "line_revenue_usd": 178,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -941,9 +1009,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 178,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514045448490",
@@ -957,7 +1023,9 @@
       "variant_id": "51553004093738",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
       "quantity": 1,
-      "line_revenue_usd": 90.62360650414047,
+      "line_item_subtotal_usd": 85.52,
+      "order_revenue_usd": 98.84,
+      "line_revenue_usd": 98.84,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -1000,9 +1068,7 @@
           "adset_name": "GCC_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 85.52,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514095812906",
@@ -1016,7 +1082,9 @@
       "variant_id": "51553004028202",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
       "quantity": 1,
-      "line_revenue_usd": 90.42226780867992,
+      "line_item_subtotal_usd": 85.33,
+      "order_revenue_usd": 165.72,
+      "line_revenue_usd": 85.33,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -1059,9 +1127,7 @@
           "adset_name": "GCC_Summer_Tops",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 85.33,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514095812906",
@@ -1075,7 +1141,9 @@
       "variant_id": "49352922169642",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 85.18746172670548,
+      "line_item_subtotal_usd": 80.39,
+      "order_revenue_usd": 165.72,
+      "line_revenue_usd": 80.39,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -1118,9 +1186,7 @@
           "adset_name": "GCC_Summer_Tops",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 80.39,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514193559850",
@@ -1134,7 +1200,9 @@
       "variant_id": "49352934850858",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 89.01289694045603,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 81.39,
+      "line_revenue_usd": 81.39,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -1158,9 +1226,7 @@
           "adset_name": "",
           "ad_name": "120243200553310138"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514204307754",
@@ -1174,7 +1240,9 @@
       "variant_id": "50155572658474",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 95.99617064090371,
+      "line_item_subtotal_usd": 90.59,
+      "order_revenue_usd": 94.85,
+      "line_revenue_usd": 94.85,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -1201,9 +1269,7 @@
           "adset_name": "GCC_Denim",
           "ad_name": "Denim Social 2"
         }
-      },
-      "line_item_subtotal_usd": 90.59,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514247102762",
@@ -1217,7 +1283,9 @@
       "variant_id": "51424560742698",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 89.01289694045603,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 93.99,
+      "line_revenue_usd": 93.99,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -1260,9 +1328,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514286096682",
@@ -1276,7 +1342,9 @@
       "variant_id": "49352922366250",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 83.71451021780983,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 77.14,
+      "line_revenue_usd": 77.14,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -1301,9 +1369,7 @@
           "adset_name": "",
           "ad_name": "120243200487930138"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514346258730",
@@ -1317,7 +1383,9 @@
       "variant_id": "51424560775466",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 89.01289694045603,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 93.99,
+      "line_revenue_usd": 93.99,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -1360,9 +1428,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514479100202",
@@ -1376,7 +1442,9 @@
       "variant_id": "49352922169642",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 83.71451021780983,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 88.99,
+      "line_revenue_usd": 88.99,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -1419,9 +1487,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "Tshirt Background Change"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514635403562",
@@ -1435,7 +1501,9 @@
       "variant_id": "51549186326826",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/qoute-off.png?v=1779270408",
       "quantity": 1,
-      "line_revenue_usd": 102.49199276286794,
+      "line_item_subtotal_usd": 96.72,
+      "order_revenue_usd": 182.69,
+      "line_revenue_usd": 96.72,
       "family": "Hoodies",
       "subtype": "Quote hoodie",
       "attribution": {
@@ -1478,9 +1546,7 @@
           "adset_name": "UK_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 96.72,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514635403562",
@@ -1494,7 +1560,9 @@
       "variant_id": "51424560841002",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 91.10046130917863,
+      "line_item_subtotal_usd": 85.97,
+      "order_revenue_usd": 182.69,
+      "line_revenue_usd": 85.97,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -1537,9 +1605,7 @@
           "adset_name": "UK_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 85.97,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514881458474",
@@ -1553,7 +1619,9 @@
       "variant_id": "51553103708458",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 82.28394580269537,
+      "line_item_subtotal_usd": 77.65,
+      "order_revenue_usd": 161.17,
+      "line_revenue_usd": 74.4665625371891,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -1596,9 +1664,7 @@
           "adset_name": "FR_NL_BE_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 77.65,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514881458474",
@@ -1612,7 +1678,9 @@
       "variant_id": "50600296579370",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 95.80542871888845,
+      "line_item_subtotal_usd": 90.41,
+      "order_revenue_usd": 161.17,
+      "line_revenue_usd": 86.70343746281088,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -1655,9 +1723,7 @@
           "adset_name": "FR_NL_BE_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 90.41,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514920583466",
@@ -1671,7 +1737,9 @@
       "variant_id": "49352922235178",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 85.9716229616571,
+      "line_item_subtotal_usd": 81.13,
+      "order_revenue_usd": 92.72,
+      "line_revenue_usd": 92.72,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -1714,9 +1782,7 @@
           "adset_name": "DACH_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 81.13,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7514978844970",
@@ -1730,7 +1796,9 @@
       "variant_id": "51081857499434",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 106.01012154670502,
+      "line_item_subtotal_usd": 100.04,
+      "order_revenue_usd": 110.84,
+      "line_revenue_usd": 110.84,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -1773,9 +1841,7 @@
           "adset_name": "CA_Winter_Tops",
           "ad_name": "VSC Hoodie Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 100.04,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515091271978",
@@ -1789,7 +1855,9 @@
       "variant_id": "51081857499434",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 105.63923447611978,
+      "line_item_subtotal_usd": 99.69,
+      "order_revenue_usd": 124.04,
+      "line_revenue_usd": 111.28,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -1832,9 +1900,7 @@
           "adset_name": "FR_NL_BE_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 99.69,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515114864938",
@@ -1848,7 +1914,9 @@
       "variant_id": "49352922333482",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 85.05093587113139,
+      "line_item_subtotal_usd": 81.13,
+      "order_revenue_usd": 92.72,
+      "line_revenue_usd": 92.72,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -1891,9 +1959,7 @@
           "adset_name": "DACH_Summer_Tops",
           "ad_name": "Shirt Static Saed"
         }
-      },
-      "line_item_subtotal_usd": 81.13,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515186102570",
@@ -1907,7 +1973,9 @@
       "variant_id": "51094999662890",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
       "quantity": 1,
-      "line_revenue_usd": 105.50383564736427,
+      "line_item_subtotal_usd": 100.64,
+      "order_revenue_usd": 186.52,
+      "line_revenue_usd": 100.64000000000003,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -1950,9 +2018,7 @@
           "adset_name": "UK_Summer_Tops",
           "ad_name": "VSC Blurry Shirt Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 100.64,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515186102570",
@@ -1966,7 +2032,9 @@
       "variant_id": "49352934850858",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 90.03049886124447,
+      "line_item_subtotal_usd": 85.88,
+      "order_revenue_usd": 186.52,
+      "line_revenue_usd": 85.88000000000001,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -2009,9 +2077,7 @@
           "adset_name": "UK_Summer_Tops",
           "ad_name": "VSC Blurry Shirt Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 85.88,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515240530218",
@@ -2025,7 +2091,9 @@
       "variant_id": "49352934883626",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 90.03049886124447,
+      "line_item_subtotal_usd": 85.88,
+      "order_revenue_usd": 99.29,
+      "line_revenue_usd": 99.29,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -2067,9 +2135,7 @@
           "adset_name": "UK_Summer_Tops",
           "ad_name": "VSC Blurry Shirt Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 85.88,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515248066858",
@@ -2083,7 +2149,9 @@
       "variant_id": "49352934850858",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 89.79986647012345,
+      "line_item_subtotal_usd": 85.66,
+      "order_revenue_usd": 87.89,
+      "line_revenue_usd": 87.89,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -2103,9 +2171,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 85.66,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515274772778",
@@ -2119,7 +2185,9 @@
       "variant_id": "49352922333482",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 85.05093587113139,
+      "line_item_subtotal_usd": 81.13,
+      "order_revenue_usd": 92.73,
+      "line_revenue_usd": 84.61,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -2153,9 +2221,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 81.13,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515286012202",
@@ -2169,7 +2235,9 @@
       "variant_id": "50155572691242",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 95.69147573421513,
+      "line_item_subtotal_usd": 91.28,
+      "order_revenue_usd": 104.69,
+      "line_revenue_usd": 104.69,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -2212,9 +2280,7 @@
           "adset_name": "USA_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 91.28,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515349614890",
@@ -2228,7 +2294,9 @@
       "variant_id": "50155560730922",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/15_1_1.jpg?v=1745856473",
       "quantity": 1,
-      "line_revenue_usd": 93.30128549896085,
+      "line_item_subtotal_usd": 89,
+      "order_revenue_usd": 85.64,
+      "line_revenue_usd": 85.64,
       "family": "Crewnecks",
       "subtype": "Ghalabany Al-ShawQ crewneck",
       "attribution": {
@@ -2253,9 +2321,7 @@
           "adset_name": "",
           "ad_name": "120243200553310138"
         }
-      },
-      "line_item_subtotal_usd": 89,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515431862570",
@@ -2269,7 +2335,9 @@
       "variant_id": "50600296579370",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 94.75846287922552,
+      "line_item_subtotal_usd": 90.39,
+      "order_revenue_usd": 103.73,
+      "line_revenue_usd": 103.73,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -2296,9 +2364,7 @@
           "adset_name": "GCC_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 90.39,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515461484842",
@@ -2312,7 +2378,9 @@
       "variant_id": "49352922300714",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 82.81799499345964,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 81.09,
+      "line_revenue_usd": 81.09,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -2355,9 +2423,7 @@
           "adset_name": "USA_Denim",
           "ad_name": "Denim Static Full"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515480391978",
@@ -2371,7 +2437,9 @@
       "variant_id": "51351103242538",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054",
       "quantity": 1,
-      "line_revenue_usd": 102.63141404885694,
+      "line_item_subtotal_usd": 97.9,
+      "order_revenue_usd": 181.9,
+      "line_revenue_usd": 97.89999999999999,
       "family": "Crewnecks",
       "subtype": "Other crewneck",
       "attribution": {
@@ -2391,9 +2459,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 97.9,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515480391978",
@@ -2407,7 +2473,9 @@
       "variant_id": "51424560808234",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 88.05964024621024,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 181.9,
+      "line_revenue_usd": 84,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -2427,9 +2495,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515752038698",
@@ -2443,7 +2509,9 @@
       "variant_id": "49352934883626",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 89.99904898972797,
+      "line_item_subtotal_usd": 85.85,
+      "order_revenue_usd": 158.72,
+      "line_revenue_usd": 77.26743407995463,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -2483,9 +2551,7 @@
           "adset_name": "FR_NL_BE_Summer_Tops",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 85.85,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515752038698",
@@ -2499,7 +2565,9 @@
       "variant_id": "51553020248362",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-long-sleeve-female-4_png.jpg?v=1779193802",
       "quantity": 1,
-      "line_revenue_usd": 94.87377907478603,
+      "line_item_subtotal_usd": 90.5,
+      "order_revenue_usd": 158.72,
+      "line_revenue_usd": 81.45256592004536,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -2539,9 +2607,7 @@
           "adset_name": "FR_NL_BE_Summer_Tops",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 90.5,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515762065706",
@@ -2555,7 +2621,9 @@
       "variant_id": "51553020215594",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-long-sleeve-female-4_png.jpg?v=1779193802",
       "quantity": 1,
-      "line_revenue_usd": 94.87377907478603,
+      "line_item_subtotal_usd": 90.5,
+      "order_revenue_usd": 102.1,
+      "line_revenue_usd": 102.1,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -2598,9 +2666,7 @@
           "adset_name": "FR_NL_BE_Winter_Tops",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 90.5,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515865579818",
@@ -2614,7 +2680,9 @@
       "variant_id": "51295456231722",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/24_d6493dce-a07b-4d7a-8842-ea818a1b0301.jpg?v=1774470147",
       "quantity": 1,
-      "line_revenue_usd": 68.13090499525242,
+      "line_item_subtotal_usd": 64.99,
+      "order_revenue_usd": 139.59,
+      "line_revenue_usd": 63.00405653170358,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -2634,9 +2702,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 64.99,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515865579818",
@@ -2650,7 +2716,9 @@
       "variant_id": "49352922300714",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 82.81799499345964,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 139.59,
+      "line_revenue_usd": 76.58594346829642,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -2670,9 +2738,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515948613930",
@@ -2686,7 +2752,9 @@
       "variant_id": "51149271138602",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/skirt-fixed.jpg?v=1769597744",
       "quantity": 1,
-      "line_revenue_usd": 100.98553743949324,
+      "line_item_subtotal_usd": 96.33,
+      "order_revenue_usd": 107.93,
+      "line_revenue_usd": 107.93,
       "family": "Skirts",
       "subtype": "Zaytoun skirt",
       "attribution": {
@@ -2728,9 +2796,7 @@
           "adset_name": "{{adset.name}}",
           "ad_name": "{{ad.name}}"
         }
-      },
-      "line_item_subtotal_usd": 96.33,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515962540330",
@@ -2744,7 +2810,9 @@
       "variant_id": "51553004028202",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
       "quantity": 1,
-      "line_revenue_usd": 89.63213382203543,
+      "line_item_subtotal_usd": 85.5,
+      "order_revenue_usd": 171.64,
+      "line_revenue_usd": 83.43407811700494,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -2787,9 +2855,7 @@
           "adset_name": "GCC_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 85.5,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7515962540330",
@@ -2803,7 +2869,9 @@
       "variant_id": "50155572592938",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 94.75846287922552,
+      "line_item_subtotal_usd": 90.39,
+      "order_revenue_usd": 171.64,
+      "line_revenue_usd": 88.20592188299504,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -2846,9 +2914,7 @@
           "adset_name": "GCC_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 90.39,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516025913642",
@@ -2862,7 +2928,9 @@
       "variant_id": "51553103708458",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 79.67300784180927,
+      "line_item_subtotal_usd": 76,
+      "order_revenue_usd": 88.99,
+      "line_revenue_usd": 88.99,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -2882,9 +2950,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 76,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516027519274",
@@ -2898,7 +2964,9 @@
       "variant_id": "49352934850858",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 83.3211929377237,
+      "line_item_subtotal_usd": 79.48,
+      "order_revenue_usd": 79.48,
+      "line_revenue_usd": 79.48,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -2932,9 +3000,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 79.48,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516061991210",
@@ -2948,7 +3014,9 @@
       "variant_id": "50155572592938",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 94.93667881781904,
+      "line_item_subtotal_usd": 90.56,
+      "order_revenue_usd": 94.82,
+      "line_revenue_usd": 94.82,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -2991,9 +3059,7 @@
           "adset_name": "GCC_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 90.56,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516152856874",
@@ -3007,7 +3073,9 @@
       "variant_id": "51351103177002",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054",
       "quantity": 1,
-      "line_revenue_usd": 104.9167713790562,
+      "line_item_subtotal_usd": 100.08,
+      "order_revenue_usd": 111.71,
+      "line_revenue_usd": 111.71,
       "family": "Crewnecks",
       "subtype": "Other crewneck",
       "attribution": {
@@ -3050,9 +3118,7 @@
           "adset_name": "IT_ES_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 100.08,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516194177322",
@@ -3066,7 +3132,9 @@
       "variant_id": "51424560742698",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 90.31354770489301,
+      "line_item_subtotal_usd": 86.15,
+      "order_revenue_usd": 90.99,
+      "line_revenue_usd": 90.99,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -3109,9 +3177,7 @@
           "adset_name": "UK_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 86.15,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516270231850",
@@ -3125,7 +3191,9 @@
       "variant_id": "50155572658474",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 95.94307470634716,
+      "line_item_subtotal_usd": 91.52,
+      "order_revenue_usd": 104.96,
+      "line_revenue_usd": 104.96,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -3168,9 +3236,7 @@
           "adset_name": "USA_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 91.52,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516349169962",
@@ -3184,7 +3250,9 @@
       "variant_id": "51424560742698",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 90.292581123882,
+      "line_item_subtotal_usd": 86.13,
+      "order_revenue_usd": 90.96,
+      "line_revenue_usd": 90.96,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -3227,9 +3295,7 @@
           "adset_name": "UK_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 86.13,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516405924138",
@@ -3243,7 +3309,9 @@
       "variant_id": "51212443451690",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2564_1.jpg?v=1767270820",
       "quantity": 1,
-      "line_revenue_usd": 36.53426741167175,
+      "line_item_subtotal_usd": 34.85,
+      "order_revenue_usd": 146.58,
+      "line_revenue_usd": 34.06904761904762,
       "family": "Kuffiyah accessory",
       "subtype": "Kuffiyah accessory",
       "attribution": {
@@ -3286,9 +3354,7 @@
           "adset_name": "FR_NL_BE_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 34.85,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516405924138",
@@ -3302,7 +3368,9 @@
       "variant_id": "51212443255082",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2564_1.jpg?v=1767270820",
       "quantity": 1,
-      "line_revenue_usd": 36.53426741167175,
+      "line_item_subtotal_usd": 34.85,
+      "order_revenue_usd": 146.58,
+      "line_revenue_usd": 34.06904761904762,
       "family": "Kuffiyah accessory",
       "subtype": "Kuffiyah accessory",
       "attribution": {
@@ -3345,9 +3413,7 @@
           "adset_name": "FR_NL_BE_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 34.85,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516405924138",
@@ -3361,7 +3427,9 @@
       "variant_id": "51553108164906",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-long-sleeve-female.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 84.11792301614177,
+      "line_item_subtotal_usd": 80.24,
+      "order_revenue_usd": 146.58,
+      "line_revenue_usd": 78.44190476190477,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -3404,9 +3472,7 @@
           "adset_name": "FR_NL_BE_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 80.24,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516540174634",
@@ -3420,7 +3486,9 @@
       "variant_id": "51553020215594",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-long-sleeve-female-4_png.jpg?v=1779193802",
       "quantity": 1,
-      "line_revenue_usd": 95.04151172287405,
+      "line_item_subtotal_usd": 90.66,
+      "order_revenue_usd": 208.52,
+      "line_revenue_usd": 90.66,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -3463,9 +3531,7 @@
           "adset_name": "DACH_Skirts",
           "ad_name": "Kuffiyah wrap New"
         }
-      },
-      "line_item_subtotal_usd": 90.66,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516540174634",
@@ -3479,7 +3545,9 @@
       "variant_id": "51351103177002",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054",
       "quantity": 1,
-      "line_revenue_usd": 104.79097189299019,
+      "line_item_subtotal_usd": 99.96,
+      "order_revenue_usd": 208.52,
+      "line_revenue_usd": 99.96,
       "family": "Crewnecks",
       "subtype": "Other crewneck",
       "attribution": {
@@ -3522,9 +3590,7 @@
           "adset_name": "DACH_Skirts",
           "ad_name": "Kuffiyah wrap New"
         }
-      },
-      "line_item_subtotal_usd": 99.96,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516810510634",
@@ -3538,7 +3604,9 @@
       "variant_id": "51424560775466",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 89.76841659860693,
+      "line_item_subtotal_usd": 85.63,
+      "order_revenue_usd": 87.86,
+      "line_revenue_usd": 87.86,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -3581,9 +3649,7 @@
           "adset_name": "CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 85.63,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7516872999210",
@@ -3597,7 +3663,9 @@
       "variant_id": "51424560775466",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 88.05964024621024,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 85.59,
+      "line_revenue_usd": 85.59,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -3640,9 +3708,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517104603434",
@@ -3656,7 +3722,9 @@
       "variant_id": "51553103675690",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 79.67300784180927,
+      "line_item_subtotal_usd": 76,
+      "order_revenue_usd": 78.39,
+      "line_revenue_usd": 78.39,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -3699,9 +3767,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 76,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517106209066",
@@ -3715,7 +3781,9 @@
       "variant_id": "49352922300714",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 84.91465309455907,
+      "line_item_subtotal_usd": 81,
+      "order_revenue_usd": 92.6,
+      "line_revenue_usd": 92.6,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -3741,9 +3809,7 @@
           "adset_name": "DACH_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 81,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517251567914",
@@ -3757,7 +3823,9 @@
       "variant_id": "51081857499434",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 105.68361501235798,
+      "line_item_subtotal_usd": 100.69,
+      "order_revenue_usd": 104.03,
+      "line_revenue_usd": 104.03,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -3799,9 +3867,7 @@
           "adset_name": "USA_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 100.69,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517267525930",
@@ -3815,7 +3881,9 @@
       "variant_id": "51424560775466",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 88.16589195588509,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 93.99,
+      "line_revenue_usd": 93.99,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -3858,9 +3926,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517329195306",
@@ -3874,7 +3940,9 @@
       "variant_id": "51094999662890",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
       "quantity": 1,
-      "line_revenue_usd": 102.86020728186594,
+      "line_item_subtotal_usd": 98,
+      "order_revenue_usd": 127.59,
+      "line_revenue_usd": 107.99000000000001,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -3901,9 +3969,7 @@
           "adset_name": "USA_Skirts",
           "ad_name": "Zaytoun Tree Skirt USA - Copy"
         }
-      },
-      "line_item_subtotal_usd": 98,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517333389610",
@@ -3917,7 +3983,9 @@
       "variant_id": "50600296579370",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 95.10370797765177,
+      "line_item_subtotal_usd": 90.61,
+      "order_revenue_usd": 153.96,
+      "line_revenue_usd": 81.55217818309366,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -3937,9 +4005,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 90.61,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517333389610",
@@ -3953,7 +4019,9 @@
       "variant_id": "49352922366250",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 84.4398334267971,
+      "line_item_subtotal_usd": 80.45,
+      "order_revenue_usd": 153.96,
+      "line_revenue_usd": 72.40782181690635,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -3973,9 +4041,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 80.45,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517364715818",
@@ -3989,7 +4055,9 @@
       "variant_id": "49352922235178",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 85.2585167092446,
+      "line_item_subtotal_usd": 81.23,
+      "order_revenue_usd": 84.71,
+      "line_revenue_usd": 84.71,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -4023,9 +4091,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 81.23,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517384605994",
@@ -4039,7 +4105,9 @@
       "variant_id": "50538858316074",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Copyofshawqwebsitephdotos_4copy.jpg?v=1756378248",
       "quantity": 1,
-      "line_revenue_usd": 174.83086456061642,
+      "line_item_subtotal_usd": 166.57,
+      "order_revenue_usd": 238.96,
+      "line_revenue_usd": 166.57000000000002,
       "family": "Art-frame",
       "subtype": "Art-frame",
       "attribution": {
@@ -4059,9 +4127,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 166.57,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517384605994",
@@ -4075,7 +4141,9 @@
       "variant_id": "49352922333482",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 75.98010617483955,
+      "line_item_subtotal_usd": 72.39,
+      "order_revenue_usd": 238.96,
+      "line_revenue_usd": 72.39000000000001,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -4095,9 +4163,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 72.39,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517396992298",
@@ -4111,7 +4177,9 @@
       "variant_id": "51295456231722",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/24_d6493dce-a07b-4d7a-8842-ea818a1b0301.jpg?v=1774470147",
       "quantity": 1,
-      "line_revenue_usd": 68.2131109311068,
+      "line_item_subtotal_usd": 64.99,
+      "order_revenue_usd": 150.98,
+      "line_revenue_usd": 69.59493722959074,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -4154,9 +4222,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 64.99,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517396992298",
@@ -4170,7 +4236,9 @@
       "variant_id": "51553103675690",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 79.76914034103889,
+      "line_item_subtotal_usd": 76,
+      "order_revenue_usd": 150.98,
+      "line_revenue_usd": 81.38506277040925,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -4213,9 +4281,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 76,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7517739811114",
@@ -4229,7 +4295,9 @@
       "variant_id": "51549186326826",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/qoute-off.png?v=1779270408",
       "quantity": 1,
-      "line_revenue_usd": 98.66183147444283,
+      "line_item_subtotal_usd": 94,
+      "order_revenue_usd": 103.99,
+      "line_revenue_usd": 103.99,
       "family": "Hoodies",
       "subtype": "Quote hoodie",
       "attribution": {
@@ -4272,9 +4340,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 94,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7518053892394",
@@ -4288,7 +4354,9 @@
       "variant_id": "50155572625706",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 95.20866737283733,
+      "line_item_subtotal_usd": 90.71,
+      "order_revenue_usd": 93.27,
+      "line_revenue_usd": 93.27,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -4331,9 +4399,7 @@
           "adset_name": "FR_NL_BE_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 90.71,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7518136664362",
@@ -4347,7 +4413,9 @@
       "variant_id": "50155572691242",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 111.63481271938021,
+      "line_item_subtotal_usd": 106.36,
+      "order_revenue_usd": 106.36,
+      "line_revenue_usd": 106.36,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -4389,9 +4457,7 @@
           "adset_name": "AU_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 106.36,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7518193975594",
@@ -4405,7 +4471,9 @@
       "variant_id": "51351103177002",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054",
       "quantity": 1,
-      "line_revenue_usd": 104.6550129395393,
+      "line_item_subtotal_usd": 99.71,
+      "order_revenue_usd": 167.35,
+      "line_revenue_usd": 89.74114499300849,
       "family": "Crewnecks",
       "subtype": "Other crewneck",
       "attribution": {
@@ -4448,9 +4516,7 @@
           "adset_name": "UK_Summer_Tops",
           "ad_name": "VSC Blurry Shirt Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 99.71,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7518193975594",
@@ -4464,7 +4530,9 @@
       "variant_id": "51424560742698",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 90.50648646852348,
+      "line_item_subtotal_usd": 86.23,
+      "order_revenue_usd": 167.35,
+      "line_revenue_usd": 77.6088550069915,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -4507,9 +4575,7 @@
           "adset_name": "UK_Summer_Tops",
           "ad_name": "VSC Blurry Shirt Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 86.23,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7518407819562",
@@ -4523,7 +4589,9 @@
       "variant_id": "49352922300714",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 82.91792219660621,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 184.19,
+      "line_revenue_usd": 77.595,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -4562,9 +4630,7 @@
           "adset_name": "120243206771950138",
           "ad_name": "Facebook_UA"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7518407819562",
@@ -4578,7 +4644,9 @@
       "variant_id": "49352922333482",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 82.91792219660621,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 184.19,
+      "line_revenue_usd": 77.595,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -4617,9 +4685,7 @@
           "adset_name": "120243206771950138",
           "ad_name": "Facebook_UA"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7518518313258",
@@ -4633,7 +4699,9 @@
       "variant_id": "51149271171370",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/skirt-fixed.jpg?v=1769597744",
       "quantity": 1,
-      "line_revenue_usd": 100.87647471285852,
+      "line_item_subtotal_usd": 96.11,
+      "order_revenue_usd": 107.68,
+      "line_revenue_usd": 107.68,
       "family": "Skirts",
       "subtype": "Zaytoun skirt",
       "attribution": {
@@ -4653,9 +4721,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 96.11,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7518766301482",
@@ -4669,7 +4735,9 @@
       "variant_id": "50155572625706",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 93.41386171516396,
+      "line_item_subtotal_usd": 89,
+      "order_revenue_usd": 98.99,
+      "line_revenue_usd": 98.99,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -4696,9 +4764,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 89,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7518821712170",
@@ -4712,7 +4778,9 @@
       "variant_id": "51212443353386",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2564_1.jpg?v=1767270820",
       "quantity": 1,
-      "line_revenue_usd": 36.252975097098464,
+      "line_item_subtotal_usd": 34.54,
+      "order_revenue_usd": 144.22,
+      "line_revenue_usd": 33.78566739012479,
       "family": "Kuffiyah accessory",
       "subtype": "Kuffiyah accessory",
       "attribution": {
@@ -4755,9 +4823,7 @@
           "adset_name": "IT_ES_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 34.54,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7518821712170",
@@ -4771,7 +4837,9 @@
       "variant_id": "50155636818218",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2652-3_1.jpg?v=1768574144",
       "quantity": 1,
-      "line_revenue_usd": 13.256371611938437,
+      "line_item_subtotal_usd": 12.63,
+      "order_revenue_usd": 144.22,
+      "line_revenue_usd": 12.354168475311992,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -4814,9 +4882,7 @@
           "adset_name": "IT_ES_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 12.63,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7518821712170",
@@ -4830,7 +4896,9 @@
       "variant_id": "51351103242538",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054",
       "quantity": 1,
-      "line_revenue_usd": 105.24278555257854,
+      "line_item_subtotal_usd": 100.27,
+      "order_revenue_usd": 144.22,
+      "line_revenue_usd": 98.0801641345632,
       "family": "Crewnecks",
       "subtype": "Other crewneck",
       "attribution": {
@@ -4873,9 +4941,7 @@
           "adset_name": "IT_ES_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 100.27,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519148081450",
@@ -4889,7 +4955,9 @@
       "variant_id": "51424560677162",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 88.16589195588509,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 168,
+      "line_revenue_usd": 84,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -4932,9 +5000,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519148081450",
@@ -4948,7 +5014,9 @@
       "variant_id": "51424560709930",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 88.16589195588509,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 168,
+      "line_revenue_usd": 84,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -4991,9 +5059,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519246025002",
@@ -5007,7 +5073,9 @@
       "variant_id": "49352922235178",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 84.59727251957545,
+      "line_item_subtotal_usd": 80.6,
+      "order_revenue_usd": 84.06,
+      "line_revenue_usd": 84.06,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -5049,9 +5117,7 @@
           "adset_name": "IT_ES_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 80.6,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519321653546",
@@ -5065,7 +5131,9 @@
       "variant_id": "50155572691242",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 95.18767549380021,
+      "line_item_subtotal_usd": 90.69,
+      "order_revenue_usd": 104.01,
+      "line_revenue_usd": 104.01,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -5108,9 +5176,7 @@
           "adset_name": "USA_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 90.69,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519398986026",
@@ -5124,7 +5190,9 @@
       "variant_id": "51424560808234",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 89.59333973040894,
+      "line_item_subtotal_usd": 85.36,
+      "order_revenue_usd": 98.68,
+      "line_revenue_usd": 98.68,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -5144,9 +5212,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 85.36,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519402787114",
@@ -5160,7 +5226,9 @@
       "variant_id": "51351103209770",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054",
       "quantity": 1,
-      "line_revenue_usd": 105.17980991546756,
+      "line_item_subtotal_usd": 100.21,
+      "order_revenue_usd": 111.72,
+      "line_revenue_usd": 111.72,
       "family": "Crewnecks",
       "subtype": "Other crewneck",
       "attribution": {
@@ -5202,9 +5270,7 @@
           "adset_name": "{{adset.name}}",
           "ad_name": "{{ad.name}}"
         }
-      },
-      "line_item_subtotal_usd": 100.21,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519604375850",
@@ -5218,7 +5284,9 @@
       "variant_id": "51549186294058",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/qoute-off.png?v=1779270408",
       "quantity": 1,
-      "line_revenue_usd": 98.92145708337395,
+      "line_item_subtotal_usd": 95.44,
+      "order_revenue_usd": 106.2,
+      "line_revenue_usd": 106.2,
       "family": "Hoodies",
       "subtype": "Quote hoodie",
       "attribution": {
@@ -5252,9 +5320,7 @@
           "adset_name": "",
           "ad_name": "Facebook_UA"
         }
-      },
-      "line_item_subtotal_usd": 95.44,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519701860650",
@@ -5268,7 +5334,9 @@
       "variant_id": "49352934850858",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 79.64296691414978,
+      "line_item_subtotal_usd": 76.84,
+      "order_revenue_usd": 76.84,
+      "line_revenue_usd": 76.84,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -5288,9 +5356,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 76.84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519765791018",
@@ -5304,7 +5370,9 @@
       "variant_id": "51081857499434",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 101.57484067655749,
+      "line_item_subtotal_usd": 98,
+      "order_revenue_usd": 107.99,
+      "line_revenue_usd": 107.99,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -5347,9 +5415,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 98,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519802786090",
@@ -5363,7 +5429,9 @@
       "variant_id": "51081857499434",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 103.72035006635824,
+      "line_item_subtotal_usd": 100.07,
+      "order_revenue_usd": 103.39,
+      "line_revenue_usd": 103.39,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -5383,9 +5451,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 100.07,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519851577642",
@@ -5399,7 +5465,9 @@
       "variant_id": "50155572658474",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 93.7183376936156,
+      "line_item_subtotal_usd": 90.42,
+      "order_revenue_usd": 110.22,
+      "line_revenue_usd": 101.18,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -5442,9 +5510,7 @@
           "adset_name": "CA_Denim",
           "ad_name": "Denim Static Full"
         }
-      },
-      "line_item_subtotal_usd": 90.42,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519864750378",
@@ -5458,7 +5524,9 @@
       "variant_id": "51081857466666",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 116.17881521872785,
+      "line_item_subtotal_usd": 112.09,
+      "order_revenue_usd": 112.09,
+      "line_revenue_usd": 112.09,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -5478,9 +5546,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 112.09,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519910953258",
@@ -5494,7 +5560,9 @@
       "variant_id": "49352934850858",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 79.64296691414978,
+      "line_item_subtotal_usd": 76.84,
+      "order_revenue_usd": 69.16,
+      "line_revenue_usd": 69.16,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -5514,9 +5582,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 76.84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519951946026",
@@ -5530,7 +5596,9 @@
       "variant_id": "49352934850858",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 79.64296691414978,
+      "line_item_subtotal_usd": 76.84,
+      "order_revenue_usd": 69.16,
+      "line_revenue_usd": 69.16,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -5573,9 +5641,7 @@
           "adset_name": "AU_Summer_Tops",
           "ad_name": "VSC Blurry Shirt Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 76.84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519999263018",
@@ -5589,7 +5655,9 @@
       "variant_id": "50155572658474",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 92.2465389817716,
+      "line_item_subtotal_usd": 89,
+      "order_revenue_usd": 226.8,
+      "line_revenue_usd": 80.10000000000001,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -5632,9 +5700,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "Tshirt Background Change"
         }
-      },
-      "line_item_subtotal_usd": 89,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519999263018",
@@ -5648,7 +5714,9 @@
       "variant_id": "51553004159274",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
       "quantity": 1,
-      "line_revenue_usd": 87.06414915133499,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 226.8,
+      "line_revenue_usd": 75.6,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -5691,9 +5759,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "Tshirt Background Change"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7519999263018",
@@ -5707,7 +5773,9 @@
       "variant_id": "49352922333482",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 81.88175932089838,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 226.8,
+      "line_revenue_usd": 71.10000000000001,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -5750,9 +5818,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "Tshirt Background Change"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7520095699242",
@@ -5766,7 +5832,9 @@
       "variant_id": "49352922300714",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 83.55048884629898,
+      "line_item_subtotal_usd": 80.61,
+      "order_revenue_usd": 92.12,
+      "line_revenue_usd": 92.12,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -5786,9 +5854,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 80.61,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7520208224554",
@@ -5802,7 +5868,9 @@
       "variant_id": "51553004159274",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
       "quantity": 1,
-      "line_revenue_usd": 87.06414915133499,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 93.99,
+      "line_revenue_usd": 93.99,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -5845,9 +5913,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7520226607402",
@@ -5861,7 +5927,9 @@
       "variant_id": "51351103177002",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054",
       "quantity": 1,
-      "line_revenue_usd": 103.86545698161046,
+      "line_item_subtotal_usd": 100.21,
+      "order_revenue_usd": 101.7,
+      "line_revenue_usd": 101.7,
       "family": "Crewnecks",
       "subtype": "Other crewneck",
       "attribution": {
@@ -5904,9 +5972,7 @@
           "adset_name": "FR_NL_BE_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 100.21,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7520330645802",
@@ -5920,7 +5986,9 @@
       "variant_id": "50155572658474",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 94.2987653546245,
+      "line_item_subtotal_usd": 90.98,
+      "order_revenue_usd": 93.4,
+      "line_revenue_usd": 93.4,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -5963,9 +6031,7 @@
           "adset_name": "FR_NL_BE_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 90.98,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7520417448234",
@@ -5979,7 +6045,9 @@
       "variant_id": "49352922267946",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 83.55048884629898,
+      "line_item_subtotal_usd": 80.61,
+      "order_revenue_usd": 92.12,
+      "line_revenue_usd": 92.12,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -6021,9 +6089,7 @@
           "adset_name": "FR_NL_BE_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 80.61,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7520435306794",
@@ -6037,7 +6103,9 @@
       "variant_id": "51424560677162",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 88.50485352419636,
+      "line_item_subtotal_usd": 85.39,
+      "order_revenue_usd": 90.18,
+      "line_revenue_usd": 90.18,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -6080,9 +6148,7 @@
           "adset_name": "UK_Winter_Tops",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 85.39,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7520632176938",
@@ -6096,7 +6162,9 @@
       "variant_id": "51212443255082",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2564_1.jpg?v=1767270820",
       "quantity": 1,
-      "line_revenue_usd": 35.84140806729957,
+      "line_item_subtotal_usd": 34.58,
+      "order_revenue_usd": 48.03,
+      "line_revenue_usd": 48.03,
       "family": "Kuffiyah accessory",
       "subtype": "Kuffiyah accessory",
       "attribution": {
@@ -6130,9 +6198,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 34.58,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7521022083370",
@@ -6146,7 +6212,9 @@
       "variant_id": "51094999630122",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
       "quantity": 1,
-      "line_revenue_usd": 103.8550922019496,
+      "line_item_subtotal_usd": 100.2,
+      "order_revenue_usd": 200.4,
+      "line_revenue_usd": 100.2,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -6180,9 +6248,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 100.2,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7521022083370",
@@ -6196,7 +6262,9 @@
       "variant_id": "51081857466666",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 103.8550922019496,
+      "line_item_subtotal_usd": 100.2,
+      "order_revenue_usd": 200.4,
+      "line_revenue_usd": 100.2,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -6230,9 +6298,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 100.2,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7521159217450",
@@ -6246,7 +6312,9 @@
       "variant_id": "49352922235178",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 83.55048884629898,
+      "line_item_subtotal_usd": 80.61,
+      "order_revenue_usd": 84.06,
+      "line_revenue_usd": 84.06,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -6289,9 +6357,7 @@
           "adset_name": "IT_ES_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 80.61,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7521239793962",
@@ -6305,6 +6371,8 @@
       "variant_id": "51377588961578",
       "image_url": "",
       "quantity": 1,
+      "line_item_subtotal_usd": 0,
+      "order_revenue_usd": 0,
       "line_revenue_usd": 0,
       "family": "Other",
       "subtype": "Other",
@@ -6325,9 +6393,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 0,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7521306607914",
@@ -6341,7 +6407,9 @@
       "variant_id": "50155572625706",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 93.69760813429386,
+      "line_item_subtotal_usd": 90.4,
+      "order_revenue_usd": 103.74,
+      "line_revenue_usd": 103.74,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -6368,9 +6436,7 @@
           "adset_name": "GCC_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 90.4,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7521540505898",
@@ -6384,7 +6450,9 @@
       "variant_id": "51094999597354",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
       "quantity": 1,
-      "line_revenue_usd": 103.3886771172103,
+      "line_item_subtotal_usd": 99.75,
+      "order_revenue_usd": 106.92,
+      "line_revenue_usd": 106.92,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -6404,9 +6472,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 99.75,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7521574715690",
@@ -6420,7 +6486,9 @@
       "variant_id": "51553004159274",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
       "quantity": 1,
-      "line_revenue_usd": 88.50485352419636,
+      "line_item_subtotal_usd": 85.39,
+      "order_revenue_usd": 156.35,
+      "line_revenue_usd": 80.54251025579151,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -6454,9 +6522,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 85.39,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7521574715690",
@@ -6470,7 +6536,9 @@
       "variant_id": "49352922333482",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 83.30173413443802,
+      "line_item_subtotal_usd": 80.37,
+      "order_revenue_usd": 156.35,
+      "line_revenue_usd": 75.8074897442085,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -6504,9 +6572,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 80.37,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7521599652138",
@@ -6520,7 +6586,9 @@
       "variant_id": "51351103209770",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054",
       "quantity": 1,
-      "line_revenue_usd": 103.8550922019496,
+      "line_item_subtotal_usd": 100.2,
+      "order_revenue_usd": 101.7,
+      "line_revenue_usd": 101.7,
       "family": "Crewnecks",
       "subtype": "Other crewneck",
       "attribution": {
@@ -6563,9 +6631,7 @@
           "adset_name": "DACH_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 100.2,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7521600209194",
@@ -6579,7 +6645,9 @@
       "variant_id": "51553004093738",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
       "quantity": 1,
-      "line_revenue_usd": 89.52060193096213,
+      "line_item_subtotal_usd": 86.37,
+      "order_revenue_usd": 97.88,
+      "line_revenue_usd": 97.88,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -6613,9 +6681,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 86.37,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7521665024298",
@@ -6629,7 +6695,9 @@
       "variant_id": "50155572658474",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 97.19238495314109,
+      "line_item_subtotal_usd": 90.98,
+      "order_revenue_usd": 102.49,
+      "line_revenue_usd": 102.49,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -6669,9 +6737,7 @@
           "adset_name": "Euro-Campaign",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 90.98,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522039038250",
@@ -6685,7 +6751,9 @@
       "variant_id": "49352934850858",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 104.6917314289715,
+      "line_item_subtotal_usd": 98,
+      "order_revenue_usd": 203.05,
+      "line_revenue_usd": 98,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -6728,9 +6796,7 @@
           "adset_name": "AU_Summer_Tops",
           "ad_name": "VSC Blurry Shirt Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 98,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522039038250",
@@ -6744,7 +6810,9 @@
       "variant_id": "50155572625706",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 112.22312639401486,
+      "line_item_subtotal_usd": 105.05,
+      "order_revenue_usd": 203.05,
+      "line_revenue_usd": 105.05,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -6787,9 +6855,7 @@
           "adset_name": "AU_Summer_Tops",
           "ad_name": "VSC Blurry Shirt Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 105.05,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522108145962",
@@ -6803,7 +6869,9 @@
       "variant_id": "50155572494634",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 112.22312639401486,
+      "line_item_subtotal_usd": 105.05,
+      "order_revenue_usd": 104,
+      "line_revenue_usd": 94.55,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -6846,9 +6914,7 @@
           "adset_name": "AU_Denim",
           "ad_name": "Denim Social 2"
         }
-      },
-      "line_item_subtotal_usd": 105.05,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522155692330",
@@ -6862,7 +6928,9 @@
       "variant_id": "49352922300714",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 84.39435492743621,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 88.99,
+      "line_revenue_usd": 88.99,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -6905,9 +6973,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522192425258",
@@ -6921,7 +6987,9 @@
       "variant_id": "51424560775466",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 89.73576979626128,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 93.99,
+      "line_revenue_usd": 93.99,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -6964,9 +7032,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522232238378",
@@ -6980,7 +7046,9 @@
       "variant_id": "51549186425130",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/qoute-off.png?v=1779270408",
       "quantity": 1,
-      "line_revenue_usd": 100.41859953391143,
+      "line_item_subtotal_usd": 94,
+      "order_revenue_usd": 103.99,
+      "line_revenue_usd": 103.99,
       "family": "Hoodies",
       "subtype": "Quote hoodie",
       "attribution": {
@@ -7000,9 +7068,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 94,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522405450026",
@@ -7016,7 +7082,9 @@
       "variant_id": "50155572658474",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 112.22312639401486,
+      "line_item_subtotal_usd": 105.05,
+      "order_revenue_usd": 94.55,
+      "line_revenue_usd": 94.55,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -7059,9 +7127,7 @@
           "adset_name": "AU_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 105.05,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522508767530",
@@ -7075,7 +7141,9 @@
       "variant_id": "50155572527402",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 97.18170212340344,
+      "line_item_subtotal_usd": 90.97,
+      "order_revenue_usd": 282.74,
+      "line_revenue_usd": 81.87744158471088,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -7118,9 +7186,7 @@
           "adset_name": "FR_NL_BE_Skirts",
           "ad_name": "Kuffiyah Skirt Background change"
         }
-      },
-      "line_item_subtotal_usd": 90.97,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522508767530",
@@ -7134,7 +7200,9 @@
       "variant_id": "51149271171370",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/skirt-fixed.jpg?v=1769597744",
       "quantity": 1,
-      "line_revenue_usd": 102.10648663246016,
+      "line_item_subtotal_usd": 95.58,
+      "order_revenue_usd": 282.74,
+      "line_revenue_usd": 86.02666666666666,
       "family": "Skirts",
       "subtype": "Zaytoun skirt",
       "attribution": {
@@ -7177,9 +7245,7 @@
           "adset_name": "FR_NL_BE_Skirts",
           "ad_name": "Kuffiyah Skirt Background change"
         }
-      },
-      "line_item_subtotal_usd": 95.58,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522508767530",
@@ -7193,7 +7259,9 @@
       "variant_id": "51094999630122",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
       "quantity": 1,
-      "line_revenue_usd": 107.03127114151687,
+      "line_item_subtotal_usd": 100.19,
+      "order_revenue_usd": 282.74,
+      "line_revenue_usd": 90.17589174862243,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -7236,9 +7304,7 @@
           "adset_name": "FR_NL_BE_Skirts",
           "ad_name": "Kuffiyah Skirt Background change"
         }
-      },
-      "line_item_subtotal_usd": 100.19,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522553135402",
@@ -7252,7 +7318,9 @@
       "variant_id": "50155636818218",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2652-3_1.jpg?v=1768574144",
       "quantity": 1,
-      "line_revenue_usd": 12.808712855442533,
+      "line_item_subtotal_usd": 11.99,
+      "order_revenue_usd": 207.99,
+      "line_revenue_usd": 11.99,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -7272,9 +7340,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 11.99,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522553135402",
@@ -7288,7 +7354,9 @@
       "variant_id": "49352934818090",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 89.73576979626128,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 207.99,
+      "line_revenue_usd": 84,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -7308,9 +7376,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522553135402",
@@ -7324,7 +7390,9 @@
       "variant_id": "49352922333482",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 84.39435492743621,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 207.99,
+      "line_revenue_usd": 79,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -7344,9 +7412,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522603958570",
@@ -7360,7 +7426,9 @@
       "variant_id": "51295456166186",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/24_d6493dce-a07b-4d7a-8842-ea818a1b0301.jpg?v=1774470147",
       "quantity": 1,
-      "line_revenue_usd": 71.32925415829007,
+      "line_item_subtotal_usd": 66.77,
+      "order_revenue_usd": 122.92,
+      "line_revenue_usd": 74.358099328594,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -7380,9 +7448,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 66.77,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522603958570",
@@ -7396,7 +7462,9 @@
       "variant_id": "51212443287850",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2564_1.jpg?v=1767270820",
       "quantity": 1,
-      "line_revenue_usd": 36.866445424630676,
+      "line_item_subtotal_usd": 34.51,
+      "order_revenue_usd": 122.92,
+      "line_revenue_usd": 38.431900671406,
       "family": "Kuffiyah accessory",
       "subtype": "Kuffiyah accessory",
       "attribution": {
@@ -7416,9 +7484,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 34.51,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522845917482",
@@ -7432,7 +7498,9 @@
       "variant_id": "49352922235178",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 86.10360768546022,
+      "line_item_subtotal_usd": 80.6,
+      "order_revenue_usd": 92.11,
+      "line_revenue_usd": 92.11,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -7459,9 +7527,7 @@
           "adset_name": "DACH_Summer_Tops",
           "ad_name": "Shirt Static Saed"
         }
-      },
-      "line_item_subtotal_usd": 80.6,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7522858959146",
@@ -7475,7 +7541,9 @@
       "variant_id": "50155572592938",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 96.56209799861973,
+      "line_item_subtotal_usd": 90.39,
+      "order_revenue_usd": 121.81,
+      "line_revenue_usd": 103.73,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -7502,9 +7570,7 @@
           "adset_name": "GCC_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 90.39,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7523024175402",
@@ -7518,7 +7584,9 @@
       "variant_id": "50600296579370",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 112.22312639401486,
+      "line_item_subtotal_usd": 105.05,
+      "order_revenue_usd": 105.05,
+      "line_revenue_usd": 105.05,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -7552,9 +7620,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 105.05,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7523174842666",
@@ -7568,7 +7634,9 @@
       "variant_id": "51081857466666",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 106.56122663306027,
+      "line_item_subtotal_usd": 99.75,
+      "order_revenue_usd": 96.95,
+      "line_revenue_usd": 96.95,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -7588,9 +7656,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 99.75,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7523542925610",
@@ -7604,7 +7670,9 @@
       "variant_id": "51081857499434",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 106.56122663306027,
+      "line_item_subtotal_usd": 99.75,
+      "order_revenue_usd": 106.92,
+      "line_revenue_usd": 106.92,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -7647,9 +7715,7 @@
           "adset_name": "CA_Winter_Tops",
           "ad_name": "VSC Hoodie Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 99.75,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7523679273258",
@@ -7663,7 +7729,9 @@
       "variant_id": "51094999597354",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
       "quantity": 1,
-      "line_revenue_usd": 106.56122663306027,
+      "line_item_subtotal_usd": 99.75,
+      "order_revenue_usd": 106.92,
+      "line_revenue_usd": 106.92,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -7683,9 +7751,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 99.75,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7523698311466",
@@ -7699,7 +7765,9 @@
       "variant_id": "51081857466666",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 107.03127114151721,
+      "line_item_subtotal_usd": 100.19,
+      "order_revenue_usd": 101.69,
+      "line_revenue_usd": 101.69,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -7741,9 +7809,7 @@
           "adset_name": "DACH_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 100.19,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7523901505834",
@@ -7757,7 +7823,9 @@
       "variant_id": "50155560763690",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/15_1_1.jpg?v=1745856473",
       "quantity": 1,
-      "line_revenue_usd": 96.33314366648192,
+      "line_item_subtotal_usd": 90.4,
+      "order_revenue_usd": 88.53,
+      "line_revenue_usd": 88.53,
       "family": "Crewnecks",
       "subtype": "Ghalabany Al-ShawQ crewneck",
       "attribution": {
@@ -7800,9 +7868,7 @@
           "adset_name": "CA_Winter_Tops",
           "ad_name": "VSC Hoodie Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 90.4,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7523968909610",
@@ -7816,7 +7882,9 @@
       "variant_id": "49352922169642",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 85.64485350083132,
+      "line_item_subtotal_usd": 80.37,
+      "order_revenue_usd": 93.81,
+      "line_revenue_usd": 93.81,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -7850,9 +7918,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 80.37,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7524046111018",
@@ -7866,7 +7932,9 @@
       "variant_id": "51081857499434",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 106.16892813596894,
+      "line_item_subtotal_usd": 99.63,
+      "order_revenue_usd": 106.79,
+      "line_revenue_usd": 106.79,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -7909,9 +7977,7 @@
           "adset_name": "CA_Winter_Tops",
           "ad_name": "VSC Hoodie Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 99.63,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7524154540330",
@@ -7925,7 +7991,9 @@
       "variant_id": "50155560796458",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/15_1_1.jpg?v=1745856473",
       "quantity": 1,
-      "line_revenue_usd": 94.84125869819569,
+      "line_item_subtotal_usd": 89,
+      "order_revenue_usd": 98.99,
+      "line_revenue_usd": 98.99,
       "family": "Crewnecks",
       "subtype": "Ghalabany Al-ShawQ crewneck",
       "attribution": {
@@ -7949,9 +8017,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 89,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7524198187306",
@@ -7965,7 +8031,9 @@
       "variant_id": "49352922300714",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 84.18493749615122,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 88.99,
+      "line_revenue_usd": 88.99,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -7991,9 +8059,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7524262904106",
@@ -8007,7 +8073,9 @@
       "variant_id": "49352922300714",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 84.18493749615122,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 81.09,
+      "line_revenue_usd": 81.09,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -8050,9 +8118,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7524275978538",
@@ -8066,7 +8132,9 @@
       "variant_id": "51081857499434",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 123.19772941683598,
+      "line_item_subtotal_usd": 115.61,
+      "order_revenue_usd": 115.61,
+      "line_revenue_usd": 115.61,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -8108,9 +8176,7 @@
           "adset_name": "AU_Summer_Tops",
           "ad_name": "VSC Blurry Shirt Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 115.61,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7524419928362",
@@ -8124,7 +8190,9 @@
       "variant_id": "51094999630122",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
       "quantity": 1,
-      "line_revenue_usd": 123.20838573803803,
+      "line_item_subtotal_usd": 115.62,
+      "order_revenue_usd": 115.62,
+      "line_revenue_usd": 115.62,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -8167,9 +8235,7 @@
           "adset_name": "AU_Skirts",
           "ad_name": "Kuffiyah wrap New"
         }
-      },
-      "line_item_subtotal_usd": 115.62,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7524475044138",
@@ -8183,7 +8249,9 @@
       "variant_id": "51081857499434",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 104.4319477800357,
+      "line_item_subtotal_usd": 98,
+      "order_revenue_usd": 107.99,
+      "line_revenue_usd": 107.99,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -8203,9 +8271,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 98,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7524475240746",
@@ -8219,7 +8285,9 @@
       "variant_id": "51094999597354",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
       "quantity": 1,
-      "line_revenue_usd": 106.22220974197917,
+      "line_item_subtotal_usd": 99.68,
+      "order_revenue_usd": 96.87,
+      "line_revenue_usd": 96.87,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -8261,9 +8329,7 @@
           "adset_name": "CA_Skirts",
           "ad_name": "Kuffiyah wrap New"
         }
-      },
-      "line_item_subtotal_usd": 99.68,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7524566892842",
@@ -8277,7 +8343,9 @@
       "variant_id": "51553103642922",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 43.893387031221124,
+      "line_item_subtotal_usd": 41.19,
+      "order_revenue_usd": 45.31,
+      "line_revenue_usd": 41.190000000000005,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -8320,9 +8388,7 @@
           "adset_name": "TR_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 41.19,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7524602937642",
@@ -8336,7 +8402,9 @@
       "variant_id": "51081857466666",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 104.4319477800357,
+      "line_item_subtotal_usd": 98,
+      "order_revenue_usd": 117.79,
+      "line_revenue_usd": 107.99000000000001,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -8356,9 +8424,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 98,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7524910334250",
@@ -8372,7 +8438,9 @@
       "variant_id": "49352934949162",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 50.81999581255002,
+      "line_item_subtotal_usd": 47.69,
+      "order_revenue_usd": 47.69,
+      "line_revenue_usd": 47.69,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -8415,9 +8483,7 @@
           "adset_name": "TR_Summer_Tops",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 47.69,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7525146329386",
@@ -8431,7 +8497,9 @@
       "variant_id": "50155572658474",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 112.25368754233634,
+      "line_item_subtotal_usd": 105.34,
+      "order_revenue_usd": 94.81,
+      "line_revenue_usd": 94.81,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -8458,9 +8526,7 @@
           "adset_name": "AU_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 105.34,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7525183226154",
@@ -8474,7 +8540,9 @@
       "variant_id": "51351103209770",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054",
       "quantity": 1,
-      "line_revenue_usd": 106.93618326251614,
+      "line_item_subtotal_usd": 100.35,
+      "order_revenue_usd": 111.88,
+      "line_revenue_usd": 111.88,
       "family": "Crewnecks",
       "subtype": "Other crewneck",
       "attribution": {
@@ -8501,9 +8569,7 @@
           "adset_name": "DACH_Winter_Tops",
           "ad_name": "Almada2en lighter"
         }
-      },
-      "line_item_subtotal_usd": 100.35,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7525294473514",
@@ -8517,7 +8583,9 @@
       "variant_id": "50600296579370",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 97.10039879302911,
+      "line_item_subtotal_usd": 91.12,
+      "order_revenue_usd": 102.65,
+      "line_revenue_usd": 102.65,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -8537,9 +8605,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 91.12,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7525315576106",
@@ -8553,7 +8619,9 @@
       "variant_id": "49352922333482",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 84.18493749615122,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 163,
+      "line_revenue_usd": 79,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -8596,9 +8664,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7525315576106",
@@ -8612,7 +8678,9 @@
       "variant_id": "51553004159274",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
       "quantity": 1,
-      "line_revenue_usd": 89.51309809717345,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 163,
+      "line_revenue_usd": 84,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -8655,9 +8723,7 @@
           "adset_name": "USA_CA_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7525315674410",
@@ -8671,7 +8737,9 @@
       "variant_id": "51081857466666",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 123.32560527126053,
+      "line_item_subtotal_usd": 115.73,
+      "order_revenue_usd": 115.73,
+      "line_revenue_usd": 115.73,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -8713,9 +8781,7 @@
           "adset_name": "AU_Summer_Tops",
           "ad_name": "VSC Blurry Shirt Masterpiece"
         }
-      },
-      "line_item_subtotal_usd": 115.73,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7525503402282",
@@ -8729,7 +8795,9 @@
       "variant_id": "51081857466666",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 123.35757423486666,
+      "line_item_subtotal_usd": 115.76,
+      "order_revenue_usd": 104.18,
+      "line_revenue_usd": 104.18,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -8765,9 +8833,7 @@
           "adset_name": "Vescarts Crewneck 98 - Eid",
           "ad_name": "Vescarts Crewneck 98 - Eid"
         }
-      },
-      "line_item_subtotal_usd": 115.76,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7525817352490",
@@ -8781,7 +8847,9 @@
       "variant_id": "50600296579370",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 96.33314366648192,
+      "line_item_subtotal_usd": 90.4,
+      "order_revenue_usd": 103.74,
+      "line_revenue_usd": 103.74,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -8815,9 +8883,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 90.4,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526047973674",
@@ -8831,7 +8897,9 @@
       "variant_id": "51553103642922",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 43.893387031221124,
+      "line_item_subtotal_usd": 41.19,
+      "order_revenue_usd": 41.19,
+      "line_revenue_usd": 41.19,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -8865,9 +8933,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 41.19,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526347833642",
@@ -8881,7 +8947,9 @@
       "variant_id": "49352922333482",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 47.36734774308762,
+      "line_item_subtotal_usd": 44.45,
+      "order_revenue_usd": 53.34,
+      "line_revenue_usd": 44.45,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -8924,9 +8992,7 @@
           "adset_name": "TR_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 44.45,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526405931306",
@@ -8940,7 +9006,9 @@
       "variant_id": "51553108263210",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-long-sleeve-female.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 85.93257417328651,
+      "line_item_subtotal_usd": 80.64,
+      "order_revenue_usd": 92.16,
+      "line_revenue_usd": 92.16,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -8974,9 +9042,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 80.64,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526498730282",
@@ -8990,7 +9056,9 @@
       "variant_id": "49352922300714",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 84.18493749615122,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 88.99,
+      "line_revenue_usd": 88.99,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -9014,9 +9082,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 79,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526522683690",
@@ -9030,7 +9096,9 @@
       "variant_id": "50600296579370",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 94.84125869819569,
+      "line_item_subtotal_usd": 89,
+      "order_revenue_usd": 98.99,
+      "line_revenue_usd": 98.99,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -9057,9 +9125,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 89,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526527893802",
@@ -9073,7 +9139,9 @@
       "variant_id": "51149271171370",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/skirt-fixed.jpg?v=1769597744",
       "quantity": 1,
-      "line_revenue_usd": 101.92771229755526,
+      "line_item_subtotal_usd": 95.65,
+      "order_revenue_usd": 186.68,
+      "line_revenue_usd": 95.65,
       "family": "Skirts",
       "subtype": "Zaytoun skirt",
       "attribution": {
@@ -9093,9 +9161,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 95.65,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526527893802",
@@ -9109,7 +9175,9 @@
       "variant_id": "50155572625706",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 97.0044919022107,
+      "line_item_subtotal_usd": 91.03,
+      "order_revenue_usd": 186.68,
+      "line_revenue_usd": 91.03,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -9129,9 +9197,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 91.03,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526536216874",
@@ -9145,7 +9211,9 @@
       "variant_id": "51094999662890",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
       "quantity": 1,
-      "line_revenue_usd": 105.01905481844935,
+      "line_item_subtotal_usd": 100.26,
+      "order_revenue_usd": 111.78,
+      "line_revenue_usd": 111.78,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -9165,9 +9233,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 100.26,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526713950506",
@@ -9181,7 +9247,9 @@
       "variant_id": "51549197074730",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/zahrat-hoodie-off.png?v=1779270413",
       "quantity": 1,
-      "line_revenue_usd": 114.17391756643705,
+      "line_item_subtotal_usd": 109,
+      "order_revenue_usd": 186.3,
+      "line_revenue_usd": 98.10000000000001,
       "family": "Hoodies",
       "subtype": "Other hoodie",
       "attribution": {
@@ -9215,9 +9283,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 109,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526713950506",
@@ -9231,7 +9297,9 @@
       "variant_id": "51081857466666",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 102.65177909642964,
+      "line_item_subtotal_usd": 98,
+      "order_revenue_usd": 186.3,
+      "line_revenue_usd": 88.2,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -9265,9 +9333,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 98,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526824804650",
@@ -9281,7 +9347,9 @@
       "variant_id": "50155572658474",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 109.85835297585245,
+      "line_item_subtotal_usd": 104.88,
+      "order_revenue_usd": 103.83,
+      "line_revenue_usd": 94.39,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -9324,9 +9392,7 @@
           "adset_name": "AU_Denim",
           "ad_name": "Denim Social 1"
         }
-      },
-      "line_item_subtotal_usd": 104.88,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526977208618",
@@ -9340,7 +9406,9 @@
       "variant_id": "51212443287850",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2564_1.jpg?v=1767270820",
       "quantity": 1,
-      "line_revenue_usd": 42.87282977976393,
+      "line_item_subtotal_usd": 40.93,
+      "order_revenue_usd": 268.59,
+      "line_revenue_usd": 40.929999999999986,
       "family": "Kuffiyah accessory",
       "subtype": "Kuffiyah accessory",
       "attribution": {
@@ -9360,9 +9428,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 40.93,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526977208618",
@@ -9376,7 +9442,9 @@
       "variant_id": "49352934883626",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
       "quantity": 1,
-      "line_revenue_usd": 102.74605113845698,
+      "line_item_subtotal_usd": 98.09,
+      "order_revenue_usd": 268.59,
+      "line_revenue_usd": 98.08999999999997,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -9396,9 +9464,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 98.09,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7526977208618",
@@ -9412,7 +9478,9 @@
       "variant_id": "50155572592938",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 110.14116910193447,
+      "line_item_subtotal_usd": 105.15,
+      "order_revenue_usd": 268.59,
+      "line_revenue_usd": 105.14999999999998,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -9432,9 +9500,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 105.15,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7527619854634",
@@ -9448,7 +9514,9 @@
       "variant_id": "50155572691242",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 95.64422397239787,
+      "line_item_subtotal_usd": 91.31,
+      "order_revenue_usd": 102.86,
+      "line_revenue_usd": 102.86,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -9493,9 +9561,7 @@
           "adset_name": "IT_ES_Skirts",
           "ad_name": "Vescarts Skirt 2"
         }
-      },
-      "line_item_subtotal_usd": 91.31,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7527723139370",
@@ -9509,7 +9575,9 @@
       "variant_id": "51149271138602",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/skirt-fixed.jpg?v=1769597744",
       "quantity": 1,
-      "line_revenue_usd": 98.4619105618815,
+      "line_item_subtotal_usd": 94,
+      "order_revenue_usd": 94.59,
+      "line_revenue_usd": 94.59,
       "family": "Skirts",
       "subtype": "Zaytoun skirt",
       "attribution": {
@@ -9552,9 +9620,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 94,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7527725465898",
@@ -9568,7 +9634,9 @@
       "variant_id": "51553103642922",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 79.60750215641482,
+      "line_item_subtotal_usd": 76,
+      "order_revenue_usd": 78.39,
+      "line_revenue_usd": 78.39,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -9611,9 +9679,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 76,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7527802765610",
@@ -9627,7 +9693,9 @@
       "variant_id": "51295456231722",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/24_d6493dce-a07b-4d7a-8842-ea818a1b0301.jpg?v=1774470147",
       "quantity": 1,
-      "line_revenue_usd": 68.07488901507104,
+      "line_item_subtotal_usd": 64.99,
+      "order_revenue_usd": 202.5,
+      "line_revenue_usd": 58.493599715542906,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -9670,9 +9738,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 64.99,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7527802765610",
@@ -9686,7 +9752,9 @@
       "variant_id": "51553004126506",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
       "quantity": 1,
-      "line_revenue_usd": 87.98723922551112,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 202.5,
+      "line_revenue_usd": 75.60336014933998,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -9729,9 +9797,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 84,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7527802765610",
@@ -9745,7 +9811,9 @@
       "variant_id": "51553103675690",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 79.60750215641482,
+      "line_item_subtotal_usd": 76,
+      "order_revenue_usd": 202.5,
+      "line_revenue_usd": 68.40304013511711,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -9788,9 +9856,7 @@
           "adset_name": "USA_CA_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 76,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7527838056746",
@@ -9804,7 +9870,9 @@
       "variant_id": "51094999630122",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
       "quantity": 1,
-      "line_revenue_usd": 104.21250512554882,
+      "line_item_subtotal_usd": 99.49,
+      "order_revenue_usd": 111.05,
+      "line_revenue_usd": 111.05,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -9849,9 +9917,7 @@
           "adset_name": "IT_ES_Skirts",
           "ad_name": "Vescarts Skirt 2"
         }
-      },
-      "line_item_subtotal_usd": 99.49,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7527923188010",
@@ -9865,7 +9931,9 @@
       "variant_id": "51424560742698",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
       "quantity": 1,
-      "line_revenue_usd": 89.58986393997579,
+      "line_item_subtotal_usd": 85.53,
+      "order_revenue_usd": 88.53,
+      "line_revenue_usd": 88.53,
       "family": "Crewnecks",
       "subtype": "Quote crewneck",
       "attribution": {
@@ -9908,9 +9976,7 @@
           "adset_name": "FR_NL_BE_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 85.53,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7527972503850",
@@ -9924,7 +9990,9 @@
       "variant_id": "51553108263210",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-long-sleeve-female.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 84.75056578257266,
+      "line_item_subtotal_usd": 80.91,
+      "order_revenue_usd": 92.46,
+      "line_revenue_usd": 92.46,
       "family": "Tops",
       "subtype": "Long sleeve",
       "attribution": {
@@ -9967,9 +10035,7 @@
           "adset_name": "FR_NL_BE_Winter_Tops",
           "ad_name": "Quote VO"
         }
-      },
-      "line_item_subtotal_usd": 80.91,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7528325972266",
@@ -9983,7 +10049,9 @@
       "variant_id": "50155572625706",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 94.85862362217009,
+      "line_item_subtotal_usd": 90.56,
+      "order_revenue_usd": 94.82,
+      "line_revenue_usd": 94.82,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -10003,9 +10071,7 @@
           "adset_name": "",
           "ad_name": ""
         }
-      },
-      "line_item_subtotal_usd": 90.56,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7528428568874",
@@ -10019,7 +10085,9 @@
       "variant_id": "49352922333482",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 84.19540820174504,
+      "line_item_subtotal_usd": 80.38,
+      "order_revenue_usd": 186.6,
+      "line_revenue_usd": 80.38,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -10062,9 +10130,7 @@
           "adset_name": "GCC_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 80.38,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7528428568874",
@@ -10078,7 +10144,9 @@
       "variant_id": "51553103708458",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190",
       "quantity": 1,
-      "line_revenue_usd": 81.03205745816119,
+      "line_item_subtotal_usd": 77.36,
+      "order_revenue_usd": 186.6,
+      "line_revenue_usd": 77.36,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -10121,9 +10189,7 @@
           "adset_name": "GCC_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 77.36,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7528534376746",
@@ -10137,7 +10203,9 @@
       "variant_id": "51351103144234",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054",
       "quantity": 1,
-      "line_revenue_usd": 105.10285218914031,
+      "line_item_subtotal_usd": 100.34,
+      "order_revenue_usd": 101.84,
+      "line_revenue_usd": 101.84,
       "family": "Crewnecks",
       "subtype": "Other crewneck",
       "attribution": {
@@ -10180,9 +10248,7 @@
           "adset_name": "IT_ES_Summer_Tops",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 100.34,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7528612528426",
@@ -10196,7 +10262,9 @@
       "variant_id": "49352922235178",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
       "quantity": 1,
-      "line_revenue_usd": 84.55154702718164,
+      "line_item_subtotal_usd": 80.72,
+      "order_revenue_usd": 84.18,
+      "line_revenue_usd": 84.18,
       "family": "Tops",
       "subtype": "Short sleeve",
       "attribution": {
@@ -10222,9 +10290,7 @@
           "adset_name": "DACH_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 80.72,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7528708473130",
@@ -10238,7 +10304,9 @@
       "variant_id": "50600296579370",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 93.2245748936963,
+      "line_item_subtotal_usd": 89,
+      "order_revenue_usd": 98.99,
+      "line_revenue_usd": 98.99,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -10280,9 +10348,7 @@
           "adset_name": "{{adset.name}}",
           "ad_name": "{{ad.name}}"
         }
-      },
-      "line_item_subtotal_usd": 89,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7528761655594",
@@ -10296,7 +10362,9 @@
       "variant_id": "50155572625706",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
       "quantity": 1,
-      "line_revenue_usd": 93.2245748936963,
+      "line_item_subtotal_usd": 89,
+      "order_revenue_usd": 98.99,
+      "line_revenue_usd": 98.99,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "attribution": {
@@ -10330,9 +10398,7 @@
           "adset_name": "",
           "ad_name": "link_in_bio"
         }
-      },
-      "line_item_subtotal_usd": 89,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7528776433962",
@@ -10346,7 +10412,9 @@
       "variant_id": "51094999630122",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
       "quantity": 1,
-      "line_revenue_usd": 104.36962519559438,
+      "line_item_subtotal_usd": 99.64,
+      "order_revenue_usd": 112.98,
+      "line_revenue_usd": 112.98,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "attribution": {
@@ -10389,9 +10457,7 @@
           "adset_name": "GCC_Skirts",
           "ad_name": "Kuffiyah wrap New"
         }
-      },
-      "line_item_subtotal_usd": 99.64,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7528822964522",
@@ -10405,7 +10471,9 @@
       "variant_id": "50155560763690",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/15_1_1.jpg?v=1745856473",
       "quantity": 1,
-      "line_revenue_usd": 95.51852791636142,
+      "line_item_subtotal_usd": 91.19,
+      "order_revenue_usd": 93.62,
+      "line_revenue_usd": 93.62,
       "family": "Crewnecks",
       "subtype": "Ghalabany Al-ShawQ crewneck",
       "attribution": {
@@ -10448,9 +10516,7 @@
           "adset_name": "FR_NL_BE_Summer_Tops",
           "ad_name": "VSC Blurry Shirt 98"
         }
-      },
-      "line_item_subtotal_usd": 91.19,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
     },
     {
       "order_id": "7528916681002",
@@ -10464,7 +10530,9 @@
       "variant_id": "51081857401130",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
       "quantity": 1,
-      "line_revenue_usd": 105.10285218913987,
+      "line_item_subtotal_usd": 100.34,
+      "order_revenue_usd": 103.68,
+      "line_revenue_usd": 103.68,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "attribution": {
@@ -10507,9 +10575,421 @@
           "adset_name": "Broad_General",
           "ad_name": "Vescarts Crew Neck 98"
         }
-      },
-      "line_item_subtotal_usd": 100.34,
-      "revenue_allocation": "daily_order_total_proportional_cache_normalization"
+      }
+    },
+    {
+      "order_id": "7529015542058",
+      "order_name": "#3880",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T00:30:31+03:00",
+      "country_code": "DK",
+      "country": "Denmark",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922333482",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 80.74,
+      "order_revenue_usd": 92.27,
+      "line_revenue_usd": 92.27,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/tops",
+        "referrer_host": "facebook.com",
+        "utm": {
+          "utm_source": "fb",
+          "utm_medium": "paid_social",
+          "utm_campaign": "DACH_CBO",
+          "utm_term": "DACH_Summer_Tops",
+          "utm_content": "VSC Blurry Shirt 98"
+        },
+        "note_attributes": {
+          "utm_source": "fb",
+          "utm_source_first": "fb",
+          "utm_source_last": "fb",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "DACH_CBO",
+          "utm_campaign_first": "DACH_CBO",
+          "utm_campaign_last": "DACH_CBO",
+          "utm_content": "VSC Blurry Shirt 98",
+          "utm_content_first": "VSC Blurry Shirt 98",
+          "utm_content_last": "VSC Blurry Shirt 98",
+          "utm_term": "DACH_Summer_Tops",
+          "utm_term_first": "DACH_Summer_Tops",
+          "utm_term_last": "DACH_Summer_Tops"
+        },
+        "campaign_hint": "DACH_CBO",
+        "adset_hint": "DACH_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt 98",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "DACH_CBO",
+          "adset_name": "DACH_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt 98"
+        }
+      }
+    },
+    {
+      "order_id": "7529039986986",
+      "order_name": "#3881",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T00:45:36+03:00",
+      "country_code": "IT",
+      "country": "Italy",
+      "product": "Kuffiyah",
+      "product_id": "9772495405354",
+      "variant_id": "51212443451690",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2564_1.jpg?v=1767270820",
+      "quantity": 1,
+      "line_item_subtotal_usd": 34.57,
+      "order_revenue_usd": 137.23,
+      "line_revenue_usd": 37.74097931583134,
+      "family": "Kuffiyah accessory",
+      "subtype": "Kuffiyah accessory",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "meta",
+          "utm_medium": "paid_social",
+          "utm_campaign": "IT_ES_CBO",
+          "utm_term": "IT_ES_Skirts",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_id": "120243206772330138",
+          "adset_id": "120243206771880138",
+          "ad_id": "120243206772080138"
+        },
+        "note_attributes": {
+          "utm_source": "meta",
+          "utm_source_first": "meta",
+          "utm_source_last": "meta",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "IT_ES_CBO",
+          "utm_campaign_first": "IT_ES_CBO",
+          "utm_campaign_last": "IT_ES_CBO",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_content_first": "Vescarts Skirt 2",
+          "utm_content_last": "Vescarts Skirt 2",
+          "utm_term": "IT_ES_Skirts",
+          "utm_term_first": "IT_ES_Skirts",
+          "utm_term_last": "IT_ES_Skirts"
+        },
+        "campaign_hint": "IT_ES_CBO",
+        "adset_hint": "IT_ES_Skirts",
+        "ad_hint": "Vescarts Skirt 2",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "120243206771880138",
+          "ad_id": "120243206772080138",
+          "campaign_name": "IT_ES_CBO",
+          "adset_name": "IT_ES_Skirts",
+          "ad_name": "Vescarts Skirt 2"
+        }
+      }
+    },
+    {
+      "order_id": "7529039986986",
+      "order_name": "#3881",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T00:45:36+03:00",
+      "country_code": "IT",
+      "country": "Italy",
+      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
+      "product_id": "9508626858282",
+      "variant_id": "50155572691242",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
+      "quantity": 1,
+      "line_item_subtotal_usd": 91.13,
+      "order_revenue_usd": 137.23,
+      "line_revenue_usd": 99.48902068416865,
+      "family": "Denim pants",
+      "subtype": "Denim pants",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "meta",
+          "utm_medium": "paid_social",
+          "utm_campaign": "IT_ES_CBO",
+          "utm_term": "IT_ES_Skirts",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_id": "120243206772330138",
+          "adset_id": "120243206771880138",
+          "ad_id": "120243206772080138"
+        },
+        "note_attributes": {
+          "utm_source": "meta",
+          "utm_source_first": "meta",
+          "utm_source_last": "meta",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "IT_ES_CBO",
+          "utm_campaign_first": "IT_ES_CBO",
+          "utm_campaign_last": "IT_ES_CBO",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_content_first": "Vescarts Skirt 2",
+          "utm_content_last": "Vescarts Skirt 2",
+          "utm_term": "IT_ES_Skirts",
+          "utm_term_first": "IT_ES_Skirts",
+          "utm_term_last": "IT_ES_Skirts"
+        },
+        "campaign_hint": "IT_ES_CBO",
+        "adset_hint": "IT_ES_Skirts",
+        "ad_hint": "Vescarts Skirt 2",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "120243206771880138",
+          "ad_id": "120243206772080138",
+          "campaign_name": "IT_ES_CBO",
+          "adset_name": "IT_ES_Skirts",
+          "ad_name": "Vescarts Skirt 2"
+        }
+      }
+    },
+    {
+      "order_id": "7529306161450",
+      "order_name": "#3882",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T04:19:40+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922235178",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 158,
+      "line_revenue_usd": 79,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/tops",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "{{site_source_name}}",
+          "utm_medium": "paid_social",
+          "utm_campaign": "{{campaign.name}}",
+          "utm_term": "{{adset.name}}",
+          "utm_content": "{{ad.name}}"
+        },
+        "note_attributes": {
+          "utm_source": "{{site_source_name}}",
+          "utm_source_first": "{{site_source_name}}",
+          "utm_source_last": "{{site_source_name}}",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "{{campaign.name}}",
+          "utm_campaign_first": "{{campaign.name}}",
+          "utm_campaign_last": "{{campaign.name}}",
+          "utm_content": "{{ad.name}}",
+          "utm_content_first": "{{ad.name}}",
+          "utm_content_last": "{{ad.name}}",
+          "utm_term": "{{adset.name}}",
+          "utm_term_first": "{{adset.name}}",
+          "utm_term_last": "{{adset.name}}"
+        },
+        "campaign_hint": "{{campaign.name}}",
+        "adset_hint": "{{adset.name}}",
+        "ad_hint": "{{ad.name}}",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "{{campaign.name}}",
+          "adset_name": "{{adset.name}}",
+          "ad_name": "{{ad.name}}"
+        }
+      }
+    },
+    {
+      "order_id": "7529306161450",
+      "order_name": "#3882",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T04:19:40+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922333482",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 158,
+      "line_revenue_usd": 79,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/tops",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "{{site_source_name}}",
+          "utm_medium": "paid_social",
+          "utm_campaign": "{{campaign.name}}",
+          "utm_term": "{{adset.name}}",
+          "utm_content": "{{ad.name}}"
+        },
+        "note_attributes": {
+          "utm_source": "{{site_source_name}}",
+          "utm_source_first": "{{site_source_name}}",
+          "utm_source_last": "{{site_source_name}}",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "{{campaign.name}}",
+          "utm_campaign_first": "{{campaign.name}}",
+          "utm_campaign_last": "{{campaign.name}}",
+          "utm_content": "{{ad.name}}",
+          "utm_content_first": "{{ad.name}}",
+          "utm_content_last": "{{ad.name}}",
+          "utm_term": "{{adset.name}}",
+          "utm_term_first": "{{adset.name}}",
+          "utm_term_last": "{{adset.name}}"
+        },
+        "campaign_hint": "{{campaign.name}}",
+        "adset_hint": "{{adset.name}}",
+        "ad_hint": "{{ad.name}}",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "{{campaign.name}}",
+          "adset_name": "{{adset.name}}",
+          "ad_name": "{{ad.name}}"
+        }
+      }
+    },
+    {
+      "order_id": "7529370911018",
+      "order_name": "#3883",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T05:11:38+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Quote Hoodie (Unisex)",
+      "product_id": "10132311310634",
+      "variant_id": "51549186359594",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/qoute-off.png?v=1779270408",
+      "quantity": 1,
+      "line_item_subtotal_usd": 94,
+      "order_revenue_usd": 181.26,
+      "line_revenue_usd": 90.02809248554912,
+      "family": "Hoodies",
+      "subtype": "Quote hoodie",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/quote-crewneck",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_term": "USA_CA_Winter_Tops",
+          "utm_content": "Quote VO",
+          "utm_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_campaign_first": "USA_CA_CBO",
+          "utm_campaign_last": "USA_CA_CBO",
+          "utm_content": "Quote VO",
+          "utm_content_first": "Quote VO",
+          "utm_content_last": "Quote VO",
+          "utm_term": "USA_CA_Winter_Tops",
+          "utm_term_first": "USA_CA_Winter_Tops",
+          "utm_term_last": "USA_CA_Winter_Tops"
+        },
+        "campaign_hint": "USA_CA_CBO",
+        "adset_hint": "USA_CA_Winter_Tops",
+        "ad_hint": "Quote VO",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "USA_CA_CBO",
+          "adset_name": "USA_CA_Winter_Tops",
+          "ad_name": "Quote VO"
+        }
+      }
+    },
+    {
+      "order_id": "7529370911018",
+      "order_name": "#3883",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T05:11:38+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Quote Long Sleeve Shirt (Unisex)",
+      "product_id": "10134296199466",
+      "variant_id": "51553108197674",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-long-sleeve-female.png?v=1779195190",
+      "quantity": 1,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 181.26,
+      "line_revenue_usd": 75.66190751445086,
+      "family": "Tops",
+      "subtype": "Long sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/quote-crewneck",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_term": "USA_CA_Winter_Tops",
+          "utm_content": "Quote VO",
+          "utm_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_campaign_first": "USA_CA_CBO",
+          "utm_campaign_last": "USA_CA_CBO",
+          "utm_content": "Quote VO",
+          "utm_content_first": "Quote VO",
+          "utm_content_last": "Quote VO",
+          "utm_term": "USA_CA_Winter_Tops",
+          "utm_term_first": "USA_CA_Winter_Tops",
+          "utm_term_last": "USA_CA_Winter_Tops"
+        },
+        "campaign_hint": "USA_CA_CBO",
+        "adset_hint": "USA_CA_Winter_Tops",
+        "ad_hint": "Quote VO",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "USA_CA_CBO",
+          "adset_name": "USA_CA_Winter_Tops",
+          "ad_name": "Quote VO"
+        }
+      }
     }
   ],
   "delivery_comparison": {
@@ -11085,7 +11565,7 @@
       "country_code": "US",
       "country": "United States",
       "requested_since": "2026-06-06",
-      "requested_until": "2026-06-09",
+      "requested_until": "2026-06-10",
       "completed_until": "2026-06-09",
       "campaign_patterns": [
         "USA_CBO",
@@ -11147,10 +11627,5 @@
         "unmatched_country_orders": 20
       }
     }
-  },
-  "revenue_model": {
-    "daily_revenue_usd": "Shopify order current_total_price by Istanbul reporting day",
-    "line_revenue_usd": "Allocated from daily Shopify order revenue to merchandise lines proportionally for this cached file. Future fetches allocate per order.",
-    "normalized_at": "2026-06-09T22:00:22.216Z"
   }
 }
