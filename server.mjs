@@ -787,10 +787,25 @@ async function fetchLiveMetaSpend() {
   }
 }
 
+function orderTipAmount(order = {}) {
+  return Math.max(
+    0,
+    Number(order.total_tip_received || 0),
+    Number(order.current_total_tip_received || 0),
+  );
+}
+
+function isTipTitle(value = '') {
+  return /(^|\s)(tip|tips|gratuity)(\s|$)/i.test(String(value || '').replace(/[^a-z0-9]+/gi, ' '));
+}
+
 function summarizeOrder(order) {
   const lineItems = order.line_items || [];
-  const itemCount = lineItems.reduce((total, item) => total + Number(item.quantity || 0), 0);
-  const firstProduct = lineItems.find((item) => item?.title)?.title || '';
+  const merchLineItems = lineItems
+    .map((item) => ({ item, taxonomy: productTaxonomyForName(item.title) }))
+    .filter(({ item, taxonomy }) => taxonomy.family && !isTipTitle(item.title));
+  const itemCount = merchLineItems.reduce((total, { item }) => total + Number(item.quantity || 0), 0);
+  const firstProduct = merchLineItems[0]?.item?.title || lineItems.find((item) => item?.title)?.title || '';
   const attribution = orderAttribution(order);
   const matchedAd = matchAttributionToMetaAd(attribution);
   const country = orderCountry(order);
@@ -804,8 +819,7 @@ function summarizeOrder(order) {
     country,
     item_count: itemCount,
     product_title: firstProduct,
-    line_items: lineItems.map((item) => {
-      const taxonomy = productTaxonomyForName(item.title);
+    line_items: merchLineItems.map(({ item, taxonomy }) => {
       return {
         title: item.title || '',
         quantity: Number(item.quantity || 0),
@@ -824,6 +838,8 @@ function summarizeCurrentDayOrders(orders = []) {
   const date = dateInTimezone(new Date(), shopifyReportingTimezone);
   const todayOrders = orders.filter((order) => dateInTimezone(new Date(order.created_at || Date.now()), shopifyReportingTimezone) === date);
   const orderLines = [];
+  const tipOrders = new Set();
+  const tipSummary = { orders: 0, people: 0, total_usd: 0, by_date: [{ date, orders: 0, total_usd: 0 }] };
   let revenue = 0;
   let units = 0;
   for (const order of todayOrders) {
@@ -831,16 +847,27 @@ function summarizeCurrentDayOrders(orders = []) {
     const attribution = orderAttribution(order);
     const lineItems = order.line_items || [];
     const orderRevenue = Number(order.current_total_price || order.total_price || 0);
-    const merchandiseSubtotal = lineItems.reduce((total, item) => total + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+    const entries = lineItems
+      .map((item) => ({ item, taxonomy: productTaxonomyForName(item.title), quantity: Number(item.quantity || 0) }))
+      .filter(({ quantity }) => quantity > 0);
+    const tipLineSubtotal = entries
+      .filter(({ item, taxonomy }) => !taxonomy.family && isTipTitle(item.title))
+      .reduce((total, { item, quantity }) => total + (Number(item.price || 0) * quantity), 0);
+    const orderTip = Math.max(orderTipAmount(order), tipLineSubtotal);
+    const merchandiseRevenue = Math.max(0, orderRevenue - orderTip);
+    if (orderTip > 0) {
+      tipOrders.add(String(order.id || order.name || `${date}:${orderTip}`));
+      tipSummary.total_usd += orderTip;
+      tipSummary.by_date[0].total_usd += orderTip;
+    }
+    const merchEntries = entries.filter(({ item, taxonomy }) => taxonomy.family && !isTipTitle(item.title));
+    const merchandiseSubtotal = merchEntries.reduce((total, { item, quantity }) => total + (Number(item.price || 0) * quantity), 0);
     revenue += orderRevenue;
-    lineItems.forEach((item, index) => {
-      const quantity = Number(item.quantity || 0);
-      if (!quantity) return;
+    merchEntries.forEach(({ item, taxonomy, quantity }, index) => {
       const subtotal = Number(item.price || 0) * quantity;
       const lineRevenue = merchandiseSubtotal
-        ? orderRevenue * (subtotal / merchandiseSubtotal)
-        : orderRevenue / Math.max(1, lineItems.length);
-      const taxonomy = productTaxonomyForName(item.title);
+        ? merchandiseRevenue * (subtotal / merchandiseSubtotal)
+        : merchandiseRevenue / Math.max(1, merchEntries.length);
       units += quantity;
       orderLines.push({
         order_id: String(order.id || ''),
@@ -862,15 +889,19 @@ function summarizeCurrentDayOrders(orders = []) {
         attribution,
         live_today: true,
       });
-      if (index === lineItems.length - 1) {
+      if (index === merchEntries.length - 1) {
         const allocated = orderLines
           .filter((line) => line.order_id === String(order.id || ''))
           .reduce((total, line) => total + Number(line.line_revenue_usd || 0), 0);
-        const drift = orderRevenue - allocated;
+        const drift = merchandiseRevenue - allocated;
         if (Math.abs(drift) > 0.000001) orderLines[orderLines.length - 1].line_revenue_usd += drift;
       }
     });
   }
+  tipSummary.orders = tipOrders.size;
+  tipSummary.people = tipOrders.size;
+  tipSummary.by_date[0].orders = tipOrders.size;
+  if (!tipSummary.orders && !tipSummary.total_usd) tipSummary.by_date = [];
   return {
     date,
     timezone: shopifyReportingTimezone,
@@ -880,6 +911,7 @@ function summarizeCurrentDayOrders(orders = []) {
     units,
     revenue_usd: revenue,
     order_lines: orderLines,
+    tips: tipSummary,
   };
 }
 
@@ -891,7 +923,7 @@ async function fetchLatestShopifySale() {
   url.searchParams.set('status', 'any');
   url.searchParams.set('limit', '100');
   url.searchParams.set('order', 'created_at desc');
-  url.searchParams.set('fields', 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,currency,presentment_currency,line_items,shipping_address,billing_address,landing_site,landing_site_ref,referring_site,source_name,source_identifier,note_attributes,tags');
+  url.searchParams.set('fields', 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,total_tip_received,current_total_tip_received,currency,presentment_currency,line_items,shipping_address,billing_address,landing_site,landing_site_ref,referring_site,source_name,source_identifier,note_attributes,tags');
 
   const response = await fetch(url, { headers: { 'X-Shopify-Access-Token': token } });
   const text = await response.text();

@@ -10,7 +10,7 @@ export function normalizeProductText(value) {
 export function productTaxonomyForName(value) {
   const text = normalizeProductText(value);
   if (!text) return { family: 'unknown_product', subtype: 'unknown_product' };
-  if (['tip', 'shipping', 'post card'].includes(text)) return { family: null, subtype: null };
+  if (/^(tip|tips|gratuity)(\s|$)/.test(text) || ['shipping', 'post card'].includes(text)) return { family: null, subtype: null };
 
   const hasSkirt = /skirt|skit|تنورة/.test(text);
   const hasKuffiyah = /kuffiyah|kuffiya|kuffiyeh|kufiya|keffiyeh/.test(text);

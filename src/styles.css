@@ -217,6 +217,14 @@ body{
   gap:8px;
   min-width:0;
 }
+.tip-summary{
+  display:block;
+  margin-top:5px;
+  color:var(--shawq-muted);
+  font-size:12px;
+  font-weight:850;
+  letter-spacing:0;
+}
 .daily-winner-row{
   min-width:0;
 }

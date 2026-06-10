@@ -9,6 +9,7 @@ import { familyStyle } from './features/product-demand/constants.js';
 const SALE_POLL_MS = 30000;
 const META_POLL_MS = 120000;
 const REPORTING_TIMEZONE = 'Europe/Istanbul';
+const CAMPAIGN_LAUNCH_DATE = '2026-06-03';
 
 function dateInTimezone(date = new Date(), timeZone = REPORTING_TIMEZONE) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -303,6 +304,86 @@ function inDateRange(date, range) {
 function filterRowsByDateRange(rows, range) {
   return (rows || []).filter((row) => inDateRange(row.date || row.date_start, range));
 }
+function isTipLine(line = {}) {
+  const text = normalizedIdentity([
+    line.product,
+    line.title,
+    line.name,
+    line.product_title,
+    line.variant_title,
+    line.family,
+    line.subtype,
+    line.product_type,
+  ].filter(Boolean).join(' ')).replace(/[^a-z0-9]+/g, ' ');
+  return /(^|\s)(tip|tips|gratuity)(\s|$)/.test(text);
+}
+function emptyTipSummary() {
+  return { orders: 0, people: 0, total_usd: 0, by_date: [] };
+}
+function summarizeTipLines(lines = []) {
+  const orders = new Set();
+  const byDate = new Map();
+  (lines || []).forEach((line) => {
+    const date = line.date || line.date_start;
+    if (!date) return;
+    const orderKey = line.order_id || line.order_name || `${date}:${line.created_at || ''}:${line.product || line.title || 'tip'}`;
+    if (orderKey) orders.add(`${date}::${String(orderKey)}`);
+    const amount = Number(line.line_revenue_usd ?? line.line_item_subtotal_usd ?? line.price ?? 0) || 0;
+    const row = byDate.get(date) || { date, orders: 0, total_usd: 0 };
+    row.orders += orderKey ? 0 : 1;
+    row.total_usd += amount;
+    byDate.set(date, row);
+  });
+  orders.forEach((orderKey) => {
+    const [date] = String(orderKey).split('::');
+    if (!date) return;
+    const row = byDate.get(date) || { date, orders: 0, total_usd: 0 };
+    row.orders += 1;
+    byDate.set(date, row);
+  });
+  const by_date = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const orderCount = by_date.reduce((total, row) => total + Number(row.orders || 0), 0);
+  return {
+    orders: orderCount,
+    people: orderCount,
+    total_usd: by_date.reduce((total, row) => total + Number(row.total_usd || 0), 0),
+    by_date,
+  };
+}
+function filterTipSummary(tips = {}, range) {
+  const rows = filterRowsByDateRange(tips?.by_date || [], range).map((row) => ({
+    date: row.date,
+    orders: Number(row.orders || row.people || 0),
+    total_usd: Number(row.total_usd || row.revenue_usd || 0),
+  }));
+  if (!rows.length) return emptyTipSummary();
+  const orders = rows.reduce((total, row) => total + Number(row.orders || 0), 0);
+  return {
+    orders,
+    people: orders,
+    total_usd: rows.reduce((total, row) => total + Number(row.total_usd || 0), 0),
+    by_date: rows,
+  };
+}
+function mergeTipSummaries(...summaries) {
+  const byDate = new Map();
+  summaries.forEach((summary) => {
+    (summary?.by_date || []).forEach((row) => {
+      const cur = byDate.get(row.date) || { date: row.date, orders: 0, total_usd: 0 };
+      cur.orders += Number(row.orders || row.people || 0);
+      cur.total_usd += Number(row.total_usd || 0);
+      byDate.set(row.date, cur);
+    });
+  });
+  const by_date = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const orders = by_date.reduce((total, row) => total + Number(row.orders || 0), 0);
+  return {
+    orders,
+    people: orders,
+    total_usd: by_date.reduce((total, row) => total + Number(row.total_usd || 0), 0),
+    by_date,
+  };
+}
 function rangeFromDateSet(set) {
   const sorted = [...set].filter(Boolean).sort();
   return { since: sorted[0] || '', until: sorted[sorted.length - 1] || '', days: sorted.length, dates: sorted };
@@ -471,13 +552,17 @@ function filterMetaDataByDateRange(meta, range) {
 }
 function filterShopifyByDateRange(shopify, range) {
   const daily = filterRowsByDateRange(shopify?.daily || [], range);
-  const lines = filterRowsByDateRange(shopify?.order_lines || [], range);
+  const rawLines = filterRowsByDateRange(shopify?.order_lines || [], range);
+  const tipLines = rawLines.filter(isTipLine);
+  const lines = rawLines.filter((line) => !isTipLine(line));
+  const tips = mergeTipSummaries(filterTipSummary(shopify?.tips, range), summarizeTipLines(tipLines));
   if (!lines.length && !(shopify?.order_lines || []).length) {
     return {
       ...shopify,
       period: { ...(shopify?.period || {}), since: range.since, until: range.until },
       daily,
       cumulative: filterRowsByDateRange(shopify?.cumulative || [], range),
+      tips,
     };
   }
 
@@ -527,6 +612,7 @@ function filterShopifyByDateRange(shopify, range) {
     period: { ...(shopify?.period || {}), since: range.since, until: range.until },
     daily,
     order_lines: lines,
+    tips,
     families: [...familyMap.values()].sort((a, b) => b.units - a.units),
     products: [...productMap.values()].sort((a, b) => b.units - a.units || b.revenue_usd - a.revenue_usd),
     countries,
@@ -557,6 +643,8 @@ function mergeLiveTodayShopify(shopify, todaySummary) {
     ...existingLines.filter((line) => line.date !== todaySummary.date),
     ...(todaySummary.order_lines || []),
   ].sort((a, b) => `${a.date || ''}:${a.created_at || ''}`.localeCompare(`${b.date || ''}:${b.created_at || ''}`));
+  const existingTipRows = (shopify?.tips?.by_date || []).filter((row) => row.date !== todaySummary.date);
+  const tips = mergeTipSummaries({ by_date: existingTipRows }, todaySummary.tips || {});
   const until = [shopify?.period?.until, todaySummary.date].filter(Boolean).sort().at(-1) || todaySummary.date;
   return {
     ...shopify,
@@ -569,6 +657,7 @@ function mergeLiveTodayShopify(shopify, todaySummary) {
     },
     daily,
     order_lines: orderLines,
+    tips,
   };
 }
 
@@ -673,6 +762,12 @@ function clampDateRange(range, bounds) {
   if (maxDate && until > maxDate) until = maxDate;
   if (since && until && since > until) since = until;
   return { since, until };
+}
+function launchAnalysisDateRange(bounds) {
+  return clampDateRange({
+    since: CAMPAIGN_LAUNCH_DATE,
+    until: bounds?.calendar_until || bounds?.until || currentReportingDay(),
+  }, bounds);
 }
 function presetDateRange(preset, bounds) {
   const end = bounds?.today || currentReportingDay();
@@ -1377,6 +1472,13 @@ function ProductTotals({ families }) {
 
 function OverallProducts({ products }) {
   return <div className="overall-products"><div><b>Total products sold overall</b><span>Actual Shopify product names, not families</span></div><div className="overall-product-list">{(products || []).slice(0, 9).map((p) => <small key={p.product}><span>{p.product}</span><b>{p.units}</b></small>)}</div></div>;
+}
+
+function TipSummary({ tips }) {
+  const count = Number(tips?.people || tips?.orders || 0);
+  const total = Number(tips?.total_usd || 0);
+  if (!count && !total) return <small className="tip-summary">Tips: none recorded in this launch window</small>;
+  return <small className="tip-summary">Tips: {compact(count)} {count === 1 ? 'person' : 'people'} · {money.format(total)} total</small>;
 }
 
 function dateListForRange(range) {
@@ -2216,8 +2318,11 @@ function App() {
     setCustomRange((current) => clampDateRange(current.since ? current : loadedBounds, loadedBounds));
   }, [loadedBounds.since, loadedBounds.until, loadedBounds.common_since, loadedBounds.common_until, datePreset]);
   const activeDateRange = useMemo(() => clampDateRange(dateRange.since ? dateRange : presetDateRange(datePreset, loadedBounds), loadedBounds), [dateRange, datePreset, loadedBounds]);
+  const launchDateRange = useMemo(() => launchAnalysisDateRange(loadedBounds), [loadedBounds]);
   const data = useMemo(() => filterMetaDataByDateRange(baseData, activeDateRange), [baseData, activeDateRange]);
   const productData = useMemo(() => filterShopifyByDateRange(baseProductData, activeDateRange), [baseProductData, activeDateRange]);
+  const launchData = useMemo(() => filterMetaDataByDateRange(baseData, launchDateRange), [baseData, launchDateRange]);
+  const launchProductData = useMemo(() => filterShopifyByDateRange(baseProductData, launchDateRange), [baseProductData, launchDateRange]);
   const behaviorData = useMemo(() => filterBehaviorByDateRange(baseBehaviorData, activeDateRange), [baseBehaviorData, activeDateRange]);
   function handleDatePreset(nextPreset) {
     setDatePreset(nextPreset);
@@ -2243,10 +2348,14 @@ function App() {
   const filtered = enriched.filter((a) => (statusFilter === 'all' || a.status === statusFilter) && `${a.adset_name} ${a.campaign_name}`.toLowerCase().includes(query.toLowerCase()));
   const chosen = selected === 'all' ? filtered : filtered.filter((a) => a.adset_id === selected);
   const trendRows = aggregateRows(chosen.length ? chosen : filtered);
-  const selectedIds = new Set((chosen.length ? chosen : filtered).map((a) => a.adset_id));
-  const selectedChanges = (data.adset_changes || []).filter((c) => selected === 'all' || selectedIds.has(c.adset_id));
-  const budgetChangeCount = selectedChanges.filter((c) => c.is_budget_change).length;
-  const otherChangeCount = selectedChanges.length - budgetChangeCount;
+  const launchEnriched = useMemo(() => (launchData.adsets || []).map((a) => enrichAdset(a, march)).sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || b.current.spend - a.current.spend), [launchData, march]);
+  const launchFiltered = launchEnriched.filter((a) => (statusFilter === 'all' || a.status === statusFilter) && `${a.adset_name} ${a.campaign_name}`.toLowerCase().includes(query.toLowerCase()));
+  const launchChosen = selected === 'all' ? launchFiltered : launchFiltered.filter((a) => a.adset_id === selected);
+  const deliveryTrendRows = aggregateRows(launchChosen.length ? launchChosen : launchFiltered);
+  const launchSelectedIds = new Set((launchChosen.length ? launchChosen : launchFiltered).map((a) => a.adset_id));
+  const launchSelectedChanges = (launchData.adset_changes || []).filter((c) => selected === 'all' || launchSelectedIds.has(c.adset_id));
+  const budgetChangeCount = launchSelectedChanges.filter((c) => c.is_budget_change).length;
+  const otherChangeCount = launchSelectedChanges.length - budgetChangeCount;
   const overall = trendRows[trendRows.length - 1] || {};
   const histRows = trendRows.slice(0, -1);
   const marchReachPerDollar = reachPerDollar(march);
@@ -2293,7 +2402,7 @@ function App() {
   const deliveryComparison = baseData.delivery_comparison || {};
   const deliveryShopifyComparison = baseProductData.delivery_comparison || {};
   const adsetPerfById = useMemo(() => new Map((data.all_adsets || []).map((row) => [row.adset_id, row])), [data]);
-  const countryMetaByCode = useMemo(() => new Map((data.countries || []).map((row) => [row.country_code, row])), [data]);
+  const launchCountryMetaByCode = useMemo(() => new Map((launchData.countries || []).map((row) => [row.country_code, row])), [launchData]);
 
   return <main className="shell">
     <aside className="rail">
@@ -2340,15 +2449,15 @@ function App() {
 
       <DeliveryComparisonPanel comparison={deliveryComparison} shopifyComparison={deliveryShopifyComparison} />
 
-      <section className="workbench"><div className="chart-panel"><div className="panel-title"><h2>Daily delivery shape</h2></div><ReactECharts option={trendOption(trendRows, march, selectedChanges, productData.daily || [])} style={{ height: 438 }} /></div><aside className="rank-panel"><div className="panel-title"><h2>Ad sets ranked</h2></div>{filtered.slice(0, 9).map((a, i) => <div className={`rank-row ${slug(a.status)}`} key={a.adset_id}><strong>{i+1}</strong><div><b>{a.adset_name}</b><small>{a.campaign_name}</small></div><span>{statusLabels[a.status]}</span></div>)}</aside></section>
+      <section className="workbench"><div className="chart-panel"><div className="panel-title"><h2>Daily delivery shape</h2></div><ReactECharts option={trendOption(deliveryTrendRows, march, launchSelectedChanges, launchProductData.daily || [])} style={{ height: 438 }} /></div><aside className="rank-panel"><div className="panel-title"><h2>Ad sets ranked</h2></div>{filtered.slice(0, 9).map((a, i) => <div className={`rank-row ${slug(a.status)}`} key={a.adset_id}><strong>{i+1}</strong><div><b>{a.adset_name}</b><small>{a.campaign_name}</small></div><span>{statusLabels[a.status]}</span></div>)}</aside></section>
 
       <section className="table-panel"><div className="panel-title"><h2>Ad set decision table</h2></div><div className="table-wrap"><table><thead><tr><th>Ad set</th><th>Campaign</th><th>Status</th><th>Sales</th><th>ROAS</th><th>Meta spend</th><th>Active days</th><th>Freq</th><th>CPM</th><th>Reach / $</th><th>Freq vs hist</th><th>CPM vs hist</th><th>Reach/$ vs hist</th><th>Freq vs Mar</th><th>CPM vs Mar</th><th>Reach/$ vs Mar</th><th>Action</th></tr></thead><tbody>{filtered.map((a) => { const perf = adsetPerfById.get(a.adset_id) || {}; return <tr key={a.adset_id}><td className="name-cell"><b>{a.adset_name}</b></td><td className="name-cell">{a.campaign_name}</td><td><span className={`pill ${slug(a.status)}`}>{statusLabels[a.status]}</span></td><td>{perf.purchases || 0}</td><td>{Number(perf.roas || 0).toFixed(2)}x</td><td>{money.format(perf.spend_usd || a.current.spend || 0)}</td><td>{a.activeDays}</td><td>{a.current.frequency.toFixed(2)}</td><td>{money.format(a.current.cpm)}</td><td>{Number(a.current.reach_per_dollar || 0).toFixed(1)}</td><td className={a.histDelta.frequency > 18 ? 'bad' : a.histDelta.frequency > 8 ? 'warn' : 'good'}>{pct(a.histDelta.frequency)}</td><td className={a.histDelta.cpm > 20 ? 'bad' : a.histDelta.cpm > 10 ? 'warn' : 'good'}>{pct(a.histDelta.cpm)}</td><td className={a.histDelta.reach_per_dollar < -10 ? 'bad' : 'good'}>{pct(a.histDelta.reach_per_dollar)}</td><td>{pct(a.marchDelta.frequency)}</td><td>{pct(a.marchDelta.cpm)}</td><td>{pct(a.marchDelta.reach_per_dollar)}</td><td className="name-cell"><b>{a.recommendation}</b></td></tr>; })}</tbody></table></div></section>
 
       <section className="product-zone">
-        <div className="panel-title product-title"><div><h2>Product demand after launch</h2></div><span>{(productData.families || []).reduce((a, f) => a + Number(f.units || 0), 0)} merch units</span></div>
-        <ProductTotals families={productData.families || []} />
-        <OverallProducts products={productData.products || []} />
-        <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2></div><ReactECharts option={productGrowthOption(productData)} style={{ height: 390 }} /></div><div className="country-card country-roas-card"><div className="panel-title"><h2>Country sales + ROAS</h2></div><div className="country-list">{(productData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); const metaCountry = countryMetaByCode.get(c.country_code); const countryRoas = shopifyCountryRoas(c, metaCountry); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span className="country-roas-number">{countryRoas.toFixed(2)}x ROAS</span></div><div className="country-metrics"><span>{c.units} units</span><span>{money.format(c.revenue_usd || 0)} Shopify</span><span>{money.format(metaCountry?.spend_usd || 0)} Meta spend</span><span>{c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} subtypes={c.subtypes || {}} /><div className="mix-labels">{entries.slice(0, 6).map(([f,u]) => <small key={f} title={mixTooltip(f, u, c.units, c.subtypes || {})}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {c.units ? Math.round((u / c.units) * 100) : 0}%</small>)}</div></div>; })}</div></div></section>
+        <div className="panel-title product-title"><div><h2>Product demand after launch</h2><TipSummary tips={launchProductData.tips} /></div><span>{(launchProductData.families || []).reduce((a, f) => a + Number(f.units || 0), 0)} merch units · since {launchDateRange.since}</span></div>
+        <ProductTotals families={launchProductData.families || []} />
+        <OverallProducts products={launchProductData.products || []} />
+        <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2></div><ReactECharts option={productGrowthOption(launchProductData)} style={{ height: 390 }} /></div><div className="country-card country-roas-card"><div className="panel-title"><h2>Country sales + ROAS</h2></div><div className="country-list">{(launchProductData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); const metaCountry = launchCountryMetaByCode.get(c.country_code); const countryRoas = shopifyCountryRoas(c, metaCountry); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span className="country-roas-number">{countryRoas.toFixed(2)}x ROAS</span></div><div className="country-metrics"><span>{c.units} units</span><span>{money.format(c.revenue_usd || 0)} Shopify</span><span>{money.format(metaCountry?.spend_usd || 0)} Meta spend</span><span>{c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} subtypes={c.subtypes || {}} /><div className="mix-labels">{entries.slice(0, 6).map(([f,u]) => <small key={f} title={mixTooltip(f, u, c.units, c.subtypes || {})}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {c.units ? Math.round((u / c.units) * 100) : 0}%</small>)}</div></div>; })}</div></div></section>
       </section>
       <BehaviorAnalyticsModule behavior={behaviorData} collapsed />
     </section>

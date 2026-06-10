@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { productTaxonomyForName } from '../src/lib/productMapping.js';
 
 const app = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const server = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
@@ -38,5 +39,70 @@ assertIncludes(
   'frankfurterRateWithBackoff',
   'Frankfurter conversion must explicitly walk backward to the previous available rate for holidays/missing days.'
 );
+
+assertIncludes(
+  server,
+  'total_tip_received,current_total_tip_received',
+  'Live Shopify order polling must request tip fields so today overlays do not hide tips inside product revenue.'
+);
+
+assertIncludes(
+  server,
+  'merchandiseRevenue',
+  'Live Shopify order summaries must allocate only merchandise revenue across product lines.'
+);
+
+assertIncludes(
+  server,
+  'tips: tipSummary',
+  'Live Shopify today summary must return tips separately from merchandise order lines.'
+);
+
+assertIncludes(
+  app,
+  "CAMPAIGN_LAUNCH_DATE = '2026-06-03'",
+  'Launch analysis sections must use a fixed June 3 campaign-launch floor, not the currently selected date window.'
+);
+
+assertIncludes(
+  app,
+  'launchProductData',
+  'Product demand after launch must be backed by a launch-window Shopify dataset, not the selected daily productData.'
+);
+
+assertIncludes(
+  app,
+  'productGrowthOption(launchProductData)',
+  'Developing growth chart must use Shopify product data from campaign launch onward.'
+);
+
+assertIncludes(
+  app,
+  'trendOption(deliveryTrendRows, march, launchSelectedChanges, launchProductData.daily || [])',
+  'Daily delivery shape must use the fixed launch window and launch-window Shopify sales series.'
+);
+
+assertIncludes(
+  app,
+  'isTipLine',
+  'Tips must be detected and excluded from merchandise product demand.'
+);
+
+assertIncludes(
+  app,
+  'TipSummary',
+  'Tips should be shown as a small separate summary instead of product inventory.'
+);
+
+assertIncludes(
+  app,
+  'todaySummary.tips',
+  'Frontend must merge live Shopify today tips into the launch-window product demand summary.'
+);
+
+const tipsTaxonomy = productTaxonomyForName('Tips');
+if (tipsTaxonomy.family !== null) {
+  throw new Error('Shopify Tips must be classified as non-merchandise before product demand aggregation.');
+}
 
 console.log('dashboard regression checks passed');

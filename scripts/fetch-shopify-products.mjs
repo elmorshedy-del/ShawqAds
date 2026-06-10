@@ -27,7 +27,7 @@ if (!token || !store) {
   process.exit(1);
 }
 
-const fields = 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,currency,presentment_currency,shipping_address,billing_address,line_items,refunds,landing_site,landing_site_ref,referring_site,source_name,source_identifier,note_attributes,tags';
+const fields = 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,total_tip_received,current_total_tip_received,currency,presentment_currency,shipping_address,billing_address,line_items,refunds,landing_site,landing_site_ref,referring_site,source_name,source_identifier,note_attributes,tags';
 
 function dateInTimezone(date = new Date(), timeZone = 'UTC') {
   return new Intl.DateTimeFormat('en-CA', {
@@ -155,6 +155,14 @@ function countryFor(order) {
 function dayFor(order) {
   const d = new Date(order.created_at || Date.now());
   return dateInTimezone(d, reportingTimezone);
+}
+
+function orderTipAmount(order = {}) {
+  return Math.max(
+    0,
+    Number(order.total_tip_received || 0),
+    Number(order.current_total_tip_received || 0),
+  );
 }
 
 function queryParamsFromMaybeUrl(value = '') {
@@ -420,6 +428,8 @@ const productTotals = new Map();
 const cumulativeByDayFamily = new Map();
 const dailyByDate = new Map();
 const orderLines = [];
+const tipOrders = new Set();
+const tipsByDate = new Map();
 const allDates = [];
 for (let d = new Date(`${since}T00:00:00Z`); d <= new Date(`${until}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) allDates.push(d.toISOString().slice(0, 10));
 for (const date of allDates) {
@@ -430,6 +440,15 @@ for (const date of allDates) {
 for (const order of included) {
   const orderDate = dayFor(order);
   const orderRevenue = Number(order.current_total_price || order.total_price || 0);
+  const orderTip = orderTipAmount(order);
+  const merchandiseRevenue = Math.max(0, orderRevenue - orderTip);
+  if (orderTip > 0) {
+    tipOrders.add(String(order.id || order.name || `${orderDate}:${orderTip}`));
+    const tipRow = tipsByDate.get(orderDate) || { date: orderDate, orders: 0, total_usd: 0 };
+    tipRow.orders += 1;
+    tipRow.total_usd += orderTip;
+    tipsByDate.set(orderDate, tipRow);
+  }
   const dailyOrder = dailyByDate.get(orderDate) || { date: orderDate, revenue_usd: 0, orders: 0, units: 0 };
   dailyOrder.orders += 1;
   dailyOrder.revenue_usd += orderRevenue;
@@ -458,8 +477,8 @@ for (const order of included) {
     dailyUnit.units += net;
     dailyByDate.set(date, dailyUnit);
     const lineRevenue = merchandiseSubtotal
-      ? orderRevenue * (lineSubtotal / merchandiseSubtotal)
-      : orderRevenue / Math.max(1, lineEntries.length);
+      ? merchandiseRevenue * (lineSubtotal / merchandiseSubtotal)
+      : merchandiseRevenue / Math.max(1, lineEntries.length);
     orderLines.push({
       order_id: String(order.id || ''),
       order_name: order.name || '',
@@ -512,6 +531,7 @@ const cumulative = allDates.map((date) => {
 const countries = [...countryRows.values()].map((r) => ({ ...r, unique_products: r.unique_products_set.size, unique_products_set: undefined })).sort((a, b) => b.units - a.units);
 const products = [...productTotals.values()].sort((a, b) => b.units - a.units);
 const daily = [...dailyByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+const tipRows = [...tipsByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 const deliveryComparison = await buildShopifyDeliveryComparison();
 const out = {
   source: 'Shopify',
@@ -529,6 +549,12 @@ const out = {
     api_window: { created_at_min: startIso, created_at_max: endIso },
   },
   orders: { pulled: orders.length, included: included.length },
+  tips: {
+    orders: tipOrders.size,
+    people: tipOrders.size,
+    total_usd: tipRows.reduce((total, row) => total + Number(row.total_usd || 0), 0),
+    by_date: tipRows,
+  },
   daily,
   families,
   products,
