@@ -2442,25 +2442,34 @@ function App() {
     <section className="content">
       <header className="topbar"><div className="headline-lockup"><img className="hero-logo" src="/assets/shawq-logo.png" alt="ShawQ" /><div><h1>ShawQ Business Monitoring</h1></div></div><div className="top-actions"><SaleMonitor monitor={saleMonitor} soundEnabled={saleSoundEnabled} onEnableSound={enableSaleSound} /><div className="refresh"><span>{sourceLabel}</span><small>{refreshText}</small><RefreshCw size={18}/></div></div></header>
 
-      <section className="finance-cards top-finance">
-        <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} delta={businessDeltas.revenue} deltaTone={toneForDelta(businessDeltas.revenue.pct)} />
-        <FinanceCard title="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} tone={business.orders ? 'good' : 'neutral'} active={activeBusiness === 'sales'} onClick={() => setActiveBusiness('sales')} delta={businessDeltas.sales} deltaTone={toneForDelta(businessDeltas.sales.pct)} />
-        <FinanceCard title="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} sub="Shopify revenue / orders" tone={business.aov ? 'good' : 'neutral'} active={activeBusiness === 'aov'} onClick={() => setActiveBusiness('aov')} delta={businessDeltas.aov} deltaTone={toneForDelta(businessDeltas.aov.pct)} />
-        <FinanceCard title="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" tone="warn" active={activeBusiness === 'spend'} onClick={() => setActiveBusiness('spend')} delta={businessDeltas.spend} deltaTone={toneForDelta(businessDeltas.roas.pct)} />
-        <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} delta={businessDeltas.cac} deltaTone={toneForDelta(businessDeltas.cac.pct, false)} />
-        <FinanceCard title="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" tone={business.roas >= 2 ? 'good' : business.roas >= 1 ? 'warn' : 'bad'} active={activeBusiness === 'roas'} onClick={() => setActiveBusiness('roas')} delta={businessDeltas.roas} deltaTone={toneForDelta(businessDeltas.roas.pct)} />
-      </section>
-      <BusinessMetricPanel rows={allBusinessRows} active={activeBusiness} windowKey={businessWindow} setWindowKey={setBusinessWindow} />
-      <DailySalesHighlights lines={productData.order_lines || []} range={activeDateRange} />
+      <div className="dashboard-body">
+        <section className="executive-kpi-panel">
+          <div className="section-kicker"><span>Commerce command center</span><small>{dateRangeLabel(activeDateRange, datePreset)}</small></div>
+          <section className="finance-cards top-finance">
+            <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} delta={businessDeltas.revenue} deltaTone={toneForDelta(businessDeltas.revenue.pct)} />
+            <FinanceCard title="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} tone={business.orders ? 'good' : 'neutral'} active={activeBusiness === 'sales'} onClick={() => setActiveBusiness('sales')} delta={businessDeltas.sales} deltaTone={toneForDelta(businessDeltas.sales.pct)} />
+            <FinanceCard title="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} sub="Shopify revenue / orders" tone={business.aov ? 'good' : 'neutral'} active={activeBusiness === 'aov'} onClick={() => setActiveBusiness('aov')} delta={businessDeltas.aov} deltaTone={toneForDelta(businessDeltas.aov.pct)} />
+            <FinanceCard title="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" tone="warn" active={activeBusiness === 'spend'} onClick={() => setActiveBusiness('spend')} delta={businessDeltas.spend} deltaTone={toneForDelta(businessDeltas.roas.pct)} />
+            <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} delta={businessDeltas.cac} deltaTone={toneForDelta(businessDeltas.cac.pct, false)} />
+            <FinanceCard title="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" tone={business.roas >= 2 ? 'good' : business.roas >= 1 ? 'warn' : 'bad'} active={activeBusiness === 'roas'} onClick={() => setActiveBusiness('roas')} delta={businessDeltas.roas} deltaTone={toneForDelta(businessDeltas.roas.pct)} />
+          </section>
+          <BusinessMetricPanel rows={allBusinessRows} active={activeBusiness} windowKey={businessWindow} setWindowKey={setBusinessWindow} />
+        </section>
 
-      <CampaignPerformanceTable attribution={campaignAttribution} />
+        <section className="insight-grid">
+          <DailySalesHighlights lines={productData.order_lines || []} range={activeDateRange} />
+          <aside className="delivery-snapshot">
+            <div className="panel-title"><div><h2>Delivery pulse</h2><p>Frequency, CPM and reach efficiency for the selected delivery view.</p></div></div>
+            <section className="cards secondary-cards compact-delivery-cards">
+              <Card title="Frequency" value={(overall.frequency || 0).toFixed(2)} sub={march.applies ? `March ${Number(march.frequency || 0).toFixed(2)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.frequency)} vs own history`} tone={overallDelta.frequency > 20 ? 'bad' : overallDelta.frequency > 8 ? 'warn' : 'good'} rows={trendRows} metric="frequency" color="lab(48.204% 72.66 -11.1673)" />
+              <Card title="CPM" value={money.format(overall.cpm || 0)} sub={march.applies ? `March ${money.format(march.cpm || 0)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.cpm)} vs own history`} tone={overallDelta.cpm > 25 ? 'bad' : overallDelta.cpm > 12 ? 'warn' : 'good'} rows={trendRows} metric="cpm" color="lab(66.9577% 31.1095 70.3244)" />
+              <Card title="Unique reach / $" value={reachPerDollar(overall).toFixed(1)} sub={march.applies ? `March ${marchReachPerDollar.toFixed(1)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.reach_per_dollar)} vs own history`} tone={overallDelta.reach_per_dollar < -10 ? 'bad' : overallDelta.reach_per_dollar < -4 ? 'warn' : 'good'} rows={trendRows} metric="reach_per_dollar" color="lab(54.2026% -28.5503 -30.3929)" />
+              {march.applies ? <section className="benchmark-card"><span>Vs March USA benchmark</span><div><b className={marchDelta.frequency > 20 ? 'bad' : 'warn'}>{pct(marchDelta.frequency)}</b><small>Frequency</small></div><div><b className={marchDelta.cpm > 20 ? 'bad' : 'warn'}>{pct(marchDelta.cpm)}</b><small>CPM</small></div><div><b className={marchDelta.reach_per_dollar < -8 ? 'bad' : 'good'}>{pct(marchDelta.reach_per_dollar)}</b><small>Reach / $</small></div></section> : <section className="benchmark-card muted-benchmark"><span>March baseline disabled</span></section>}
+            </section>
+          </aside>
+        </section>
 
-      <section className="cards secondary-cards">
-        <Card title="Frequency" value={(overall.frequency || 0).toFixed(2)} sub={march.applies ? `March ${Number(march.frequency || 0).toFixed(2)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.frequency)} vs own history`} tone={overallDelta.frequency > 20 ? 'bad' : overallDelta.frequency > 8 ? 'warn' : 'good'} rows={trendRows} metric="frequency" color="#9a1b22" />
-        <Card title="CPM" value={money.format(overall.cpm || 0)} sub={march.applies ? `March ${money.format(march.cpm || 0)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.cpm)} vs own history`} tone={overallDelta.cpm > 25 ? 'bad' : overallDelta.cpm > 12 ? 'warn' : 'good'} rows={trendRows} metric="cpm" color="#c98834" />
-        <Card title="Unique reach / $" value={reachPerDollar(overall).toFixed(1)} sub={march.applies ? `March ${marchReachPerDollar.toFixed(1)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.reach_per_dollar)} vs own history`} tone={overallDelta.reach_per_dollar < -10 ? 'bad' : overallDelta.reach_per_dollar < -4 ? 'warn' : 'good'} rows={trendRows} metric="reach_per_dollar" color="#1d64d8" />
-        {march.applies ? <section className="benchmark-card"><span>Vs March USA benchmark</span><div><b className={marchDelta.frequency > 20 ? 'bad' : 'warn'}>{pct(marchDelta.frequency)}</b><small>Frequency</small></div><div><b className={marchDelta.cpm > 20 ? 'bad' : 'warn'}>{pct(marchDelta.cpm)}</b><small>CPM</small></div><div><b className={marchDelta.reach_per_dollar < -8 ? 'bad' : 'good'}>{pct(marchDelta.reach_per_dollar)}</b><small>Reach / $</small></div></section> : <section className="benchmark-card muted-benchmark"><span>March baseline disabled</span></section>}
-      </section>
+        <CampaignPerformanceTable attribution={campaignAttribution} />
 
       <section className="leadership-zone">
         <div className="panel-title product-title"><div><h2>Leadership tables</h2></div><span>{adRows.length} ads</span></div>
@@ -2485,7 +2494,8 @@ function App() {
         <OverallProducts products={launchProductData.products || []} />
         <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2></div><ReactECharts option={productGrowthOption(launchProductData)} style={{ height: 390 }} /></div><div className="country-card country-roas-card"><div className="panel-title"><h2>Country sales + ROAS</h2></div><div className="country-list">{(launchProductData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); const metaCountry = launchCountryMetaByCode.get(c.country_code); const countryRoas = shopifyCountryRoas(c, metaCountry); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span className="country-roas-number">{countryRoas.toFixed(2)}x ROAS</span></div><div className="country-metrics"><span>{c.units} units</span><span>{money.format(c.revenue_usd || 0)} Shopify</span><span>{money.format(metaCountry?.spend_usd || 0)} Meta spend</span><span>{c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} subtypes={c.subtypes || {}} /><div className="mix-labels">{entries.slice(0, 6).map(([f,u]) => <small key={f} title={mixTooltip(f, u, c.units, c.subtypes || {})}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {c.units ? Math.round((u / c.units) * 100) : 0}%</small>)}</div></div>; })}</div></div></section>
       </section>
-      <BehaviorAnalyticsModule behavior={behaviorData} collapsed />
+        <BehaviorAnalyticsModule behavior={behaviorData} collapsed />
+      </div>
     </section>
   </main>;
 }
