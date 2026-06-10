@@ -1539,3 +1539,745 @@ td.name-cell,td.name-cell b{white-space:normal;line-height:1.32}
   .rail{scrollbar-width:none}
   .rail::-webkit-scrollbar{display:none}
 }
+
+/* Lovable source transplant pass: use the downloaded Lovable app as the layout
+   blueprint, while keeping this app's real Shopify/Meta data engine. */
+:root{
+  --transplant-bg: oklch(0.984 0.002 270);
+  --transplant-ink: oklch(0.22 0.02 270);
+  --transplant-muted: oklch(0.55 0.02 270);
+  --transplant-surface: #fff;
+  --transplant-surface-2: oklch(0.968 0.003 270);
+  --transplant-border: oklch(0.92 0.004 270);
+  --transplant-brand: oklch(0.58 0.23 352);
+  --transplant-brand-soft: oklch(0.95 0.04 352);
+  --transplant-positive: oklch(0.6 0.13 163);
+  --transplant-gold: oklch(0.72 0.16 64);
+  --transplant-danger: oklch(0.63 0.22 17);
+  --transplant-radius: 1.35rem;
+  --transplant-shadow: 0 1px 2px 0 oklch(0.2 0.02 270 / .04), 0 8px 24px -16px oklch(0.2 0.02 270 / .12);
+  --transplant-shadow-elegant: 0 24px 60px -28px oklch(0.5 0.12 352 / .22);
+}
+
+body{
+  background:
+    radial-gradient(70% 50% at 100% 0%, oklch(0.51 0.23 277 / .05), transparent 55%),
+    radial-gradient(60% 50% at 0% 0%, oklch(0.6 0.13 220 / .04), transparent 50%),
+    var(--transplant-bg);
+  color:var(--transplant-ink);
+  font-family:var(--lovable-font-sans), Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.shell{
+  display:flex;
+  min-height:100vh;
+  background:transparent;
+}
+
+.rail{
+  width:18rem;
+  flex:0 0 18rem;
+  display:flex;
+  flex-direction:column;
+  gap:1.75rem;
+  height:100vh;
+  padding:1.75rem 1.5rem;
+  position:sticky;
+  top:0;
+  overflow:auto;
+  background:var(--transplant-surface);
+  border-right:1px solid var(--transplant-border);
+  box-shadow:none;
+}
+
+.brand{
+  margin:0;
+  gap:.75rem;
+  align-items:center;
+}
+.brand img{
+  width:3.2rem;
+  height:auto;
+  filter:none;
+}
+.brand b{
+  color:var(--transplant-ink);
+  font-family:var(--lovable-font-display), Inter, sans-serif;
+  font-size:1.75rem;
+  line-height:1;
+  letter-spacing:-.045em;
+}
+.brand span{
+  color:var(--transplant-muted);
+  font-size:.75rem;
+  font-weight:600;
+  letter-spacing:0;
+}
+
+.filter-block{
+  padding:0;
+  border-top:0;
+}
+.filter-block label{
+  display:block;
+  margin:0 0 .5rem;
+  color:var(--transplant-muted);
+  font-size:.68rem;
+  font-weight:700;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+.filter-block button,
+.filter-block select,
+.filter-block .search{
+  width:100%;
+  min-height:2.5rem;
+  border:1px solid var(--transplant-border);
+  border-radius:.8rem;
+  background:var(--transplant-surface-2);
+  color:var(--transplant-ink);
+  box-shadow:none;
+}
+.filter-block select{
+  padding:0 .8rem;
+}
+.search input{
+  color:var(--transplant-ink);
+}
+.search input::placeholder{
+  color:var(--transplant-muted);
+}
+
+.content{
+  flex:1 1 auto;
+  min-width:0;
+  overflow-x:hidden;
+  padding:1.75rem 2.5rem;
+  background:transparent;
+}
+.topbar,
+.dashboard-body{
+  width:100%;
+  max-width:80rem;
+  margin-inline:auto;
+}
+.dashboard-body{
+  display:grid;
+  gap:1.75rem;
+}
+.topbar{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:1.5rem;
+  margin:0 auto 1.75rem;
+}
+.headline-lockup{
+  display:flex;
+  align-items:center;
+  gap:.9rem;
+  min-width:0;
+}
+.hero-logo{
+  width:3.35rem;
+  height:auto;
+  max-height:none;
+  object-fit:contain;
+  filter:none;
+}
+.topbar h1{
+  margin:0;
+  color:var(--transplant-ink);
+  font-family:var(--lovable-font-display), Inter, sans-serif;
+  font-size:clamp(2rem,3.4vw,3.85rem);
+  line-height:.95;
+  letter-spacing:-.055em;
+}
+.topbar h1 span,
+.text-gradient{
+  background:linear-gradient(135deg, oklch(0.62 0.24 350), oklch(0.5 0.22 330));
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+.topbar h1::first-letter{color:inherit}
+.header-subtitle{
+  margin:.45rem 0 0;
+  color:var(--transplant-muted);
+  font-size:.92rem;
+}
+
+.status-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:1rem;
+}
+.sale-monitor,
+.refresh,
+.finance-card,
+.metric-detail.unfold-panel,
+.daily-highlights,
+.delivery-snapshot,
+.campaign-tree-panel,
+.leadership-zone,
+.change-strip,
+.comparison-panel,
+.chart-panel,
+.rank-panel,
+.table-panel,
+.product-zone,
+.country-card,
+.growth-card,
+.behavior-dev-details,
+.behavior-zone{
+  background:var(--transplant-surface);
+  border:1px solid var(--transplant-border);
+  border-radius:var(--transplant-radius);
+  box-shadow:var(--transplant-shadow);
+}
+
+.sale-monitor{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:1rem;
+  align-items:start;
+  padding:1.25rem;
+}
+.sale-main b{
+  color:var(--transplant-brand);
+  font-size:.78rem;
+  letter-spacing:.12em;
+}
+.sale-main small,
+.sale-actions small,
+.sale-source{
+  color:var(--transplant-muted);
+}
+.sale-dot.on{
+  background:var(--transplant-positive);
+  box-shadow:0 0 0 4px oklch(0.6 0.13 163 / .14);
+}
+.sale-items em,
+.sale-order-time{
+  background:var(--transplant-surface-2);
+  border:0;
+  color:var(--transplant-muted);
+}
+.sale-actions button.sound-on{
+  background:var(--transplant-brand);
+  border-color:var(--transplant-brand);
+  color:#fff;
+}
+.refresh{
+  min-width:0;
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:.4rem .75rem;
+  align-content:center;
+  padding:1.25rem;
+  text-align:left;
+}
+.refresh span{
+  color:var(--transplant-ink);
+  font-family:var(--lovable-font-display), Inter, sans-serif;
+  font-weight:700;
+}
+.refresh small{
+  color:var(--transplant-muted);
+}
+.refresh svg{
+  color:var(--transplant-brand);
+}
+
+.section-kicker{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:1rem;
+  margin:0 0 1rem;
+}
+.section-kicker span{
+  color:var(--transplant-brand);
+  font-size:.78rem;
+  font-weight:700;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+}
+.section-kicker small{
+  color:var(--transplant-muted);
+  font-size:.82rem;
+  font-weight:700;
+}
+
+.commerce-grid{
+  display:grid;
+  grid-template-columns:minmax(20rem,.72fr) minmax(0,1.28fr);
+  gap:1.75rem;
+  align-items:stretch;
+}
+.top-finance{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:1rem;
+  margin:0;
+  align-content:start;
+}
+.finance-card{
+  min-height:10.85rem;
+  padding:1.25rem;
+  overflow:hidden;
+  background:var(--transplant-surface);
+  transition:transform .28s ease, box-shadow .28s ease, border-color .28s ease;
+}
+.finance-card:hover{
+  transform:translateY(-.25rem);
+  border-color:color-mix(in oklab, var(--transplant-brand) 40%, var(--transplant-border));
+  box-shadow:var(--transplant-shadow-elegant);
+}
+.finance-card.active{
+  border-color:var(--transplant-brand);
+  box-shadow:var(--transplant-shadow-elegant);
+}
+.finance-card.active::after,
+.finance-card::before{
+  display:none;
+}
+.finance-card span{
+  color:var(--transplant-muted);
+  font-size:.7rem;
+  font-weight:700;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.finance-card strong{
+  margin:.65rem 0 .35rem;
+  color:var(--transplant-ink);
+  font-family:var(--lovable-font-display), Inter, sans-serif;
+  font-size:clamp(1.85rem,2.6vw,2.55rem);
+  line-height:1;
+  letter-spacing:-.06em;
+}
+.finance-card small{
+  color:var(--transplant-muted);
+  font-size:.78rem;
+  font-weight:600;
+}
+.trend-badge{
+  margin-top:auto;
+  padding:.2rem 0 0;
+  background:transparent!important;
+  border-radius:0;
+  color:var(--transplant-muted);
+  font-size:.72rem;
+  font-weight:700;
+}
+.trend-badge i{
+  background:transparent!important;
+  width:auto;
+  height:auto;
+}
+.trend-badge.good{color:var(--transplant-positive)}
+.trend-badge.bad{color:var(--transplant-danger)}
+.trend-badge.warn{color:var(--transplant-gold)}
+
+.metric-detail.unfold-panel{
+  display:grid;
+  grid-template-columns:15.5rem minmax(0,1fr);
+  grid-template-rows:auto auto;
+  gap:1rem;
+  align-items:stretch;
+  margin:0;
+  padding:1.5rem;
+}
+.metric-detail.unfold-panel::before{display:none}
+.metric-detail-copy,
+.metric-detail-chart{
+  min-width:0;
+  border:1px solid var(--transplant-border);
+  border-radius:calc(var(--transplant-radius) - .35rem);
+  background:var(--transplant-surface);
+  box-shadow:none;
+}
+.metric-detail-copy{
+  padding:1rem;
+}
+.metric-detail-copy b,
+.panel-title h2,
+.mini-table h3,
+.behavior-dev-summary b{
+  color:var(--transplant-ink);
+  font-family:var(--lovable-font-display), Inter, sans-serif;
+  letter-spacing:-.045em;
+}
+.metric-detail-copy b{
+  font-size:1.6rem;
+  line-height:1;
+}
+.metric-detail-copy span,
+.metric-detail-copy small,
+.panel-title p{
+  color:var(--transplant-muted);
+}
+.metric-detail-chart{
+  padding:.75rem;
+}
+.metric-detail-table{
+  grid-column:1/-1;
+  max-height:14rem;
+  overflow:auto;
+}
+.window-tabs{
+  display:inline-flex;
+  flex-wrap:wrap;
+  gap:.25rem;
+  width:auto;
+  padding:.25rem;
+  border-radius:999px;
+  background:var(--transplant-surface-2);
+  border:1px solid var(--transplant-border);
+  box-shadow:none;
+}
+.window-tabs button{
+  border:0;
+  border-radius:999px;
+  background:transparent;
+  color:var(--transplant-muted);
+  font-size:.75rem;
+  font-weight:600;
+}
+.window-tabs button.active{
+  background:var(--transplant-surface);
+  color:var(--transplant-ink);
+  box-shadow:0 1px 3px rgba(0,0,0,.08);
+}
+
+.insight-grid{
+  display:grid;
+  grid-template-columns:minmax(0,2fr) minmax(19rem,1fr);
+  gap:1.75rem;
+}
+.daily-highlights,
+.delivery-snapshot,
+.campaign-tree-panel,
+.leadership-zone,
+.change-strip,
+.comparison-panel,
+.chart-panel,
+.rank-panel,
+.table-panel,
+.product-zone{
+  padding:1.5rem;
+  margin:0;
+}
+.panel-title{
+  margin:0 0 1rem;
+  gap:1rem;
+}
+.panel-title h2{
+  margin:0;
+  font-size:clamp(1.35rem,2vw,1.85rem);
+  line-height:1.02;
+}
+
+.daily-leader-board{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:1rem;
+}
+.daily-leader-panel,
+.daily-date-row,
+.daily-ad-winner,
+.leader-card,
+.campaign-node-card,
+.country-row,
+.product-chip,
+.overall-products,
+.overall-product-list small,
+.metric-card,
+.benchmark-card{
+  border:1px solid var(--transplant-border);
+  border-radius:calc(var(--transplant-radius) - .45rem);
+  background:var(--transplant-surface);
+  box-shadow:none;
+}
+.compact-delivery-cards{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:1rem;
+}
+.compact-delivery-cards .metric-card{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 6rem;
+  gap:.7rem;
+  min-height:0;
+  padding:1rem;
+}
+.metric-copy span,
+.benchmark-card>span{
+  color:var(--transplant-muted);
+  font-size:.7rem;
+  font-weight:700;
+  letter-spacing:.12em;
+}
+.metric-copy strong{
+  color:var(--transplant-ink);
+  font-family:var(--lovable-font-display), Inter, sans-serif;
+}
+.metric-copy small,
+.metric-copy em{
+  color:var(--transplant-muted);
+}
+
+.campaign-node-card{
+  box-shadow:none;
+}
+.campaign-node-card.campaign{border-left:4px solid var(--transplant-brand)}
+.campaign-node-card.adset{border-left:4px solid var(--transplant-gold)}
+.campaign-node-card.ad{border-left:4px solid var(--transplant-border)}
+.metric-chip,
+.campaign-rules small,
+.pill,
+.resolved-chip,
+.unresolved-chip,
+.inferred-chip,
+.bestfit-chip,
+.danger-chip{
+  border:1px solid var(--transplant-border);
+  border-radius:999px;
+  background:var(--transplant-surface-2);
+  color:var(--transplant-muted);
+  box-shadow:none;
+}
+.metric-chip b{
+  color:var(--transplant-ink);
+  font-family:var(--lovable-font-display), Inter, sans-serif;
+}
+
+.leadership-tables.card-leadership{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:1rem;
+}
+.mini-table,
+.leadership-card-panel{
+  padding:1.25rem;
+  border:1px solid var(--transplant-border);
+  border-radius:var(--transplant-radius);
+  background:var(--transplant-surface);
+  box-shadow:none;
+}
+
+.change-strip{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  align-items:center;
+  gap:1rem;
+}
+.change-strip b{
+  font-family:var(--lovable-font-display), Inter, sans-serif;
+  font-size:1.1rem;
+}
+
+.workbench{
+  display:grid;
+  grid-template-columns:minmax(0,2fr) minmax(18rem,1fr);
+  gap:1.75rem;
+  margin:0;
+}
+.rank-row{
+  border-color:var(--transplant-border);
+}
+
+.table-wrap{
+  border:1px solid var(--transplant-border);
+  border-radius:calc(var(--transplant-radius) - .45rem);
+  background:var(--transplant-surface);
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+table{
+  background:var(--transplant-surface);
+}
+th{
+  background:var(--transplant-surface-2);
+  color:var(--transplant-muted);
+  font-size:.68rem;
+  font-weight:700;
+  letter-spacing:.1em;
+}
+td,th{
+  border-color:var(--transplant-border);
+}
+
+.product-zone{
+  display:grid;
+  gap:1rem;
+}
+.product-totals{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:.75rem;
+  margin:0;
+}
+.product-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(22rem,.9fr);
+  gap:1.75rem;
+}
+.country-list{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:.85rem;
+  max-height:none;
+  overflow:visible;
+}
+.country-row{
+  padding:1rem;
+}
+.country-roas-number{
+  background:transparent;
+  color:var(--transplant-positive);
+  padding:0;
+}
+
+@media(max-width:82rem){
+  .commerce-grid,
+  .insight-grid,
+  .workbench,
+  .product-grid,
+  .leadership-tables.card-leadership{
+    grid-template-columns:1fr;
+  }
+  .product-totals{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+
+@media(max-width:63.999rem){
+  .shell{display:block}
+  .rail{
+    position:relative;
+    width:100%;
+    height:auto;
+    flex:none;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:1rem;
+    padding:1.25rem;
+    border-right:0;
+    border-bottom:1px solid var(--transplant-border);
+    overflow:visible;
+  }
+  .brand{grid-column:1/-1}
+  .content{padding:1.75rem 1.25rem}
+  .topbar{align-items:flex-start}
+  .status-grid{grid-template-columns:1fr}
+  .metric-detail.unfold-panel{grid-template-columns:1fr}
+  .campaign-node-card.adset,
+  .campaign-node-card.ad{margin-left:0}
+}
+
+@media(max-width:39.999rem){
+  .rail{
+    display:flex;
+    flex-direction:row;
+    align-items:stretch;
+    gap:.75rem;
+    overflow-x:auto;
+    overscroll-behavior-x:contain;
+    padding:1rem 1.25rem;
+    scrollbar-width:none;
+  }
+  .rail::-webkit-scrollbar{display:none}
+  .brand{
+    flex:0 0 10rem;
+    align-self:center;
+  }
+  .filter-block{
+    flex:0 0 15.5rem;
+  }
+  .topbar{
+    display:block;
+    margin-bottom:1.5rem;
+  }
+  .headline-lockup{
+    align-items:center;
+  }
+  .hero-logo{width:3rem}
+  .topbar h1{font-size:2.05rem}
+  .header-subtitle{font-size:.82rem}
+  .section-kicker{
+    display:grid;
+    justify-content:start;
+  }
+  .top-finance{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:1rem;
+  }
+  .finance-card{
+    min-height:10rem;
+    padding:1rem;
+  }
+  .finance-card strong{font-size:1.65rem}
+  .metric-detail.unfold-panel,
+  .daily-highlights,
+  .delivery-snapshot,
+  .campaign-tree-panel,
+  .leadership-zone,
+  .change-strip,
+  .comparison-panel,
+  .chart-panel,
+  .rank-panel,
+  .table-panel,
+  .product-zone{
+    padding:1.25rem;
+  }
+  .daily-leader-board,
+  .compact-delivery-cards .metric-card,
+  .change-strip{
+    grid-template-columns:1fr;
+  }
+  .product-totals{grid-template-columns:repeat(2,minmax(0,1fr))}
+  table{min-width:51rem}
+}
+
+@media(max-width:22.5rem){
+  .top-finance,
+  .product-totals{grid-template-columns:1fr}
+}
+
+/* Final responsive correction: Lovable is the visual target, but our real
+   dashboard needs every retained module to stay readable. Keep the business
+   cards as a premium command strip on desktop, then unfold the selected chart
+   underneath instead of pushing it out of view. */
+.commerce-grid{
+  grid-template-columns:1fr;
+}
+.top-finance{
+  grid-template-columns:repeat(6,minmax(0,1fr));
+}
+.top-finance .finance-card{
+  min-height:9.6rem;
+  padding:1rem;
+}
+.top-finance .finance-card strong{
+  font-size:clamp(1.45rem,1.65vw,2.05rem);
+}
+.metric-detail.unfold-panel{
+  margin-top:1rem;
+}
+
+@media(max-width:78rem){
+  .top-finance{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:48rem){
+  .top-finance{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .top-finance .finance-card{min-height:9rem}
+  .sale-monitor{
+    grid-template-columns:1fr;
+  }
+  .sale-actions{
+    justify-items:start;
+  }
+}
+@media(max-width:34rem){
+  .top-finance{grid-template-columns:1fr}
+}
