@@ -12,6 +12,7 @@
     "fetch:behavior": "node scripts/fetch-behavior-intelligence.mjs",
     "fetch:all": "npm run fetch:meta && npm run fetch:shopify && npm run fetch:behavior",
     "test:session-events": "node scripts/session-events-smoke-test.mjs",
+    "test:dashboard": "node scripts/dashboard-regression-test.mjs",
     "start": "node server.mjs",
     "build:deploy": "vite build"
   },

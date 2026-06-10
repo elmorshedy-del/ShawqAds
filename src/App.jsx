@@ -7,6 +7,7 @@ import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
 
 const SALE_POLL_MS = 30000;
+const META_POLL_MS = 120000;
 const REPORTING_TIMEZONE = 'Europe/Istanbul';
 
 function dateInTimezone(date = new Date(), timeZone = REPORTING_TIMEZONE) {
@@ -145,6 +146,14 @@ async function fetchLatestSale() {
   const text = await res.text();
   const payload = text ? JSON.parse(text) : {};
   if (!res.ok) throw new Error(payload.error || `Shopify sale monitor ${res.status}`);
+  return payload;
+}
+
+async function fetchLiveMeta() {
+  const res = await fetch('/api/meta/live-spend', { cache: 'no-store' });
+  const text = await res.text();
+  const payload = text ? JSON.parse(text) : {};
+  if (!res.ok) throw new Error(payload.error || `Meta live spend ${res.status}`);
   return payload;
 }
 
@@ -563,6 +572,91 @@ function mergeLiveTodayShopify(shopify, todaySummary) {
   };
 }
 
+function replaceRowsForDate(rows = [], date, replacements = []) {
+  if (!date) return rows || [];
+  return [
+    ...(rows || []).filter((row) => (row.date || row.date_start) !== date),
+    ...(replacements || []),
+  ].sort((a, b) => String(a.date || a.date_start || '').localeCompare(String(b.date || b.date_start || '')));
+}
+
+function isUsaDeliveryRow(row = {}) {
+  const country = String(row.country_code || row.country || '').toUpperCase();
+  const text = `${row.campaign_name || ''} ${row.adset_name || ''}`;
+  return country === 'US' || /(^|_)usa|usa_|(^|_)us_|_us($|_)|\busa\b/i.test(text);
+}
+
+function summarizeLiveAdsetRows(rows = [], date) {
+  return aggregateMetaRows(rows || [], (row) => row.adset_id || localKey([row.campaign_id, row.adset_name]), (row) => ({
+    date,
+    date_start: date,
+    date_stop: date,
+    campaign_id: row.campaign_id,
+    campaign_name: row.campaign_name,
+    adset_id: row.adset_id || localKey([row.campaign_id, row.adset_name]),
+    adset_name: row.adset_name,
+  })).map((row) => ({ ...row, date, date_start: date, date_stop: date, live_today: true }));
+}
+
+function mergeLiveAdsets(adsets = [], liveRows = [], date) {
+  const liveAdsetRows = summarizeLiveAdsetRows(liveRows.filter(isUsaDeliveryRow), date);
+  if (!liveAdsetRows.length) return adsets || [];
+  const byAdset = new Map((adsets || []).map((adset) => [adset.adset_id || localKey([adset.campaign_id, adset.adset_name]), {
+    ...adset,
+    rows: (adset.rows || []).filter((row) => row.date !== date),
+  }]));
+  liveAdsetRows.forEach((row) => {
+    const key = row.adset_id || localKey([row.campaign_id, row.adset_name]);
+    const current = byAdset.get(key) || {
+      adset_id: key,
+      adset_name: row.adset_name,
+      campaign_id: row.campaign_id,
+      campaign_name: row.campaign_name,
+      rows: [],
+    };
+    current.rows = [...(current.rows || []), row].sort((a, b) => a.date.localeCompare(b.date));
+    byAdset.set(key, current);
+  });
+  return [...byAdset.values()].filter((adset) => (adset.rows || []).length);
+}
+
+function mergeLiveTodayMeta(meta, liveMeta) {
+  if (!liveMeta?.date || liveMeta.configured === false) return meta;
+  const date = liveMeta.date;
+  const accountDaily = replaceRowsForDate(meta?.account_daily_metrics || [], date, liveMeta.account_daily_metrics || []);
+  const adCountryDaily = replaceRowsForDate(meta?.ad_country_daily || [], date, liveMeta.ad_country_daily || []);
+  const adsetCountryDaily = replaceRowsForDate(meta?.adset_country_daily || [], date, liveMeta.adset_daily || []);
+  const liveDailyRows = liveMeta.adset_daily?.length
+    ? aggregateRows([{ adset_id: 'live_meta_today', rows: summarizeLiveAdsetRows(liveMeta.adset_daily, date) }])
+    : [];
+  return {
+    ...meta,
+    generated_at: liveMeta.checked_at || meta?.generated_at,
+    live_meta: {
+      status: liveMeta.status || (liveMeta.ok ? 'fresh' : 'unavailable'),
+      checked_at: liveMeta.checked_at || '',
+      cached: Boolean(liveMeta.cached),
+      ttl_ms: Number(liveMeta.ttl_ms || 0),
+      account_currency: liveMeta.account_currency || '',
+      warnings: liveMeta.warnings || [],
+    },
+    analysis_window: {
+      ...(meta?.analysis_window || {}),
+      until: [meta?.analysis_window?.until, date].filter(Boolean).sort().at(-1) || date,
+    },
+    account_daily_metrics: accountDaily,
+    ad_country_daily: adCountryDaily,
+    adset_country_daily: adsetCountryDaily,
+    daily_metrics: liveDailyRows.length ? replaceRowsForDate(meta?.daily_metrics || [], date, liveDailyRows) : meta?.daily_metrics,
+    adsets: mergeLiveAdsets(meta?.adsets || [], liveMeta.adset_daily || [], date),
+    data_coverage: {
+      ...(meta?.data_coverage || {}),
+      ...(liveMeta.data_coverage || {}),
+      live_meta_checked_at: liveMeta.checked_at || '',
+    },
+  };
+}
+
 function shiftDate(date, days) {
   if (!date) return '';
   const d = new Date(`${date}T00:00:00Z`);
@@ -638,20 +732,34 @@ function businessMetricConfig(active) {
   }[active] || { key: 'revenue_usd', label: 'Shopify revenue', formatter: (v) => money.format(v), color: '#e02e92' };
 }
 
-function windowedRows(rows, windowKey) {
-  if (windowKey === 'all') return rows;
+const BUSINESS_WINDOW_OPTIONS = [['3', '3D'], ['7', 'Week'], ['14', '2W'], ['30', 'Month'], ['all', 'All']];
+
+export function businessWindowRows(rows, windowKey) {
+  const sorted = [...(rows || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  if (windowKey === 'all') return sorted;
   const count = Number(windowKey || 0);
-  return count > 0 ? rows.slice(-count) : rows;
+  return count > 0 ? sorted.slice(-count) : sorted;
 }
 
-function fxAuditText(data) {
-  const rates = data.fx_rates?.rates || [];
-  if (!rates.length) return 'FX audit: no rate metadata in this dataset yet.';
-  const usdRates = rates.filter((r) => r.fx_to_usd);
-  const exact = usdRates.filter((r) => r.fx_to_usd_requested_date === r.fx_to_usd_rate_date).length;
-  const fallback = Math.max(0, usdRates.length - exact);
-  const latest = usdRates[usdRates.length - 1];
-  return `FX audit: TRY→USD via ${data.fx_rates?.provider || 'Frankfurter'}; ${exact}/${usdRates.length} exact daily rates${fallback ? `, ${fallback} fallback` : ''}. Latest ${latest?.date || ''}: ${Number(latest?.fx_to_usd || 0).toFixed(5)} (${latest?.fx_to_usd_source || 'source unknown'}).`;
+export function markDevelopingBusinessRows(rows, reportingDay) {
+  return (rows || []).map((row) => ({
+    ...row,
+    is_developing: Boolean(reportingDay && row.date === reportingDay),
+  }));
+}
+
+export function businessTrendPresentationRows(rows, reportingDay) {
+  const markedRows = markDevelopingBusinessRows(rows, reportingDay);
+  const developingIndex = markedRows.findIndex((row) => row.is_developing);
+  return {
+    rows: markedRows,
+    hasDeveloping: developingIndex >= 0,
+    developingIndex,
+    solidRows: markedRows.map((row, index) => (index === developingIndex ? null : row)),
+    developingRows: markedRows.map((row, index) => (
+      developingIndex >= 0 && (index === developingIndex || index === developingIndex - 1) ? row : null
+    )),
+  };
 }
 
 function businessStats(rows) {
@@ -1061,8 +1169,14 @@ function accountDailyFromAdRows(rows) {
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function businessTrendOption(rows, active) {
+function businessSeriesData(rows, metric) {
+  return (rows || []).map((row) => (row ? Number(row[metric.key] || 0) : null));
+}
+
+function businessTrendOption(rows, active, reportingDay = currentReportingDay()) {
   const metric = businessMetricConfig(active);
+  const trendRows = businessTrendPresentationRows(rows, reportingDay);
+  const chartRows = trendRows.rows;
   return {
     color: [metric.color],
     tooltip: {
@@ -1071,32 +1185,32 @@ function businessTrendOption(rows, active) {
       borderColor: '#22121a',
       textStyle: { color: '#fff' },
       formatter: (params) => {
-        const r = rows[params[0].dataIndex];
-        return `<b>${r.date}</b><br/>${metric.label}: ${metric.formatter(Number(r[metric.key] || 0))}<br/>Revenue: ${money.format(r.revenue_usd)}<br/>Spend: ${money.format(r.spend_usd)}<br/>Items sold: ${r.units || 0}<br/>Orders: ${r.orders || 0}<br/>AOV: ${r.orders ? money.format(r.aov) : 'n/a'}<br/>CAC: ${r.orders ? money.format(r.cac) : 'n/a'}<br/>ROAS: ${r.roas ? r.roas.toFixed(2) : 'n/a'}x`;
+        const r = chartRows[params?.[0]?.dataIndex] || {};
+        const developing = r.is_developing ? '<br/><span style="color:#ffd27a">Developing today</span>' : '';
+        return `<b>${r.date || ''}</b>${developing}<br/>${metric.label}: ${metric.formatter(Number(r[metric.key] || 0))}<br/>Revenue: ${money.format(r.revenue_usd)}<br/>Spend: ${money.format(r.spend_usd)}<br/>Items sold: ${r.units || 0}<br/>Orders: ${r.orders || 0}<br/>AOV: ${r.orders ? money.format(r.aov) : 'n/a'}<br/>CAC: ${r.orders ? money.format(r.cac) : 'n/a'}<br/>ROAS: ${r.roas ? r.roas.toFixed(2) : 'n/a'}x`;
       },
     },
     grid: { left: 54, right: 28, top: 20, bottom: 38 },
-    xAxis: { type: 'category', data: rows.map((r) => r.date), axisLabel: { color: '#697386' }, axisLine: { lineStyle: { color: '#d8d4ca' } } },
+    xAxis: { type: 'category', data: chartRows.map((r) => r.date), axisLabel: { color: '#697386' }, axisLine: { lineStyle: { color: '#d8d4ca' } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: '#697386', formatter: (v) => active === 'roas' ? `${v}x` : active === 'cac' || active === 'aov' || active === 'spend' || active === 'revenue' ? `$${v}` : v }, splitLine: { lineStyle: { color: '#f0dce8', type: 'dashed' } } },
     series: [
-      { name: metric.label, type: 'line', smooth: true, symbolSize: 7, data: rows.map((r) => Number(r[metric.key] || 0)), lineStyle: { width: 4 }, areaStyle: { opacity: 0.12 } },
-    ],
+      { name: metric.label, type: 'line', smooth: true, symbolSize: 7, connectNulls: false, data: businessSeriesData(trendRows.solidRows, metric), lineStyle: { width: 4 }, areaStyle: { opacity: 0.12 } },
+      trendRows.hasDeveloping ? { name: 'Developing today', type: 'line', smooth: true, symbolSize: 9, connectNulls: false, data: businessSeriesData(trendRows.developingRows, metric), lineStyle: { width: 3, type: 'dashed', opacity: 0.95 }, itemStyle: { color: metric.color, borderColor: '#fff', borderWidth: 2 }, z: 3 } : null,
+    ].filter(Boolean),
   };
 }
 
-function BusinessMetricPanel({ rows, active, windowKey, setWindowKey, fxText }) {
+function BusinessMetricPanel({ rows, active, windowKey, setWindowKey }) {
   const metric = businessMetricConfig(active);
-  const shown = windowedRows(rows, windowKey);
-  const windows = [['3', '3D'], ['7', 'Week'], ['14', '2W'], ['30', 'Month'], ['all', 'All']];
+  const reportingDay = currentReportingDay();
+  const shown = markDevelopingBusinessRows(businessWindowRows(rows, windowKey), reportingDay);
   return <section className="metric-detail unfold-panel">
     <div className="metric-detail-copy">
       <b>{metric.label} trend</b>
-      <span>Click a business card to unfold one clean smoothed line. Sales are Shopify orders; units stay visible as supporting context.</span>
-      <small>{fxText}</small>
-      <div className="window-tabs">{windows.map(([key, label]) => <button type="button" key={key} className={windowKey === key ? 'active' : ''} onClick={() => setWindowKey(key)}>{label}</button>)}</div>
+      <div className="window-tabs">{BUSINESS_WINDOW_OPTIONS.map(([key, label]) => <button type="button" key={key} className={windowKey === key ? 'active' : ''} onClick={() => setWindowKey(key)}>{label}</button>)}</div>
     </div>
-    <div className="metric-detail-chart"><ReactECharts option={businessTrendOption(shown, active)} style={{ height: 260 }} /></div>
-    <div className="table-wrap compact-table metric-detail-table"><table><thead><tr><th>Date</th><th>Revenue</th><th>Meta spend</th><th>Items sold</th><th>Orders</th><th>AOV</th><th>CAC</th><th>ROAS</th></tr></thead><tbody>{shown.map((r) => <tr key={r.date} className={`focus-${active}`}><td><b>{r.date}</b></td><td>{money.format(r.revenue_usd || 0)}</td><td>{money.format(r.spend_usd || 0)}</td><td>{r.units || 0}</td><td>{r.orders || 0}</td><td>{r.orders ? money.format(r.aov) : 'n/a'}</td><td>{r.orders ? money.format(r.cac) : 'n/a'}</td><td>{r.roas ? `${r.roas.toFixed(2)}x` : 'n/a'}</td></tr>)}</tbody></table></div>
+    <div className="metric-detail-chart"><ReactECharts option={businessTrendOption(shown, active, reportingDay)} style={{ height: 260 }} /></div>
+    <div className="table-wrap compact-table metric-detail-table"><table><thead><tr><th>Date</th><th>Revenue</th><th>Meta spend</th><th>Items sold</th><th>Orders</th><th>AOV</th><th>CAC</th><th>ROAS</th></tr></thead><tbody>{shown.map((r) => <tr key={r.date} className={`focus-${active} ${r.is_developing ? 'developing-row' : ''}`}><td><b>{r.date}</b>{r.is_developing ? <> <span className="pill warming developing-chip" title={`Current ${REPORTING_TIMEZONE} reporting day is still accumulating`}>Developing today</span></> : null}</td><td>{money.format(r.revenue_usd || 0)}</td><td>{money.format(r.spend_usd || 0)}</td><td>{r.units || 0}</td><td>{r.orders || 0}</td><td>{r.orders ? money.format(r.aov) : 'n/a'}</td><td>{r.orders ? money.format(r.cac) : 'n/a'}</td><td>{r.roas ? `${r.roas.toFixed(2)}x` : 'n/a'}</td></tr>)}</tbody></table></div>
   </section>;
 }
 
@@ -1977,6 +2091,7 @@ function App() {
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
   const [saleSoundEnabled, setSaleSoundEnabled] = useState(true);
   const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '', todaySummary: null });
+  const [metaMonitor, setMetaMonitor] = useState({ status: 'checking', live: null, checkedAt: null, error: '' });
   const saleAudioRef = useRef(null);
   const saleSoundEnabledRef = useRef(true);
   const lastSaleIdRef = useRef('');
@@ -2056,7 +2171,33 @@ function App() {
     };
   }, []);
 
-  const baseData = raw || fallbackData();
+  useEffect(() => {
+    let cancelled = false;
+    async function pollLiveMeta() {
+      try {
+        const payload = await fetchLiveMeta();
+        if (cancelled) return;
+        setMetaMonitor({
+          status: payload.configured === false ? 'not_configured' : payload.status || (payload.ok ? 'live' : 'unavailable'),
+          live: payload,
+          checkedAt: payload.checked_at || new Date().toISOString(),
+          error: payload.error || '',
+        });
+      } catch (error) {
+        if (!cancelled) setMetaMonitor((current) => ({ ...current, status: 'offline', checkedAt: new Date().toISOString(), error: error.message }));
+      }
+    }
+    pollLiveMeta();
+    const timer = window.setInterval(pollLiveMeta, META_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const fallbackMetaData = useMemo(() => fallbackData(), []);
+  const staticBaseData = raw || fallbackMetaData;
+  const baseData = useMemo(() => mergeLiveTodayMeta(staticBaseData, metaMonitor.live), [staticBaseData, metaMonitor.live]);
   const baseProductData = useMemo(
     () => mergeLiveTodayShopify(shopify || fallbackShopify(), saleMonitor.todaySummary),
     [shopify, saleMonitor.todaySummary]
@@ -2112,8 +2253,18 @@ function App() {
   const hist = { frequency: avg(histRows, 'frequency'), cpm: avg(histRows, 'cpm'), reach: avg(histRows, 'reach'), reach_per_dollar: avg(histRows, 'reach_per_dollar') };
   const overallDelta = { frequency: delta(overall.frequency, hist.frequency), cpm: delta(overall.cpm, hist.cpm), reach: delta(overall.reach, hist.reach), reach_per_dollar: delta(reachPerDollar(overall), hist.reach_per_dollar) };
   const marchDelta = { frequency: delta(overall.frequency, march.frequency), cpm: delta(overall.cpm, march.cpm), reach: delta(overall.reach, march.reach), reach_per_dollar: delta(reachPerDollar(overall), marchReachPerDollar) };
-  const sourceLabel = data.source === 'sample-data' ? 'Sample fallback' : 'Meta API';
-  const productSourceLabel = productData.source?.includes('sample') ? 'Sample Shopify' : 'Shopify';
+  const sourceLabel = data.source === 'sample-data'
+    ? 'Sample fallback'
+    : metaMonitor.status === 'not_configured'
+      ? 'Meta API not configured'
+      : metaMonitor.status === 'offline'
+        ? 'Meta API offline'
+        : metaMonitor.status === 'checking'
+          ? 'Meta API checking'
+          : 'Meta API live';
+  const refreshText = metaMonitor.checkedAt
+    ? `Meta checked ${saleTime(metaMonitor.checkedAt)}`
+    : `Refreshed ${data.generated_at ? new Date(data.generated_at).toLocaleString() : 'now'}`;
   const accountDaily = useMemo(() => {
     const accountRows = data.account_daily_metrics?.length ? data.account_daily_metrics : accountDailyFromAdRows(data.ad_country_daily || []);
     return accountRows.length ? accountRows : (data.daily_metrics || aggregateRows(data.adsets || []));
@@ -2141,8 +2292,6 @@ function App() {
   const adRows = useMemo(() => enrichAdsWithShopifySales(data.ads || [], productData.order_lines || []), [data.ads, productData.order_lines]);
   const deliveryComparison = baseData.delivery_comparison || {};
   const deliveryShopifyComparison = baseProductData.delivery_comparison || {};
-  const baselineCopy = march.applies ? 'March USA baseline shown because this frequency view is USA ad sets only.' : 'No March baseline on this view because it is not USA-only.';
-  const fxText = fxAuditText(data);
   const adsetPerfById = useMemo(() => new Map((data.all_adsets || []).map((row) => [row.adset_id, row])), [data]);
   const countryMetaByCode = useMemo(() => new Map((data.countries || []).map((row) => [row.country_code, row])), [data]);
 
@@ -2153,11 +2302,10 @@ function App() {
       <div className="filter-block"><label>Campaign/ad set</label><select value={selected} onChange={(e) => setSelected(e.target.value)}><option value="all">All ad sets</option>{enriched.map((a) => <option key={a.adset_id} value={a.adset_id}>{a.adset_name}</option>)}</select></div>
       <div className="filter-block"><label>Status</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All statuses</option>{Object.keys(statusLabels).map((s) => <option key={s} value={s}>{statusLabels[s]}</option>)}</select></div>
       <div className="filter-block"><label>Search</label><div className="search"><Search size={15}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="ad set or campaign" /></div></div>
-      <div className="method"><b>Baseline logic</b><p>Red dots mark ad set edits. Delivery compares against each ad set history. {baselineCopy} Product growth uses Shopify sold units by country and family.</p></div>
     </aside>
 
     <section className="content">
-      <header className="topbar"><div className="headline-lockup"><img className="hero-logo" src="/assets/shawq-logo.png" alt="ShawQ" /><div><h1>ShawQ Business Monitoring</h1><p>Revenue, spend, CAC, ROAS, product demand, and delivery drift from the June 3 launch window.</p></div></div><div className="top-actions"><SaleMonitor monitor={saleMonitor} soundEnabled={saleSoundEnabled} onEnableSound={enableSaleSound} /><div className="refresh"><span>{sourceLabel}</span><small>Refreshed {data.generated_at ? new Date(data.generated_at).toLocaleString() : 'now'}</small><RefreshCw size={18}/></div></div></header>
+      <header className="topbar"><div className="headline-lockup"><img className="hero-logo" src="/assets/shawq-logo.png" alt="ShawQ" /><div><h1>ShawQ Business Monitoring</h1></div></div><div className="top-actions"><SaleMonitor monitor={saleMonitor} soundEnabled={saleSoundEnabled} onEnableSound={enableSaleSound} /><div className="refresh"><span>{sourceLabel}</span><small>{refreshText}</small><RefreshCw size={18}/></div></div></header>
 
       <section className="finance-cards top-finance">
         <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} delta={businessDeltas.revenue} deltaTone={toneForDelta(businessDeltas.revenue.pct)} />
@@ -2167,7 +2315,7 @@ function App() {
         <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} delta={businessDeltas.cac} deltaTone={toneForDelta(businessDeltas.cac.pct, false)} />
         <FinanceCard title="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" tone={business.roas >= 2 ? 'good' : business.roas >= 1 ? 'warn' : 'bad'} active={activeBusiness === 'roas'} onClick={() => setActiveBusiness('roas')} delta={businessDeltas.roas} deltaTone={toneForDelta(businessDeltas.roas.pct)} />
       </section>
-      <BusinessMetricPanel rows={businessRows} active={activeBusiness} windowKey={businessWindow} setWindowKey={setBusinessWindow} fxText={fxText} />
+      <BusinessMetricPanel rows={allBusinessRows} active={activeBusiness} windowKey={businessWindow} setWindowKey={setBusinessWindow} />
       <DailySalesHighlights lines={productData.order_lines || []} range={activeDateRange} />
 
       <CampaignPerformanceTable attribution={campaignAttribution} />
@@ -2176,31 +2324,31 @@ function App() {
         <Card title="Frequency" value={(overall.frequency || 0).toFixed(2)} sub={march.applies ? `March ${Number(march.frequency || 0).toFixed(2)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.frequency)} vs own history`} tone={overallDelta.frequency > 20 ? 'bad' : overallDelta.frequency > 8 ? 'warn' : 'good'} rows={trendRows} metric="frequency" color="#9a1b22" />
         <Card title="CPM" value={money.format(overall.cpm || 0)} sub={march.applies ? `March ${money.format(march.cpm || 0)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.cpm)} vs own history`} tone={overallDelta.cpm > 25 ? 'bad' : overallDelta.cpm > 12 ? 'warn' : 'good'} rows={trendRows} metric="cpm" color="#c98834" />
         <Card title="Unique reach / $" value={reachPerDollar(overall).toFixed(1)} sub={march.applies ? `March ${marchReachPerDollar.toFixed(1)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.reach_per_dollar)} vs own history`} tone={overallDelta.reach_per_dollar < -10 ? 'bad' : overallDelta.reach_per_dollar < -4 ? 'warn' : 'good'} rows={trendRows} metric="reach_per_dollar" color="#1d64d8" />
-        {march.applies ? <section className="benchmark-card"><span>Vs March USA benchmark</span><div><b className={marchDelta.frequency > 20 ? 'bad' : 'warn'}>{pct(marchDelta.frequency)}</b><small>Frequency</small></div><div><b className={marchDelta.cpm > 20 ? 'bad' : 'warn'}>{pct(marchDelta.cpm)}</b><small>CPM</small></div><div><b className={marchDelta.reach_per_dollar < -8 ? 'bad' : 'good'}>{pct(marchDelta.reach_per_dollar)}</b><small>Reach / $</small></div></section> : <section className="benchmark-card muted-benchmark"><span>March baseline disabled</span><p>This chart is not a USA-only frequency view, so the USA March benchmark is intentionally hidden.</p></section>}
+        {march.applies ? <section className="benchmark-card"><span>Vs March USA benchmark</span><div><b className={marchDelta.frequency > 20 ? 'bad' : 'warn'}>{pct(marchDelta.frequency)}</b><small>Frequency</small></div><div><b className={marchDelta.cpm > 20 ? 'bad' : 'warn'}>{pct(marchDelta.cpm)}</b><small>CPM</small></div><div><b className={marchDelta.reach_per_dollar < -8 ? 'bad' : 'good'}>{pct(marchDelta.reach_per_dollar)}</b><small>Reach / $</small></div></section> : <section className="benchmark-card muted-benchmark"><span>March baseline disabled</span></section>}
       </section>
 
       <section className="leadership-zone">
-        <div className="panel-title product-title"><div><h2>Leadership tables</h2><p>Product sales and ad sales/ROAS come from Shopify order attribution. Ads leadership remains one overall Meta rollup per ad for spend, CTR, ATC, and IC.</p></div><span>{adRows.length} ads</span></div>
+        <div className="panel-title product-title"><div><h2>Leadership tables</h2></div><span>{adRows.length} ads</span></div>
         <LeadershipTables products={productRows} ads={adRows} />
       </section>
 
       <section className="change-strip">
-        <div><b>Budget changes are the priority marker</b><span>Dark red dots = budget or bid edits. Red dots = other ad set edits.</span></div>
+        <div><b>Budget changes are the priority marker</b></div>
         <strong><i className="dot budget" /> {budgetChangeCount} budget / bid edits</strong>
         <strong><i className="dot normal" /> {otherChangeCount} other edits</strong>
       </section>
 
       <DeliveryComparisonPanel comparison={deliveryComparison} shopifyComparison={deliveryShopifyComparison} />
 
-      <section className="workbench"><div className="chart-panel"><div className="panel-title"><h2>Daily delivery shape</h2><p>Dark red dots mark budget/bid changes. Dashed lines are March USA baselines. Sales are Shopify orders and partial days are hidden.</p></div><ReactECharts option={trendOption(trendRows, march, selectedChanges, productData.daily || [])} style={{ height: 438 }} /></div><aside className="rank-panel"><div className="panel-title"><h2>Ad sets ranked</h2><p>Risk comes from rising frequency/CPM plus falling unique reach per dollar.</p></div>{filtered.slice(0, 9).map((a, i) => <div className={`rank-row ${slug(a.status)}`} key={a.adset_id}><strong>{i+1}</strong><div><b>{a.adset_name}</b><small>{a.campaign_name}</small></div><span>{statusLabels[a.status]}</span></div>)}</aside></section>
+      <section className="workbench"><div className="chart-panel"><div className="panel-title"><h2>Daily delivery shape</h2></div><ReactECharts option={trendOption(trendRows, march, selectedChanges, productData.daily || [])} style={{ height: 438 }} /></div><aside className="rank-panel"><div className="panel-title"><h2>Ad sets ranked</h2></div>{filtered.slice(0, 9).map((a, i) => <div className={`rank-row ${slug(a.status)}`} key={a.adset_id}><strong>{i+1}</strong><div><b>{a.adset_name}</b><small>{a.campaign_name}</small></div><span>{statusLabels[a.status]}</span></div>)}</aside></section>
 
-      <section className="table-panel"><div className="panel-title"><h2>Ad set decision table</h2><p>Use this before scaling: healthy delivery is rising unique reach per dollar, not just higher spend. ROAS is calculated from each ad set's own spend and purchase value.</p></div><div className="table-wrap"><table><thead><tr><th>Ad set</th><th>Campaign</th><th>Status</th><th>Sales</th><th>ROAS</th><th>Meta spend</th><th>Active days</th><th>Freq</th><th>CPM</th><th>Reach / $</th><th>Freq vs hist</th><th>CPM vs hist</th><th>Reach/$ vs hist</th><th>Freq vs Mar</th><th>CPM vs Mar</th><th>Reach/$ vs Mar</th><th>Action</th></tr></thead><tbody>{filtered.map((a) => { const perf = adsetPerfById.get(a.adset_id) || {}; return <tr key={a.adset_id}><td className="name-cell"><b>{a.adset_name}</b></td><td className="name-cell">{a.campaign_name}</td><td><span className={`pill ${slug(a.status)}`}>{statusLabels[a.status]}</span></td><td>{perf.purchases || 0}</td><td>{Number(perf.roas || 0).toFixed(2)}x</td><td>{money.format(perf.spend_usd || a.current.spend || 0)}</td><td>{a.activeDays}</td><td>{a.current.frequency.toFixed(2)}</td><td>{money.format(a.current.cpm)}</td><td>{Number(a.current.reach_per_dollar || 0).toFixed(1)}</td><td className={a.histDelta.frequency > 18 ? 'bad' : a.histDelta.frequency > 8 ? 'warn' : 'good'}>{pct(a.histDelta.frequency)}</td><td className={a.histDelta.cpm > 20 ? 'bad' : a.histDelta.cpm > 10 ? 'warn' : 'good'}>{pct(a.histDelta.cpm)}</td><td className={a.histDelta.reach_per_dollar < -10 ? 'bad' : 'good'}>{pct(a.histDelta.reach_per_dollar)}</td><td>{pct(a.marchDelta.frequency)}</td><td>{pct(a.marchDelta.cpm)}</td><td>{pct(a.marchDelta.reach_per_dollar)}</td><td className="name-cell"><b>{a.recommendation}</b></td></tr>; })}</tbody></table></div></section>
+      <section className="table-panel"><div className="panel-title"><h2>Ad set decision table</h2></div><div className="table-wrap"><table><thead><tr><th>Ad set</th><th>Campaign</th><th>Status</th><th>Sales</th><th>ROAS</th><th>Meta spend</th><th>Active days</th><th>Freq</th><th>CPM</th><th>Reach / $</th><th>Freq vs hist</th><th>CPM vs hist</th><th>Reach/$ vs hist</th><th>Freq vs Mar</th><th>CPM vs Mar</th><th>Reach/$ vs Mar</th><th>Action</th></tr></thead><tbody>{filtered.map((a) => { const perf = adsetPerfById.get(a.adset_id) || {}; return <tr key={a.adset_id}><td className="name-cell"><b>{a.adset_name}</b></td><td className="name-cell">{a.campaign_name}</td><td><span className={`pill ${slug(a.status)}`}>{statusLabels[a.status]}</span></td><td>{perf.purchases || 0}</td><td>{Number(perf.roas || 0).toFixed(2)}x</td><td>{money.format(perf.spend_usd || a.current.spend || 0)}</td><td>{a.activeDays}</td><td>{a.current.frequency.toFixed(2)}</td><td>{money.format(a.current.cpm)}</td><td>{Number(a.current.reach_per_dollar || 0).toFixed(1)}</td><td className={a.histDelta.frequency > 18 ? 'bad' : a.histDelta.frequency > 8 ? 'warn' : 'good'}>{pct(a.histDelta.frequency)}</td><td className={a.histDelta.cpm > 20 ? 'bad' : a.histDelta.cpm > 10 ? 'warn' : 'good'}>{pct(a.histDelta.cpm)}</td><td className={a.histDelta.reach_per_dollar < -10 ? 'bad' : 'good'}>{pct(a.histDelta.reach_per_dollar)}</td><td>{pct(a.marchDelta.frequency)}</td><td>{pct(a.marchDelta.cpm)}</td><td>{pct(a.marchDelta.reach_per_dollar)}</td><td className="name-cell"><b>{a.recommendation}</b></td></tr>; })}</tbody></table></div></section>
 
       <section className="product-zone">
-        <div className="panel-title product-title"><div><h2>Product demand after launch</h2><p>{productSourceLabel} sold-unit view for {productData.period?.since} - {productData.period?.until}. Lines are cumulative monthly sold units by product family.</p></div><span>{(productData.families || []).reduce((a, f) => a + Number(f.units || 0), 0)} merch units</span></div>
+        <div className="panel-title product-title"><div><h2>Product demand after launch</h2></div><span>{(productData.families || []).reduce((a, f) => a + Number(f.units || 0), 0)} merch units</span></div>
         <ProductTotals families={productData.families || []} />
         <OverallProducts products={productData.products || []} />
-        <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2><p>Each line is one product family. Similar apparel categories use different color + stroke + marker shapes to stay readable.</p></div><ReactECharts option={productGrowthOption(productData)} style={{ height: 390 }} /></div><div className="country-card country-roas-card"><div className="panel-title"><h2>Country sales + ROAS</h2><p>ROAS here is Shopify country revenue divided by Meta country spend. No Meta-only purchase value is used.</p></div><div className="country-list">{(productData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); const metaCountry = countryMetaByCode.get(c.country_code); const countryRoas = shopifyCountryRoas(c, metaCountry); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span className="country-roas-number">{countryRoas.toFixed(2)}x ROAS</span></div><div className="country-metrics"><span>{c.units} units</span><span>{money.format(c.revenue_usd || 0)} Shopify</span><span>{money.format(metaCountry?.spend_usd || 0)} Meta spend</span><span>{c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} subtypes={c.subtypes || {}} /><div className="mix-labels">{entries.slice(0, 6).map(([f,u]) => <small key={f} title={mixTooltip(f, u, c.units, c.subtypes || {})}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {c.units ? Math.round((u / c.units) * 100) : 0}%</small>)}</div></div>; })}</div></div></section>
+        <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2></div><ReactECharts option={productGrowthOption(productData)} style={{ height: 390 }} /></div><div className="country-card country-roas-card"><div className="panel-title"><h2>Country sales + ROAS</h2></div><div className="country-list">{(productData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); const metaCountry = countryMetaByCode.get(c.country_code); const countryRoas = shopifyCountryRoas(c, metaCountry); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span className="country-roas-number">{countryRoas.toFixed(2)}x ROAS</span></div><div className="country-metrics"><span>{c.units} units</span><span>{money.format(c.revenue_usd || 0)} Shopify</span><span>{money.format(metaCountry?.spend_usd || 0)} Meta spend</span><span>{c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} subtypes={c.subtypes || {}} /><div className="mix-labels">{entries.slice(0, 6).map(([f,u]) => <small key={f} title={mixTooltip(f, u, c.units, c.subtypes || {})}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {c.units ? Math.round((u / c.units) * 100) : 0}%</small>)}</div></div>; })}</div></div></section>
       </section>
       <BehaviorAnalyticsModule behavior={behaviorData} collapsed />
     </section>

@@ -30,6 +30,20 @@ const refreshOnStart = process.env.REFRESH_ON_START !== 'false';
 const shopifyReportingTimezone = process.env.SHAWQ_SHOPIFY_REPORTING_TIMEZONE
   || process.env.SHOPIFY_REPORTING_TIMEZONE
   || 'Europe/Istanbul';
+const metaReportingTimezone = process.env.SHAWQ_META_REPORTING_TIMEZONE
+  || process.env.META_REPORTING_TIMEZONE
+  || 'Europe/Istanbul';
+const DEFAULT_META_LIVE_TTL_MS = 120000;
+const META_ACCOUNT_CACHE_TTL_MS = 3600000;
+const DEFAULT_FX_MAX_LOOKBACK_DAYS = 7;
+const metaLiveTtlRaw = Number(process.env.SHAWQ_META_LIVE_TTL_MS || process.env.META_LIVE_TTL_MS || DEFAULT_META_LIVE_TTL_MS);
+const fxMaxLookbackRaw = Number(process.env.SHAWQ_FX_MAX_LOOKBACK_DAYS || process.env.FX_MAX_LOOKBACK_DAYS || DEFAULT_FX_MAX_LOOKBACK_DAYS);
+const metaLiveTtlMs = Number.isFinite(metaLiveTtlRaw) && metaLiveTtlRaw > 0 ? metaLiveTtlRaw : DEFAULT_META_LIVE_TTL_MS;
+const fxMaxLookbackDays = Number.isFinite(fxMaxLookbackRaw) && fxMaxLookbackRaw >= 0 ? Math.floor(fxMaxLookbackRaw) : DEFAULT_FX_MAX_LOOKBACK_DAYS;
+let metaLiveCache = { key: '', fetchedAt: 0, payload: null };
+let metaLiveInFlight = { key: '', promise: null };
+let metaAccountCache = { fetchedAt: 0, payload: null };
+const fxCache = new Map();
 
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -96,11 +110,35 @@ function dateInTimezone(date = new Date(), timeZone = shopifyReportingTimezone) 
   }).format(date);
 }
 
+function isIsoDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+}
+
+function addDaysToIsoDate(date, days) {
+  const [year, month, day] = date.split('-').map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  utc.setUTCDate(utc.getUTCDate() + days);
+  return utc.toISOString().slice(0, 10);
+}
+
+function normalizeCurrency(value, fallback = 'USD') {
+  const currency = String(value || fallback || 'USD').trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(currency) ? currency : fallback;
+}
+
 function shopifyConfig() {
   return {
     token: process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN,
     store: process.env.SHAWQ_SHOPIFY_STORE || process.env.SHOPIFY_STORE || 'f3e7e9-2.myshopify.com',
     apiVersion: process.env.SHOPIFY_API_VERSION || '2025-10',
+  };
+}
+
+function metaConfig() {
+  return {
+    token: process.env.SHAWQ_META_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN,
+    account: (process.env.SHAWQ_META_AD_ACCOUNT_ID || process.env.META_AD_ACCOUNT_ID || '').replace(/^act_/, ''),
+    graphVersion: process.env.META_GRAPH_VERSION || 'v20.0',
   };
 }
 
@@ -323,6 +361,432 @@ function matchAttributionToMetaAd(attribution) {
   return null;
 }
 
+async function graphGet(url) {
+  const response = await fetch(url);
+  const text = await response.text();
+  if (!response.ok) throw new Error(`Meta API ${response.status}: ${text.slice(0, 1000)}`);
+  return JSON.parse(text);
+}
+
+async function getMetaAccountMetadata() {
+  const { token, account, graphVersion } = metaConfig();
+  if (!token || !account) return { currency: process.env.META_ACCOUNT_CURRENCY || 'TRY', timezone_name: metaReportingTimezone };
+  const now = Date.now();
+  if (metaAccountCache.payload && now - metaAccountCache.fetchedAt < META_ACCOUNT_CACHE_TTL_MS) return metaAccountCache.payload;
+  const base = new URL(`https://graph.facebook.com/${graphVersion}/act_${account}`);
+  base.searchParams.set('access_token', token);
+  base.searchParams.set('fields', 'currency,account_status,name,timezone_id,timezone_name,timezone_offset_hours_utc');
+  try {
+    const payload = await graphGet(base.toString());
+    metaAccountCache = { fetchedAt: now, payload };
+    return payload;
+  } catch (error) {
+    console.warn(`Could not fetch Meta metadata: ${error.message}`);
+    return { currency: process.env.META_ACCOUNT_CURRENCY || 'TRY', timezone_name: metaReportingTimezone };
+  }
+}
+
+function parseFxPayload(data, toCurrency) {
+  const to = String(toCurrency || 'USD').toUpperCase();
+  return {
+    rate: Number(data?.rate ?? data?.rates?.[to] ?? 0),
+    rate_date: data?.date || '',
+  };
+}
+
+function cachedFxRateInfo(date, fromCurrency, toCurrency) {
+  const from = normalizeCurrency(fromCurrency);
+  const to = normalizeCurrency(toCurrency);
+  if (from === to) return { rate: 1, provider: 'identity', source: 'same_currency', requested_date: date, rate_date: date, from, to };
+  if (to !== 'USD') return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(publicDataPath('adset-radar.json'), 'utf8'));
+    const match = (data.fx_rates?.rates || []).find((row) => row.date === date && Number(row.fx_to_usd || 0) > 0);
+    if (!match) return null;
+    return {
+      rate: Number(match.fx_to_usd || 0),
+      provider: match.fx_to_usd_provider || 'cached',
+      source: `cached_${match.fx_to_usd_source || 'fx_rate'}`,
+      requested_date: match.fx_to_usd_requested_date || date,
+      rate_date: match.fx_to_usd_rate_date || date,
+      from,
+      to,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchFrankfurterDailyRate(candidateDate, from, to) {
+  const url = new URL(`https://api.frankfurter.dev/v2/rate/${encodeURIComponent(from)}/${encodeURIComponent(to)}`);
+  url.searchParams.set('date', candidateDate);
+  const response = await fetch(url);
+  if (!response.ok) return null;
+  const data = await response.json();
+  const { rate, rate_date } = parseFxPayload(data, to);
+  if (!(rate > 0)) return null;
+  if (rate_date && rate_date !== candidateDate) return null;
+  return {
+    rate,
+    provider: 'Frankfurter',
+    source: 'frankfurter_v2_daily',
+    rate_date: candidateDate,
+  };
+}
+
+async function frankfurterRateWithBackoff(date, from, to) {
+  for (let lookbackDays = 0; lookbackDays <= fxMaxLookbackDays; lookbackDays += 1) {
+    const candidateDate = addDaysToIsoDate(date, -lookbackDays);
+    try {
+      const daily = await fetchFrankfurterDailyRate(candidateDate, from, to);
+      if (daily) {
+        return {
+          ...daily,
+          requested_date: date,
+          lookup_date: candidateDate,
+          lookback_days: lookbackDays,
+          source: lookbackDays ? 'frankfurter_v2_previous_day_backoff' : daily.source,
+          from,
+          to,
+        };
+      }
+    } catch {}
+  }
+  return null;
+}
+
+async function fxRateInfo(date, fromCurrency, toCurrency) {
+  const from = normalizeCurrency(fromCurrency);
+  const to = normalizeCurrency(toCurrency);
+  const cacheKey = `${date}:${from}:${to}`;
+  if (fxCache.has(cacheKey)) return fxCache.get(cacheKey);
+  const cached = isIsoDate(date) ? cachedFxRateInfo(date, from, to) : null;
+  if (cached) {
+    fxCache.set(cacheKey, cached);
+    return cached;
+  }
+  if (from === to) {
+    const identity = { rate: 1, provider: 'identity', source: 'same_currency', requested_date: date, rate_date: date, from, to };
+    fxCache.set(cacheKey, identity);
+    return identity;
+  }
+
+  if (isIsoDate(date)) {
+    const frankfurter = await frankfurterRateWithBackoff(date, from, to);
+    if (frankfurter) {
+      fxCache.set(cacheKey, frankfurter);
+      return frankfurter;
+    }
+  }
+  const fallback = { rate: 1, provider: 'fallback', source: 'identity_after_fx_failure', requested_date: date, rate_date: date, lookup_date: date, lookback_days: null, from, to };
+  fxCache.set(cacheKey, fallback);
+  return fallback;
+}
+
+async function fxContext(date, fromCurrency) {
+  const from = normalizeCurrency(fromCurrency, 'TRY');
+  const usd = await fxRateInfo(date, from, 'USD');
+  const tryRate = from === 'TRY'
+    ? { rate: 1, provider: 'identity', source: 'same_currency', requested_date: date, rate_date: date }
+    : await fxRateInfo(date, from, 'TRY');
+  return {
+    fx_to_usd: usd.rate,
+    fx_to_usd_provider: usd.provider,
+    fx_to_usd_source: usd.source,
+    fx_to_usd_requested_date: usd.requested_date,
+    fx_to_usd_rate_date: usd.rate_date,
+    fx_to_usd_lookup_date: usd.lookup_date || usd.rate_date,
+    fx_to_usd_lookback_days: usd.lookback_days ?? 0,
+    fx_to_try: tryRate.rate,
+    fx_to_try_provider: tryRate.provider,
+    fx_to_try_source: tryRate.source,
+    fx_to_try_requested_date: tryRate.requested_date,
+    fx_to_try_rate_date: tryRate.rate_date,
+    fx_to_try_lookup_date: tryRate.lookup_date || tryRate.rate_date,
+    fx_to_try_lookback_days: tryRate.lookback_days ?? 0,
+  };
+}
+
+function countryName(code) {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code;
+  } catch {
+    return code;
+  }
+}
+
+function actionLookup(actions = []) {
+  const map = new Map();
+  for (const item of actions || []) map.set(String(item.action_type || '').toLowerCase(), Number(item.value || 0));
+  return map;
+}
+
+function metricFromActions(actions = [], exact = [], includes = []) {
+  const map = actionLookup(actions);
+  for (const key of exact) {
+    const value = map.get(key.toLowerCase());
+    if (Number(value || 0) > 0) return value;
+  }
+  for (const [key, value] of map.entries()) {
+    if (includes.some((part) => key.includes(part))) return Number(value || 0);
+  }
+  return 0;
+}
+
+function numericMetric(value) {
+  if (Array.isArray(value)) return metricFromActions(value, ['outbound_click', 'link_click'], ['outbound', 'link_click']);
+  return Number(value || 0);
+}
+
+function clickThroughCtr({ impressions, inlineLinkClicks, inlineLinkCtr, outboundCtr, ctrAll }) {
+  const inlineCtr = Number(inlineLinkCtr || 0);
+  if (inlineCtr > 0) return { ctr: inlineCtr, source: 'inline_link_click_ctr' };
+  const outbound = numericMetric(outboundCtr);
+  if (outbound > 0) return { ctr: outbound, source: 'outbound_clicks_ctr' };
+  if (impressions && inlineLinkClicks) return { ctr: inlineLinkClicks / impressions * 100, source: 'computed_inline_link_clicks' };
+  return { ctr: Number(ctrAll || 0), source: 'ctr_all_fallback' };
+}
+
+async function normalizeMetaInsightRow(row, accountCurrency) {
+  const date = row.date_start;
+  const spend = Number(row.spend || 0);
+  const impressions = Number(row.impressions || 0);
+  const clicks = Number(row.clicks || 0);
+  const reach = Number(row.reach || 0);
+  const fx = await fxContext(date, accountCurrency);
+  const purchaseValue = metricFromActions(row.action_values, ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'], ['purchase']);
+  const purchases = metricFromActions(row.actions, ['offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'purchase'], ['purchase']);
+  const addToCart = metricFromActions(row.actions, ['offsite_conversion.fb_pixel_add_to_cart', 'omni_add_to_cart', 'add_to_cart'], ['add_to_cart']);
+  const checkoutInitiated = metricFromActions(row.actions, ['offsite_conversion.fb_pixel_initiate_checkout', 'omni_initiated_checkout', 'initiate_checkout', 'initiated_checkout'], ['initiate_checkout', 'initiated_checkout']);
+  const linkClicks = metricFromActions(row.actions, ['link_click'], ['link_click']);
+  const inlineLinkClicks = Number(row.inline_link_clicks || linkClicks || 0);
+  const outboundClicks = numericMetric(row.outbound_clicks);
+  const ctrAll = Number(row.ctr || (impressions ? clicks / impressions * 100 : 0));
+  const clickCtr = clickThroughCtr({ impressions, inlineLinkClicks, inlineLinkCtr: row.inline_link_click_ctr, outboundCtr: row.outbound_clicks_ctr, ctrAll });
+  const product = productTaxonomyForName(row.ad_name || row.adset_name || row.campaign_name);
+  const spend_usd = spend * fx.fx_to_usd;
+  const spend_try = spend * fx.fx_to_try;
+  const purchase_value_usd = purchaseValue * fx.fx_to_usd;
+  const purchase_value_try = purchaseValue * fx.fx_to_try;
+  return {
+    date,
+    date_start: row.date_start || date,
+    date_stop: row.date_stop || date,
+    country_code: row.country || '',
+    country: row.country ? countryName(row.country) : '',
+    campaign_id: row.campaign_id || '',
+    campaign_name: row.campaign_name || '',
+    adset_id: row.adset_id || '',
+    adset_name: row.adset_name || '',
+    ad_id: row.ad_id || '',
+    ad_name: row.ad_name || '',
+    product_family: product.family,
+    product_subtype: product.subtype,
+    spend,
+    spend_currency: accountCurrency,
+    ...fx,
+    spend_usd,
+    spend_try,
+    impressions,
+    reach,
+    frequency: Number(row.frequency || (reach ? impressions / reach : 0)),
+    clicks_all: clicks,
+    link_clicks: inlineLinkClicks,
+    outbound_clicks: outboundClicks,
+    ctr_all: ctrAll,
+    ctr: clickCtr.ctr,
+    ctr_source: clickCtr.source,
+    cpm: Number(row.cpm || (impressions ? spend / impressions * 1000 : 0)),
+    cpm_usd: impressions ? spend_usd / impressions * 1000 : 0,
+    cpm_try: impressions ? spend_try / impressions * 1000 : 0,
+    purchases,
+    add_to_cart: addToCart,
+    checkout_initiated: checkoutInitiated,
+    purchase_value: purchaseValue,
+    purchase_value_usd,
+    purchase_value_try,
+    roas: spend ? purchaseValue / spend : 0,
+    cpa_usd: purchases ? spend_usd / purchases : 0,
+    cpa_try: purchases ? spend_try / purchases : 0,
+    live_today: true,
+  };
+}
+
+const liveAccountMetaFields = [
+  'date_start', 'date_stop',
+  'spend', 'impressions', 'reach', 'frequency', 'cpm', 'ctr', 'clicks',
+  'inline_link_clicks', 'inline_link_click_ctr', 'outbound_clicks', 'outbound_clicks_ctr',
+  'actions', 'action_values', 'purchase_roas',
+].join(',');
+
+const liveMetaFields = [
+  'date_start', 'date_stop', 'campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name',
+  'spend', 'impressions', 'reach', 'frequency', 'cpm', 'ctr', 'clicks',
+  'inline_link_clicks', 'inline_link_click_ctr', 'outbound_clicks', 'outbound_clicks_ctr',
+  'actions', 'action_values', 'purchase_roas',
+].join(',');
+
+async function getMetaInsights({ level, date, breakdowns }) {
+  const { token, account, graphVersion } = metaConfig();
+  const base = new URL(`https://graph.facebook.com/${graphVersion}/act_${account}/insights`);
+  base.searchParams.set('access_token', token);
+  base.searchParams.set('level', level);
+  base.searchParams.set('time_increment', '1');
+  base.searchParams.set('limit', '500');
+  base.searchParams.set('fields', level === 'account' ? liveAccountMetaFields : liveMetaFields);
+  base.searchParams.set('time_range', JSON.stringify({ since: date, until: date }));
+  if (breakdowns) base.searchParams.set('breakdowns', breakdowns);
+  let next = base.toString();
+  const rows = [];
+  while (next) {
+    const data = await graphGet(next);
+    rows.push(...(data.data || []));
+    next = data.paging?.next || null;
+  }
+  return rows;
+}
+
+function aggregateMetaRows(rows = [], seed = {}) {
+  const out = {
+    ...seed,
+    spend: 0,
+    spend_usd: 0,
+    spend_try: 0,
+    impressions: 0,
+    reach: 0,
+    clicks_all: 0,
+    link_clicks: 0,
+    outbound_clicks: 0,
+    purchases: 0,
+    add_to_cart: 0,
+    checkout_initiated: 0,
+    purchase_value: 0,
+    purchase_value_usd: 0,
+    purchase_value_try: 0,
+  };
+  for (const row of rows) {
+    for (const key of ['spend', 'spend_usd', 'spend_try', 'impressions', 'reach', 'clicks_all', 'link_clicks', 'outbound_clicks', 'purchases', 'add_to_cart', 'checkout_initiated', 'purchase_value', 'purchase_value_usd', 'purchase_value_try']) out[key] += Number(row[key] || 0);
+  }
+  out.frequency = out.reach ? out.impressions / out.reach : 0;
+  out.ctr_all = out.impressions ? out.clicks_all / out.impressions * 100 : 0;
+  out.ctr = out.impressions ? out.link_clicks / out.impressions * 100 : 0;
+  out.ctr_source = 'live_aggregate_link_clicks';
+  out.cpm = out.impressions ? out.spend / out.impressions * 1000 : 0;
+  out.cpm_usd = out.impressions ? out.spend_usd / out.impressions * 1000 : 0;
+  out.cpm_try = out.impressions ? out.spend_try / out.impressions * 1000 : 0;
+  out.reach_per_dollar = out.spend_usd ? out.reach / out.spend_usd : 0;
+  out.roas = out.spend ? out.purchase_value / out.spend : 0;
+  out.cpa_usd = out.purchases ? out.spend_usd / out.purchases : 0;
+  out.cpa_try = out.purchases ? out.spend_try / out.purchases : 0;
+  return out;
+}
+
+function emptyLiveMetaPayload({ ok = false, configured = false, error = '', status = 'unavailable', accountCurrency = '', date = dateInTimezone(new Date(), metaReportingTimezone) } = {}) {
+  return {
+    ok,
+    configured,
+    source: 'meta_live_insights',
+    status,
+    error,
+    date,
+    timezone: metaReportingTimezone,
+    checked_at: new Date().toISOString(),
+    ttl_ms: metaLiveTtlMs,
+    account_currency: accountCurrency,
+    cached: false,
+    cache_age_ms: 0,
+    account_daily_metrics: [],
+    ad_country_daily: [],
+    adset_daily: [],
+    data_coverage: {
+      account_rows: 0,
+      ad_country_daily_rows: 0,
+      adset_daily_rows: 0,
+    },
+  };
+}
+
+function settledRows(result, label, errors) {
+  if (result.status === 'fulfilled') return result.value;
+  errors.push({ scope: label, error: result.reason?.message || String(result.reason || 'Meta request failed') });
+  return [];
+}
+
+async function fetchLiveMetaSpend() {
+  const { token, account } = metaConfig();
+  const date = dateInTimezone(new Date(), metaReportingTimezone);
+  if (!token || !account) {
+    return emptyLiveMetaPayload({
+      configured: false,
+      status: 'not_configured',
+      error: 'Meta token or account is not configured',
+      date,
+    });
+  }
+  const accountMeta = await getMetaAccountMetadata();
+  const accountCurrency = normalizeCurrency(accountMeta.currency || process.env.META_ACCOUNT_CURRENCY || 'TRY', 'TRY');
+  const cacheKey = `${date}:${accountCurrency}`;
+  const now = Date.now();
+  if (metaLiveCache.payload && metaLiveCache.key === cacheKey && now - metaLiveCache.fetchedAt < metaLiveTtlMs) {
+    return { ...metaLiveCache.payload, cached: true, cache_age_ms: now - metaLiveCache.fetchedAt };
+  }
+  if (metaLiveInFlight.promise && metaLiveInFlight.key === cacheKey) return metaLiveInFlight.promise;
+
+  const promise = (async () => {
+    const errors = [];
+    const [accountResult, adCountryResult, adsetCountryResult] = await Promise.allSettled([
+      getMetaInsights({ level: 'account', date }),
+      getMetaInsights({ level: 'ad', date, breakdowns: 'country' }),
+      getMetaInsights({ level: 'adset', date, breakdowns: 'country' }),
+    ]);
+    const accountRaw = settledRows(accountResult, 'account', errors);
+    const adCountryRaw = settledRows(adCountryResult, 'ad_country', errors);
+    const adsetCountryRaw = settledRows(adsetCountryResult, 'adset_country', errors);
+    if (errors.length === 3) throw new Error(errors.map((entry) => `${entry.scope}: ${entry.error}`).join(' | '));
+
+    const accountRows = [];
+    for (const row of accountRaw) accountRows.push(await normalizeMetaInsightRow(row, accountCurrency));
+    const adCountryDaily = [];
+    for (const row of adCountryRaw) adCountryDaily.push(await normalizeMetaInsightRow(row, accountCurrency));
+    const adsetDaily = [];
+    for (const row of adsetCountryRaw) adsetDaily.push(await normalizeMetaInsightRow(row, accountCurrency));
+    const dayFx = await fxContext(date, accountCurrency);
+    const accountDaily = accountRows[0]
+      ? { ...accountRows[0], live_today: true }
+      : aggregateMetaRows(adCountryDaily, { date, date_start: date, date_stop: date, spend_currency: accountCurrency, ...dayFx, live_today: true });
+    const payload = {
+      ok: true,
+      configured: true,
+      source: 'meta_live_insights',
+      status: errors.length ? 'partial' : 'fresh',
+      date,
+      timezone: metaReportingTimezone,
+      checked_at: new Date().toISOString(),
+      ttl_ms: metaLiveTtlMs,
+      account_currency: accountCurrency,
+      cached: false,
+      cache_age_ms: 0,
+      warnings: errors,
+      account_daily_metrics: [accountDaily],
+      ad_country_daily: adCountryDaily,
+      adset_daily: adsetDaily,
+      data_coverage: {
+        account_rows: accountRows.length,
+        ad_country_daily_rows: adCountryDaily.length,
+        adset_daily_rows: adsetDaily.length,
+      },
+    };
+    metaLiveCache = { key: cacheKey, fetchedAt: Date.now(), payload };
+    return payload;
+  })();
+  metaLiveInFlight = { key: cacheKey, promise };
+  try {
+    return await promise;
+  } finally {
+    if (metaLiveInFlight.promise === promise) metaLiveInFlight = { key: '', promise: null };
+  }
+}
+
 function summarizeOrder(order) {
   const lineItems = order.line_items || [];
   const itemCount = lineItems.reduce((total, item) => total + Number(item.quantity || 0), 0);
@@ -493,7 +957,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'access-control-allow-origin': '*',
-      'access-control-allow-methods': 'POST, OPTIONS',
+      'access-control-allow-methods': 'GET, POST, OPTIONS',
       'access-control-allow-headers': 'content-type, x-session-event-key',
       'access-control-max-age': '86400',
     });
@@ -538,6 +1002,28 @@ const server = http.createServer(async (req, res) => {
       send(res, payload.ok ? 200 : 503, JSON.stringify(payload));
     } catch (error) {
       send(res, 500, JSON.stringify({ ok: false, configured: true, error: error.message, sale: null }));
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/meta/live-spend') {
+    if (req.method !== 'GET') {
+      send(res, 405, JSON.stringify({ ok: false, error: 'method not allowed' }));
+      return;
+    }
+    try {
+      const payload = await fetchLiveMetaSpend();
+      send(res, payload.ok ? 200 : 503, JSON.stringify(payload));
+    } catch (error) {
+      const date = dateInTimezone(new Date(), metaReportingTimezone);
+      const accountCurrency = normalizeCurrency(process.env.META_ACCOUNT_CURRENCY || 'TRY', 'TRY');
+      send(res, 502, JSON.stringify(emptyLiveMetaPayload({
+        configured: true,
+        status: 'meta_api_error',
+        error: error.message,
+        accountCurrency,
+        date,
+      })));
     }
     return;
   }
