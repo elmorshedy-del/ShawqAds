@@ -894,6 +894,30 @@ function periodDeltaFromRows(currentRows, previousRows, key, label) {
   };
 }
 
+function elapsedReportingDayShare(date = new Date(), timeZone = REPORTING_TIMEZONE) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+    .filter((part) => part.type !== 'literal')
+    .map((part) => [part.type, Number(part.value)]));
+  const seconds = (Number(parts.hour || 0) * 3600) + (Number(parts.minute || 0) * 60) + Number(parts.second || 0);
+  return Math.min(1, Math.max(1 / 86400, seconds / 86400));
+}
+
+function scaleBusinessRows(rows = [], share = 1) {
+  return (rows || []).map((row) => ({
+    ...row,
+    revenue_usd: Number(row.revenue_usd || 0) * share,
+    spend_usd: Number(row.spend_usd || 0) * share,
+    orders: Number(row.orders || 0) * share,
+    units: Number(row.units || 0) * share,
+  }));
+}
+
 function fallbackPeriodDelta(rows, key) {
   const sorted = [...(rows || [])].sort((a, b) => a.date.localeCompare(b.date));
   if (sorted.length < 2) return { pct: 0, absolute: 0, label: 'no prior period' };
@@ -912,7 +936,9 @@ function businessPeriodDelta(rows, key, activeRange) {
   const previousRange = { since: shiftDate(activeRange.since, -days), until: shiftDate(activeRange.until, -days) };
   const previousRows = filterRowsByDateRange(sorted, previousRange);
   if (previousRows.length) {
-    return periodDeltaFromRows(currentRows, previousRows, key, days === 1 ? 'vs previous day' : 'vs previous period');
+    const isDevelopingDay = days === 1 && activeRange.since === activeRange.until && activeRange.until === currentReportingDay();
+    const comparisonRows = isDevelopingDay ? scaleBusinessRows(previousRows, elapsedReportingDayShare()) : previousRows;
+    return periodDeltaFromRows(currentRows, comparisonRows, key, isDevelopingDay ? 'vs same time previous day' : days === 1 ? 'vs previous day' : 'vs previous period');
   }
   return fallbackPeriodDelta(currentRows, key);
 }

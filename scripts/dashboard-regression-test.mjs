@@ -18,6 +18,18 @@ assertIncludes(
 
 assertIncludes(
   app,
+  'elapsedReportingDayShare',
+  'Business card deltas for a developing day must compare against the same elapsed reporting-day share of the previous day.'
+);
+
+assertIncludes(
+  app,
+  'vs same time previous day',
+  'Business card delta labels must say same time previous day for the developing day comparison.'
+);
+
+assertIncludes(
+  app,
   'Developing today',
   'Business unfold chart must mark the current Istanbul day as a developing/dashed point instead of a misleading solid zero drop.'
 );
