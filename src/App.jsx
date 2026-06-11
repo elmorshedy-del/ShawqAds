@@ -794,9 +794,31 @@ function presetSubLabel(preset, bounds) {
   if (preset === 'custom') return 'Choose exact start and end';
   return range.since === range.until ? range.since : `${range.since} - ${range.until}`;
 }
-function shortLabel(value, max = 28) {
-  const text = String(value || '');
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+function wrapChartLabel(value, maxLineLength = 18) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    if (word.length > maxLineLength) {
+      if (line) {
+        lines.push(line);
+        line = '';
+      }
+      for (let i = 0; i < word.length; i += maxLineLength) lines.push(word.slice(i, i + maxLineLength));
+      continue;
+    }
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > maxLineLength) {
+      if (line) lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.join('\n');
 }
 function countryFlag(code) {
   const cc = String(code || '').trim().toUpperCase();
@@ -1388,9 +1410,9 @@ function productLeadershipOption(products) {
         return `<b>${r.product}</b><br/>Family: ${r.family || 'Unknown'}<br/>Units sold: ${r.units || 0}<br/>Revenue: ${money.format(r.revenue_usd || 0)}`;
       },
     },
-    grid: { left: 168, right: 32, top: 20, bottom: 24 },
+    grid: { left: 240, right: 32, top: 20, bottom: 24 },
     xAxis: { type: 'value', name: 'Units sold', axisLabel: { color: '#697386' }, splitLine: { lineStyle: { color: '#ece7db', type: 'dashed' } } },
-    yAxis: { type: 'category', data: rows.map((r) => shortLabel(r.product, 30)), axisLabel: { color: '#344054', fontWeight: 700, fontSize: 10, width: 150, overflow: 'truncate' } },
+    yAxis: { type: 'category', data: rows.map((r) => r.product || 'Unknown product'), axisLabel: { color: '#344054', fontWeight: 700, fontSize: 10, lineHeight: 13, width: 220, overflow: 'break', formatter: (value) => wrapChartLabel(value, 24) } },
     series: [{ name: 'Sales units', type: 'bar', data: rows.map((r) => Number(r.units || 0)), barMaxWidth: 16, itemStyle: { borderRadius: [0, 8, 8, 0] }, label: { show: true, position: 'right', formatter: '{c}' } }],
   };
 }
@@ -1410,8 +1432,8 @@ function adLeadershipOption(ads) {
       },
     },
     legend: { top: 0, type: 'scroll', textStyle: { color: '#394150', fontWeight: 800 } },
-    grid: { left: 44, right: 56, top: 58, bottom: 92 },
-    xAxis: { type: 'category', data: rows.map((r) => shortLabel(r.ad_name, 18)), axisLabel: { color: '#697386', rotate: 42, interval: 0 }, axisLine: { lineStyle: { color: '#d8d4ca' } } },
+    grid: { left: 44, right: 56, top: 58, bottom: 142 },
+    xAxis: { type: 'category', data: rows.map((r) => r.ad_name || 'Unknown ad'), axisLabel: { color: '#697386', rotate: 34, interval: 0, lineHeight: 12, width: 96, overflow: 'break', formatter: (value) => wrapChartLabel(value, 13) }, axisLine: { lineStyle: { color: '#d8d4ca' } } },
     yAxis: [
       { type: 'value', name: 'Funnel counts', axisLabel: { color: '#697386' }, splitLine: { lineStyle: { color: '#ece7db', type: 'dashed' } } },
       { type: 'value', name: 'CTR / ROAS', axisLabel: { color: '#1d64d8' }, splitLine: { show: false } },
