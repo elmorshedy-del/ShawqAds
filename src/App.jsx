@@ -2380,11 +2380,15 @@ function App() {
   }, []);
 
   const fallbackMetaData = useMemo(() => fallbackData(), []);
+  const fallbackProductData = useMemo(() => fallbackShopify(), []);
+  const metaDataLoaded = raw !== null;
+  const shopifyDataLoaded = shopify !== null;
   const staticBaseData = raw || fallbackMetaData;
+  const staticProductData = shopify || fallbackProductData;
   const baseData = useMemo(() => mergeLiveTodayMeta(staticBaseData, metaMonitor.live), [staticBaseData, metaMonitor.live]);
   const baseProductData = useMemo(
-    () => mergeLiveTodayShopify(shopify || fallbackShopify(), saleMonitor.todaySummary),
-    [shopify, saleMonitor.todaySummary]
+    () => mergeLiveTodayShopify(staticProductData, saleMonitor.todaySummary),
+    [staticProductData, saleMonitor.todaySummary]
   );
   const baseBehaviorData = behaviorRaw || fallbackBehavior();
   const loadedBounds = useMemo(() => loadedDateRange(baseData, baseProductData), [baseData, baseProductData]);
@@ -2444,7 +2448,11 @@ function App() {
   const hist = { frequency: avg(histRows, 'frequency'), cpm: avg(histRows, 'cpm'), reach: avg(histRows, 'reach'), reach_per_dollar: avg(histRows, 'reach_per_dollar') };
   const overallDelta = { frequency: delta(overall.frequency, hist.frequency), cpm: delta(overall.cpm, hist.cpm), reach: delta(overall.reach, hist.reach), reach_per_dollar: delta(reachPerDollar(overall), hist.reach_per_dollar) };
   const marchDelta = { frequency: delta(overall.frequency, march.frequency), cpm: delta(overall.cpm, march.cpm), reach: delta(overall.reach, march.reach), reach_per_dollar: delta(reachPerDollar(overall), marchReachPerDollar) };
-  const sourceLabel = data.source === 'sample-data'
+  const metaFallbackActive = metaDataLoaded && data.source === 'sample-data';
+  const shopifyFallbackActive = shopifyDataLoaded && productData.source === 'sample-shopify';
+  const sourceLabel = !metaDataLoaded
+    ? 'Meta data loading'
+    : metaFallbackActive
     ? 'Sample fallback'
     : metaMonitor.status === 'not_configured'
       ? 'Meta API not configured'
@@ -2453,8 +2461,6 @@ function App() {
         : metaMonitor.status === 'checking'
           ? 'Meta API checking'
           : 'Meta API live';
-  const metaFallbackActive = data.source === 'sample-data';
-  const shopifyFallbackActive = productData.source === 'sample-shopify';
   const refreshText = metaMonitor.checkedAt
     ? `Meta checked ${saleTime(metaMonitor.checkedAt)}`
     : `Refreshed ${data.generated_at ? new Date(data.generated_at).toLocaleString() : 'now'}`;
@@ -2515,8 +2521,8 @@ function App() {
             <div className="meta-live-head"><span>{sourceLabel}</span><RefreshCw size={18}/></div>
             <small>{refreshText}</small>
             <div className="meta-live-grid">
-              <div><em>Sync health</em><b>{metaFallbackActive ? 'Fallback' : metaMonitor.status === 'offline' ? 'Offline' : 'Live'}</b></div>
-              <div><em>Shopify data</em><b>{shopifyFallbackActive ? 'Fallback' : 'Live'}</b></div>
+              <div><em>Sync health</em><b>{!metaDataLoaded ? 'Loading' : metaFallbackActive ? 'Fallback' : metaMonitor.status === 'offline' ? 'Offline' : 'Live'}</b></div>
+              <div><em>Shopify data</em><b>{!shopifyDataLoaded ? 'Loading' : shopifyFallbackActive ? 'Fallback' : 'Live'}</b></div>
             </div>
           </div>
         </section>
