@@ -2827,3 +2827,64 @@ body{
 @media(max-width:34rem){
   .top-finance{grid-template-columns:1fr}
 }
+
+/* Final readability override: no meaningful text should be cut off. */
+.top-finance{
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,17.5rem),1fr))!important;
+}
+
+.top-finance .finance-card{
+  min-height:12.75rem;
+  padding:1.25rem!important;
+}
+
+.top-finance .finance-card strong,
+.finance-card-head .trend-badge,
+.finance-card-head .trend-badge small,
+.sale-main em,
+.sale-items em,
+.sale-source,
+.leader-card b,
+.leader-card small,
+.campaign-node-title b,
+.campaign-node-title small,
+.metric-chip b,
+.metric-chip small,
+.metric-chip em,
+td.name-cell,
+td.name-cell b{
+  max-width:none!important;
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  overflow-wrap:anywhere!important;
+}
+
+.top-finance .finance-card strong{
+  font-size:clamp(1.85rem,2vw,2.35rem);
+  line-height:1.02;
+}
+
+.finance-card-head{
+  align-items:flex-start;
+  gap:.75rem;
+}
+
+.finance-card-head .trend-badge{
+  flex:0 1 auto;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  row-gap:.15rem;
+}
+
+.sale-items em,
+.sale-source{
+  border-radius:.9rem!important;
+  line-height:1.25!important;
+}
+
+@media(max-width:48rem){
+  .top-finance{
+    grid-template-columns:1fr!important;
+  }
+}
