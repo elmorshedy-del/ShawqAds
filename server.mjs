@@ -121,6 +121,36 @@ function addDaysToIsoDate(date, days) {
   return utc.toISOString().slice(0, 10);
 }
 
+function zonedDateTimeToUtcIso(date, timeZone, endOfDay = false) {
+  const [year, month, day] = String(date || '').split('-').map(Number);
+  const hour = endOfDay ? 23 : 0;
+  const minute = endOfDay ? 59 : 0;
+  const second = endOfDay ? 59 : 0;
+  const millisecond = endOfDay ? 999 : 0;
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second, millisecond);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = Object.fromEntries(formatter
+    .formatToParts(new Date(utcGuess))
+    .filter((part) => part.type !== 'literal')
+    .map((part) => [part.type, Number(part.value)]));
+  const zonedAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, millisecond);
+  return new Date(utcGuess - (zonedAsUtc - utcGuess)).toISOString();
+}
+
+function nextLinkUrl(linkHeader = '') {
+  const next = String(linkHeader || '').split(',').find((part) => part.includes('rel="next"'));
+  return next ? new URL(next.slice(next.indexOf('<') + 1, next.indexOf('>'))) : null;
+}
+
 function normalizeCurrency(value, fallback = 'USD') {
   const currency = String(value || fallback || 'USD').trim().toUpperCase();
   return /^[A-Z]{3}$/.test(currency) ? currency : fallback;
@@ -919,23 +949,36 @@ async function fetchLatestShopifySale() {
   const { token, store, apiVersion } = shopifyConfig();
   if (!token || !store) return { ok: false, configured: false, error: 'Shopify token or store is not configured', sale: null };
 
-  const url = new URL(`https://${store}/admin/api/${apiVersion}/orders.json`);
+  const reportingDay = dateInTimezone(new Date(), shopifyReportingTimezone);
+  let url = new URL(`https://${store}/admin/api/${apiVersion}/orders.json`);
   url.searchParams.set('status', 'any');
-  url.searchParams.set('limit', '100');
+  url.searchParams.set('limit', '250');
+  url.searchParams.set('created_at_min', zonedDateTimeToUtcIso(reportingDay, shopifyReportingTimezone, false));
+  url.searchParams.set('created_at_max', zonedDateTimeToUtcIso(reportingDay, shopifyReportingTimezone, true));
   url.searchParams.set('order', 'created_at desc');
   url.searchParams.set('fields', 'id,name,created_at,cancelled_at,financial_status,current_total_price,total_price,total_tip_received,current_total_tip_received,currency,presentment_currency,line_items,shipping_address,billing_address,landing_site,landing_site_ref,referring_site,source_name,source_identifier,note_attributes,tags');
 
-  const response = await fetch(url, { headers: { 'X-Shopify-Access-Token': token } });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`Shopify latest-sale ${response.status}: ${text.slice(0, 600)}`);
-  const data = JSON.parse(text);
+  const orders = [];
+  let pages = 0;
+  while (url && pages < 20) {
+    pages += 1;
+    const response = await fetch(url, { headers: { 'X-Shopify-Access-Token': token } });
+    const text = await response.text();
+    if (!response.ok) throw new Error(`Shopify latest-sale ${response.status}: ${text.slice(0, 600)}`);
+    const data = JSON.parse(text);
+    orders.push(...(data.orders || []));
+    url = nextLinkUrl(response.headers.get('link') || '');
+  }
+
   const includeStatus = new Set(['paid', 'partially_paid', 'partially_refunded']);
-  const paidOrders = (data.orders || []).filter((order) => !order.cancelled_at && includeStatus.has(order.financial_status));
+  const paidOrders = orders.filter((order) => !order.cancelled_at && includeStatus.has(order.financial_status));
   const sale = paidOrders[0];
   return {
     ok: true,
     configured: true,
     checked_at: new Date().toISOString(),
+    reporting_day: reportingDay,
+    pages_fetched: pages,
     sale: sale ? summarizeOrder(sale) : null,
     today_summary: summarizeCurrentDayOrders(paidOrders),
   };

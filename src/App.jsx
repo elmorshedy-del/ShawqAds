@@ -894,6 +894,10 @@ function periodDeltaFromRows(currentRows, previousRows, key, label) {
   };
 }
 
+function emptyPeriodDelta(key, label = 'no prior period') {
+  return periodDeltaFromRows([], [], key, label);
+}
+
 function elapsedReportingDayShare(date = new Date(), timeZone = REPORTING_TIMEZONE) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -931,7 +935,7 @@ function businessPeriodDelta(rows, key, activeRange) {
   const sorted = [...(rows || [])].sort((a, b) => a.date.localeCompare(b.date));
   if (!activeRange?.since || !activeRange?.until) return fallbackPeriodDelta(sorted, key);
   const currentRows = filterRowsByDateRange(sorted, activeRange);
-  if (!currentRows.length) return fallbackPeriodDelta(sorted, key);
+  if (!currentRows.length) return emptyPeriodDelta(key, 'no current data');
   const days = dayCount(activeRange);
   const previousRange = { since: shiftDate(activeRange.since, -days), until: shiftDate(activeRange.until, -days) };
   const previousRows = filterRowsByDateRange(sorted, previousRange);
@@ -940,7 +944,7 @@ function businessPeriodDelta(rows, key, activeRange) {
     const comparisonRows = isDevelopingDay ? scaleBusinessRows(previousRows, elapsedReportingDayShare()) : previousRows;
     return periodDeltaFromRows(currentRows, comparisonRows, key, isDevelopingDay ? 'vs same time previous day' : days === 1 ? 'vs previous day' : 'vs previous period');
   }
-  return fallbackPeriodDelta(currentRows, key);
+  return periodDeltaFromRows(currentRows, [], key, 'no prior period');
 }
 
 function toneForDelta(value, higherIsGood = true) {
@@ -1294,10 +1298,22 @@ function businessSeriesData(rows, metric) {
   return (rows || []).map((row) => (row ? Number(row[metric.key] || 0) : null));
 }
 
+function businessAxisLabel(value, active) {
+  const n = Number(value || 0);
+  if (active === 'roas') return `${Number(n.toFixed(1))}x`;
+  if (active === 'sales') return compact(n);
+  if (['cac', 'aov', 'spend', 'revenue'].includes(active)) {
+    if (Math.abs(n) >= 1000) return `$${Number((n / 1000).toFixed(Math.abs(n) >= 10000 ? 0 : 1))}k`;
+    return `$${Math.round(n)}`;
+  }
+  return compact(n);
+}
+
 function businessTrendOption(rows, active, reportingDay = currentReportingDay()) {
   const metric = businessMetricConfig(active);
   const trendRows = businessTrendPresentationRows(rows, reportingDay);
   const chartRows = trendRows.rows;
+  const xLabelStep = Math.max(1, Math.ceil(chartRows.length / 6));
   return {
     color: [metric.color],
     tooltip: {
@@ -1311,9 +1327,32 @@ function businessTrendOption(rows, active, reportingDay = currentReportingDay())
         return `<b>${r.date || ''}</b>${developing}<br/>${metric.label}: ${metric.formatter(Number(r[metric.key] || 0))}<br/>Revenue: ${money.format(r.revenue_usd)}<br/>Spend: ${money.format(r.spend_usd)}<br/>Items sold: ${r.units || 0}<br/>Orders: ${r.orders || 0}<br/>AOV: ${r.orders ? money.format(r.aov) : 'n/a'}<br/>CAC: ${r.orders ? money.format(r.cac) : 'n/a'}<br/>ROAS: ${r.roas ? r.roas.toFixed(2) : 'n/a'}x`;
       },
     },
-    grid: { left: 54, right: 28, top: 20, bottom: 38 },
-    xAxis: { type: 'category', data: chartRows.map((r) => r.date), axisLabel: { color: '#697386' }, axisLine: { lineStyle: { color: '#d8d4ca' } } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: '#697386', formatter: (v) => active === 'roas' ? `${v}x` : active === 'cac' || active === 'aov' || active === 'spend' || active === 'revenue' ? `$${v}` : v }, splitLine: { lineStyle: { color: '#f0dce8', type: 'dashed' } } },
+    grid: { left: 62, right: 30, top: 22, bottom: 46 },
+    xAxis: {
+      type: 'category',
+      data: chartRows.map((r) => r.date),
+      axisTick: { show: false },
+      axisLabel: {
+        color: '#697386',
+        hideOverlap: true,
+        interval: (index) => index === chartRows.length - 1 || index % xLabelStep === 0,
+        margin: 12,
+        formatter: (value) => String(value || '').slice(5),
+      },
+      axisLine: { lineStyle: { color: '#d8d4ca' } },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      splitNumber: 4,
+      axisTick: { show: false },
+      axisLabel: {
+        color: '#697386',
+        margin: 12,
+        formatter: (value) => businessAxisLabel(value, active),
+      },
+      splitLine: { lineStyle: { color: '#f0dce8', type: 'dashed' } },
+    },
     series: [
       { name: metric.label, type: 'line', smooth: true, symbolSize: 7, connectNulls: false, data: businessSeriesData(trendRows.solidRows, metric), lineStyle: { width: 4 }, areaStyle: { opacity: 0.12 } },
       trendRows.hasDeveloping ? { name: 'Developing today', type: 'line', smooth: true, symbolSize: 9, connectNulls: false, data: businessSeriesData(trendRows.developingRows, metric), lineStyle: { width: 3, type: 'dashed', opacity: 0.95 }, itemStyle: { color: metric.color, borderColor: '#fff', borderWidth: 2 }, z: 3 } : null,
@@ -1388,7 +1427,8 @@ function adLeadershipOption(ads) {
 }
 
 function Card({ title, value, sub, deltaValue, tone, rows, metric, color }) {
-  return <section className="metric-card"><div className="metric-copy"><span>{title}</span><strong>{value}</strong><small>{sub}</small><em className={tone}>{deltaValue}</em></div><div className="spark"><ReactECharts option={sparkOption(rows, metric, color)} style={{ height: 72 }} /></div></section>;
+  const hasSparkData = (rows || []).some((row) => Number(row?.[metric] || 0) > 0);
+  return <section className="metric-card"><div className="metric-copy"><span>{title}</span><strong>{value}</strong><small>{sub}</small><em className={tone}>{deltaValue}</em></div>{hasSparkData ? <div className="spark"><ReactECharts option={sparkOption(rows, metric, color)} style={{ height: 72 }} /></div> : <div className="spark spark-empty" aria-hidden="true" />}</section>;
 }
 
 function TrendBadge({ delta, tone }) {
@@ -1399,8 +1439,24 @@ function TrendBadge({ delta, tone }) {
   return <em className={`trend-badge ${tone || (up ? 'good' : 'bad')}`}><i>{marker}</i>{Math.abs(value).toFixed(1)}% <small>{delta.label}</small></em>;
 }
 
-function FinanceCard({ title, value, sub, tone = 'neutral', active, onClick, delta, deltaTone }) {
-  return <button type="button" className={`finance-card ${tone} ${active ? 'active' : ''}`} onClick={onClick}><span>{title}</span><strong>{value}</strong><small>{sub}</small><TrendBadge delta={delta} tone={deltaTone} /></button>;
+function FinanceCard({ title, value, sub, tone = 'neutral', active, onClick, delta, deltaTone, sparkRows = [], sparkMetric, sparkColor = '#d63f8c' }) {
+  const chartRows = (sparkRows || []).slice(-12);
+  const hasCurrentValue = Number(delta?.current || 0) > 0;
+  return <button type="button" className={`finance-card ${tone} ${active ? 'active' : ''}`} onClick={onClick}>
+    <div className="finance-card-head">
+      <span>{title}</span>
+      <TrendBadge delta={delta} tone={deltaTone} />
+    </div>
+    <strong>{value}</strong>
+    <small>{sub}</small>
+    {sparkMetric && chartRows.length && hasCurrentValue ? <div className="finance-spark" aria-hidden="true"><ReactECharts option={sparkOption(chartRows, sparkMetric, sparkColor)} style={{ height: 48 }} /></div> : <div className="finance-spark finance-spark-empty" aria-hidden="true" />}
+  </button>;
+}
+
+function DataFallbackNotice({ metaFallback, shopifyFallback }) {
+  if (!metaFallback && !shopifyFallback) return null;
+  const sources = [metaFallback ? 'Meta delivery data' : null, shopifyFallback ? 'Shopify commerce data' : null].filter(Boolean).join(' and ');
+  return <div className="data-fallback-notice"><b>Sample fallback active</b><span>{sources} did not load from the live export/API, so commerce totals should not be treated as final until the source reconnects.</span></div>;
 }
 
 function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
@@ -2397,6 +2453,8 @@ function App() {
         : metaMonitor.status === 'checking'
           ? 'Meta API checking'
           : 'Meta API live';
+  const metaFallbackActive = data.source === 'sample-data';
+  const shopifyFallbackActive = productData.source === 'sample-shopify';
   const refreshText = metaMonitor.checkedAt
     ? `Meta checked ${saleTime(metaMonitor.checkedAt)}`
     : `Refreshed ${data.generated_at ? new Date(data.generated_at).toLocaleString() : 'now'}`;
@@ -2453,19 +2511,27 @@ function App() {
       <div className="dashboard-body">
         <section className="status-grid">
           <SaleMonitor monitor={saleMonitor} soundEnabled={saleSoundEnabled} onEnableSound={enableSaleSound} />
-          <div className="refresh"><span>{sourceLabel}</span><small>{refreshText}</small><RefreshCw size={18}/></div>
+          <div className="refresh meta-live-card">
+            <div className="meta-live-head"><span>{sourceLabel}</span><RefreshCw size={18}/></div>
+            <small>{refreshText}</small>
+            <div className="meta-live-grid">
+              <div><em>Sync health</em><b>{metaFallbackActive ? 'Fallback' : metaMonitor.status === 'offline' ? 'Offline' : 'Live'}</b></div>
+              <div><em>Shopify data</em><b>{shopifyFallbackActive ? 'Fallback' : 'Live'}</b></div>
+            </div>
+          </div>
         </section>
+        <DataFallbackNotice metaFallback={metaFallbackActive} shopifyFallback={shopifyFallbackActive} />
 
         <section className="executive-kpi-panel">
           <div className="section-kicker"><span>Commerce command center</span><small>{dateRangeLabel(activeDateRange, datePreset)}</small></div>
           <section className="commerce-grid">
             <section className="finance-cards top-finance" aria-label="Business metrics">
-              <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} delta={businessDeltas.revenue} deltaTone={toneForDelta(businessDeltas.revenue.pct)} />
-              <FinanceCard title="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} tone={business.orders ? 'good' : 'neutral'} active={activeBusiness === 'sales'} onClick={() => setActiveBusiness('sales')} delta={businessDeltas.sales} deltaTone={toneForDelta(businessDeltas.sales.pct)} />
-              <FinanceCard title="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} sub="Shopify revenue / orders" tone={business.aov ? 'good' : 'neutral'} active={activeBusiness === 'aov'} onClick={() => setActiveBusiness('aov')} delta={businessDeltas.aov} deltaTone={toneForDelta(businessDeltas.aov.pct)} />
-              <FinanceCard title="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" tone="warn" active={activeBusiness === 'spend'} onClick={() => setActiveBusiness('spend')} delta={businessDeltas.spend} deltaTone={toneForDelta(businessDeltas.roas.pct)} />
-              <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} delta={businessDeltas.cac} deltaTone={toneForDelta(businessDeltas.cac.pct, false)} />
-              <FinanceCard title="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" tone={business.roas >= 2 ? 'good' : business.roas >= 1 ? 'warn' : 'bad'} active={activeBusiness === 'roas'} onClick={() => setActiveBusiness('roas')} delta={businessDeltas.roas} deltaTone={toneForDelta(businessDeltas.roas.pct)} />
+              <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} delta={businessDeltas.revenue} deltaTone={toneForDelta(businessDeltas.revenue.pct)} sparkRows={allBusinessRows} sparkMetric="revenue_usd" sparkColor="#d63f8c" />
+              <FinanceCard title="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} tone={business.orders ? 'good' : 'neutral'} active={activeBusiness === 'sales'} onClick={() => setActiveBusiness('sales')} delta={businessDeltas.sales} deltaTone={toneForDelta(businessDeltas.sales.pct)} sparkRows={allBusinessRows} sparkMetric="orders" sparkColor="#8d48d6" />
+              <FinanceCard title="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} sub="Shopify revenue / orders" tone={business.aov ? 'good' : 'neutral'} active={activeBusiness === 'aov'} onClick={() => setActiveBusiness('aov')} delta={businessDeltas.aov} deltaTone={toneForDelta(businessDeltas.aov.pct)} sparkRows={allBusinessRows} sparkMetric="aov" sparkColor="#2876d3" />
+              <FinanceCard title="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" tone="warn" active={activeBusiness === 'spend'} onClick={() => setActiveBusiness('spend')} delta={businessDeltas.spend} deltaTone={toneForDelta(businessDeltas.spend.pct, false)} sparkRows={allBusinessRows} sparkMetric="spend_usd" sparkColor="#c68a00" />
+              <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} delta={businessDeltas.cac} deltaTone={toneForDelta(businessDeltas.cac.pct, false)} sparkRows={allBusinessRows} sparkMetric="cac" sparkColor="#c68a00" />
+              <FinanceCard title="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" tone={business.roas >= 2 ? 'good' : business.roas >= 1 ? 'warn' : 'bad'} active={activeBusiness === 'roas'} onClick={() => setActiveBusiness('roas')} delta={businessDeltas.roas} deltaTone={toneForDelta(businessDeltas.roas.pct)} sparkRows={allBusinessRows} sparkMetric="roas" sparkColor="#0b766c" />
             </section>
             <BusinessMetricPanel rows={allBusinessRows} active={activeBusiness} windowKey={businessWindow} setWindowKey={setBusinessWindow} />
           </section>
