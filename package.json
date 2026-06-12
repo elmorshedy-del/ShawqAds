@@ -17,14 +17,25 @@
     "build:deploy": "vite build"
   },
   "dependencies": {
+    "@nivo/bar": "latest",
+    "@nivo/core": "latest",
+    "@nivo/line": "latest",
+    "@radix-ui/react-label": "latest",
+    "@radix-ui/react-select": "latest",
+    "@tailwindcss/vite": "latest",
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "latest",
-    "react": "latest",
-    "react-dom": "latest",
+    "class-variance-authority": "latest",
+    "clsx": "latest",
     "echarts": "latest",
     "echarts-for-react": "latest",
-    "lucide-react": "latest"
-  },
-  "devDependencies": {}
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "recharts": "^3.8.1",
+    "tailwind-merge": "latest",
+    "tailwindcss": "latest",
+    "tw-animate-css": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  }
 }

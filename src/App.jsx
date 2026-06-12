@@ -1,15 +1,49 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { BellRing, CalendarDays, RefreshCw, Search, Volume2, VolumeX } from 'lucide-react';
+import { Activity, BellRing, CalendarDays, GitBranch, LayoutDashboard, RefreshCw, Rocket, Search, ShoppingBag, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
 import { compact, money, pct, slug } from './lib/format.js';
 import { buildCampaignAttribution } from './lib/campaignAttribution.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
+import { Sidebar, MobileFilters } from './components/dashboard/Sidebar';
+import { LiveMonitor } from './components/dashboard/LiveMonitor';
+import { KpiCard } from './components/dashboard/KpiCard';
+import { RevenueChart } from './components/dashboard/RevenueChart';
+import { SalesLeaders } from './components/dashboard/SalesLeaders';
+import { Benchmarks } from './components/dashboard/Benchmarks';
+import { CampaignRoasTree } from './components/dashboard/CampaignRoasTree';
+import { LeadershipTables as LeadershipBoard } from './components/dashboard/LeadershipTables';
+import { UsaComparison } from './components/dashboard/UsaComparison';
+import { DailyDelivery } from './components/dashboard/DailyDelivery';
+import { DevelopingGrowth } from './components/dashboard/DevelopingGrowth';
+import { AdSetDecisionTable } from './components/dashboard/AdSetDecisionTable';
+import { ProductDemand } from './components/dashboard/ProductDemand';
+import { CountrySalesPanel } from './components/dashboard/CountrySalesPanel';
+import { BehaviorAnalytics } from './components/dashboard/BehaviorAnalytics';
+import { DataTable } from './components/dashboard/DataTable';
+import * as adapt from './lib/adapt.js';
 
 const SALE_POLL_MS = 30000;
 const META_POLL_MS = 120000;
 const REPORTING_TIMEZONE = 'Europe/Istanbul';
 const CAMPAIGN_LAUNCH_DATE = '2026-06-03';
+
+// Below Tailwind's `lg` breakpoint we swap the long scroll for a tabbed layout.
+function useIsMobile(maxWidth = 1023) {
+  const query = `(max-width:${maxWidth}px)`;
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' && window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mq = window.matchMedia(query);
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [query]);
+  return isMobile;
+}
 
 function dateInTimezone(date = new Date(), timeZone = REPORTING_TIMEZONE) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -2298,6 +2332,8 @@ function App() {
   const [saleSoundEnabled, setSaleSoundEnabled] = useState(true);
   const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '', todaySummary: null });
   const [metaMonitor, setMetaMonitor] = useState({ status: 'checking', live: null, checkedAt: null, error: '' });
+  const isMobile = useIsMobile();
+  const [mobileTab, setMobileTab] = useState('overview');
   const saleAudioRef = useRef(null);
   const saleSoundEnabledRef = useRef(true);
   const lastSaleIdRef = useRef('');
@@ -2516,97 +2552,214 @@ function App() {
   const adsetPerfById = useMemo(() => new Map((data.all_adsets || []).map((row) => [row.adset_id, row])), [data]);
   const launchCountryMetaByCode = useMemo(() => new Map((launchData.countries || []).map((row) => [row.country_code, row])), [launchData]);
 
-  return <main className="shell">
-    <aside className="rail">
-      <div className="brand"><img src="/assets/shawq-logo.png" alt="ShawQ" /><div><b>ShawQ</b><span>Business Monitoring</span></div></div>
-      <div className="filter-block"><label>Date window</label><DateWindowControl range={activeDateRange} bounds={loadedBounds} preset={datePreset} isOpen={dateMenuOpen} customRange={customRange} onToggle={() => setDateMenuOpen((open) => !open)} onPreset={handleDatePreset} onCustomChange={setCustomRange} onApplyCustom={applyCustomDateRange} /></div>
-      <div className="filter-block"><label>Campaign/ad set</label><select value={selected} onChange={(e) => setSelected(e.target.value)}><option value="all">All ad sets</option>{enriched.map((a) => <option key={a.adset_id} value={a.adset_id}>{a.adset_name}</option>)}</select></div>
-      <div className="filter-block"><label>Status</label><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All statuses</option>{Object.keys(statusLabels).map((s) => <option key={s} value={s}>{statusLabels[s]}</option>)}</select></div>
-      <div className="filter-block"><label>Search</label><div className="search"><Search size={15}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="ad set or campaign" /></div></div>
-    </aside>
+  const filterProps = {
+    selected,
+    onSelected: setSelected,
+    adSets: enriched.map((a) => ({ id: a.adset_id, name: a.adset_name })),
+    statusFilter,
+    onStatusFilter: setStatusFilter,
+    statuses: Object.keys(statusLabels).map((s) => ({ value: s, label: statusLabels[s] })),
+    query,
+    onQuery: setQuery,
+    range: activeDateRange,
+    preset: datePreset,
+    isDateOpen: dateMenuOpen,
+    onToggleDate: () => setDateMenuOpen((open) => !open),
+    customRange,
+    onCustomChange: setCustomRange,
+    onPreset: handleDatePreset,
+    onApplyCustom: applyCustomDateRange,
+    bounds: loadedBounds,
+    sourceLabel,
+    refreshText,
+  };
 
-    <section className="content">
-      <header className="topbar">
-        <div className="headline-lockup">
-          <img className="hero-logo" src="/assets/shawq-logo.png" alt="ShawQ" />
+  const sale = saleMonitor.sale;
+  const saleItems = sale?.line_items || [];
+  const monitorStatusText = saleMonitor.status === 'live'
+    ? 'Live Shopify sales monitor'
+    : saleMonitor.status === 'checking'
+      ? 'Checking Shopify sales'
+      : 'Sale monitor paused';
+  const syncHealthLabel = !metaDataLoaded ? 'Loading' : metaFallbackActive ? 'Fallback' : metaMonitor.status === 'offline' ? 'Offline' : 'Live';
+  const shopifyHealthLabel = !shopifyDataLoaded ? 'Loading' : shopifyFallbackActive ? 'Fallback' : 'Live';
+  const healthTone = (h) => (h === 'Live' ? 'good' : h === 'Offline' ? 'bad' : 'warn');
+
+  const dayRows = adapt.toDayRows(businessRows);
+  const campaignTree = adapt.toCampaignTree(campaignAttribution);
+  const salesLeader = adapt.toSalesLeader(dailySalesHighlights(productData.order_lines || [], activeDateRange));
+  const benchmarks = adapt.toBenchmarks(overall, march, marchDelta, overallDelta);
+  const productLeaders = adapt.toProductLeaders(productRows);
+  const adLeaders = adapt.toAdLeaders(adRows);
+  const deliveryShape = adapt.toDeliveryShape(deliveryTrendRows);
+  const growth = adapt.toProductDevelopment(launchProductData);
+  const decisions = adapt.toAdSetDecisions(filtered, adsetPerfById, statusLabels);
+  const productDemand = adapt.toProductDemand(launchProductData, launchDateRange.since);
+  const countrySales = adapt.toCountrySales(launchProductData.countries || [], launchCountryMetaByCode);
+
+  const histPeriod = deliveryComparison.historical || {};
+  const curPeriod = deliveryComparison.current || {};
+  const histShopify = deliveryShopifyComparison.historical || {};
+  const curShopify = deliveryShopifyComparison.current || {};
+  const usaCurve = adapt.toUsaCurve(comparisonRows(histPeriod, histShopify), comparisonRows(curPeriod, curShopify));
+  const usaComparison = {
+    history: adapt.toUsaPhase(comparisonStats(histPeriod, histShopify), histPeriod.label || 'Testing_USA_ABO', 'history'),
+    launch: adapt.toUsaPhase(comparisonStats(curPeriod, curShopify), curPeriod.label || 'USA launch', 'launch'),
+  };
+  const usaOk = Boolean(deliveryComparison.ok) && usaCurve.length > 0;
+
+  const sectionEls = {
+    monitor: (
+      <LiveMonitor
+        saleTitle={sale ? saleMoney(sale) : monitorStatusText}
+        saleItemsLabel={sale ? `${sale.item_count || 0} item${Number(sale.item_count || 0) === 1 ? '' : 's'}` : undefined}
+        orderChip={sale ? sale.name : undefined}
+        productChip={sale ? (saleItems[0]?.title || sale.product_title || undefined) : undefined}
+        countryChip={sale?.country?.code ? `${countryFlag(sale.country.code)} ${sale.country.name || sale.country.code}` : undefined}
+        adSource={sale ? (sale.matched_ad?.ad_name || sale.attribution_label || 'Unattributed in Shopify') : undefined}
+        fresh={saleMonitor.fresh}
+        monitorTime={saleMonitor.checkedAt ? `Checked ${saleTime(saleMonitor.checkedAt)}` : (saleMonitor.error || undefined)}
+        soundEnabled={saleSoundEnabled}
+        onEnableSound={enableSaleSound}
+        metaLabel={sourceLabel}
+        metaSyncText={refreshText}
+        syncHealth={syncHealthLabel}
+        syncHealthTone={healthTone(syncHealthLabel)}
+        shopifyHealth={shopifyHealthLabel}
+        shopifyHealthTone={healthTone(shopifyHealthLabel)}
+      />
+    ),
+    kpis: (
+      <section className="grid grid-cols-2 gap-4 xl:grid-cols-6">
+        <KpiCard label="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} delta={businessDeltas.revenue.pct} series={adapt.sparkSeries(businessRows, 'revenue_usd', allBusinessRows)} accent="brand" />
+        <KpiCard label="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} delta={businessDeltas.sales.pct} series={adapt.sparkSeries(businessRows, 'orders', allBusinessRows)} accent="violet" />
+        <KpiCard label="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} sub="Shopify revenue / orders" delta={businessDeltas.aov.pct} series={adapt.sparkSeries(businessRows, 'aov', allBusinessRows)} accent="blue" />
+        <KpiCard label="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" delta={businessDeltas.spend.pct} series={adapt.sparkSeries(businessRows, 'spend_usd', allBusinessRows)} accent="gold" positiveWhenUp={false} />
+        <KpiCard label="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" delta={businessDeltas.cac.pct} series={adapt.sparkSeries(businessRows, 'cac', allBusinessRows)} accent="gold" positiveWhenUp={false} />
+        <KpiCard label="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" delta={businessDeltas.roas.pct} series={adapt.sparkSeries(businessRows, 'roas', allBusinessRows)} accent="positive" />
+      </section>
+    ),
+    revenue: <RevenueChart rows={dayRows} />,
+    salesBench: (
+      <div className="grid grid-cols-1 gap-7 lg:grid-cols-3">
+        <div className="lg:col-span-2"><SalesLeaders leader={salesLeader} /></div>
+        <Benchmarks data={benchmarks} />
+      </div>
+    ),
+    tree: <CampaignRoasTree data={campaignTree} />,
+    leaders: <LeadershipBoard products={productLeaders} ads={adLeaders} />,
+    edits: (
+      <section className="panel flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-soft text-brand">
+            <SlidersHorizontal className="h-4 w-4" />
+          </span>
           <div>
-            <h1><span>ShawQ</span> Business Monitoring</h1>
-            <p className="header-subtitle">Live Shopify sales, Meta spend, and launch momentum in one clean command view.</p>
+            <p className="font-display text-sm font-semibold">Ad set edits in the launch window</p>
+            <p className="text-xs text-muted-foreground">Budget changes are the priority marker</p>
           </div>
         </div>
-      </header>
-
-      <div className="dashboard-body">
-        <section className="status-grid">
-          <SaleMonitor monitor={saleMonitor} soundEnabled={saleSoundEnabled} onEnableSound={enableSaleSound} />
-          <div className="refresh meta-live-card">
-            <div className="meta-live-head"><span>{sourceLabel}</span><RefreshCw size={18}/></div>
-            <small>{refreshText}</small>
-            <div className="meta-live-grid">
-              <div><em>Sync health</em><b>{!metaDataLoaded ? 'Loading' : metaFallbackActive ? 'Fallback' : metaMonitor.status === 'offline' ? 'Offline' : 'Live'}</b></div>
-              <div><em>Shopify data</em><b>{!shopifyDataLoaded ? 'Loading' : shopifyFallbackActive ? 'Fallback' : 'Live'}</b></div>
-            </div>
-          </div>
-        </section>
-        <DataFallbackNotice metaFallback={metaFallbackActive} shopifyFallback={shopifyFallbackActive} />
-
-        <section className="executive-kpi-panel">
-          <div className="section-kicker"><span>Commerce command center</span><small>{dateRangeLabel(activeDateRange, datePreset)}</small></div>
-          <section className="commerce-grid">
-            <section className="finance-cards top-finance" aria-label="Business metrics">
-              <FinanceCard title="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} tone={business.revenue_usd ? 'good' : 'neutral'} active={activeBusiness === 'revenue'} onClick={() => setActiveBusiness('revenue')} delta={businessDeltas.revenue} deltaTone={toneForDelta(businessDeltas.revenue.pct)} sparkRows={allBusinessRows} sparkMetric="revenue_usd" sparkColor="#d63f8c" />
-              <FinanceCard title="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} tone={business.orders ? 'good' : 'neutral'} active={activeBusiness === 'sales'} onClick={() => setActiveBusiness('sales')} delta={businessDeltas.sales} deltaTone={toneForDelta(businessDeltas.sales.pct)} sparkRows={allBusinessRows} sparkMetric="orders" sparkColor="#8d48d6" />
-              <FinanceCard title="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} sub="Shopify revenue / orders" tone={business.aov ? 'good' : 'neutral'} active={activeBusiness === 'aov'} onClick={() => setActiveBusiness('aov')} delta={businessDeltas.aov} deltaTone={toneForDelta(businessDeltas.aov.pct)} sparkRows={allBusinessRows} sparkMetric="aov" sparkColor="#2876d3" />
-              <FinanceCard title="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" tone="warn" active={activeBusiness === 'spend'} onClick={() => setActiveBusiness('spend')} delta={businessDeltas.spend} deltaTone={toneForDelta(businessDeltas.spend.pct, false)} sparkRows={allBusinessRows} sparkMetric="spend_usd" sparkColor="#c68a00" />
-              <FinanceCard title="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" tone={business.cac && business.cac < 45 ? 'good' : 'warn'} active={activeBusiness === 'cac'} onClick={() => setActiveBusiness('cac')} delta={businessDeltas.cac} deltaTone={toneForDelta(businessDeltas.cac.pct, false)} sparkRows={allBusinessRows} sparkMetric="cac" sparkColor="#c68a00" />
-              <FinanceCard title="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" tone={business.roas >= 2 ? 'good' : business.roas >= 1 ? 'warn' : 'bad'} active={activeBusiness === 'roas'} onClick={() => setActiveBusiness('roas')} delta={businessDeltas.roas} deltaTone={toneForDelta(businessDeltas.roas.pct)} sparkRows={allBusinessRows} sparkMetric="roas" sparkColor="#0b766c" />
-            </section>
-            <BusinessMetricPanel rows={allBusinessRows} active={activeBusiness} windowKey={businessWindow} setWindowKey={setBusinessWindow} />
-          </section>
-        </section>
-
-        <section className="insight-grid">
-          <DailySalesHighlights lines={productData.order_lines || []} range={activeDateRange} />
-          <aside className="delivery-snapshot">
-            <div className="panel-title"><div><h2>Delivery pulse</h2><p>Frequency, CPM and reach efficiency for the selected delivery view.</p></div></div>
-            <section className="cards secondary-cards compact-delivery-cards">
-              <Card title="Frequency" value={(overall.frequency || 0).toFixed(2)} sub={march.applies ? `March ${Number(march.frequency || 0).toFixed(2)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.frequency)} vs own history`} tone={overallDelta.frequency > 20 ? 'bad' : overallDelta.frequency > 8 ? 'warn' : 'good'} rows={trendRows} metric="frequency" color="lab(48.204% 72.66 -11.1673)" />
-              <Card title="CPM" value={money.format(overall.cpm || 0)} sub={march.applies ? `March ${money.format(march.cpm || 0)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.cpm)} vs own history`} tone={overallDelta.cpm > 25 ? 'bad' : overallDelta.cpm > 12 ? 'warn' : 'good'} rows={trendRows} metric="cpm" color="lab(66.9577% 31.1095 70.3244)" />
-              <Card title="Unique reach / $" value={reachPerDollar(overall).toFixed(1)} sub={march.applies ? `March ${marchReachPerDollar.toFixed(1)}` : 'No March baseline'} deltaValue={`${pct(overallDelta.reach_per_dollar)} vs own history`} tone={overallDelta.reach_per_dollar < -10 ? 'bad' : overallDelta.reach_per_dollar < -4 ? 'warn' : 'good'} rows={trendRows} metric="reach_per_dollar" color="lab(54.2026% -28.5503 -30.3929)" />
-              {march.applies ? <section className="benchmark-card"><span>Vs March USA benchmark</span><div><b className={marchDelta.frequency > 20 ? 'bad' : 'warn'}>{pct(marchDelta.frequency)}</b><small>Frequency</small></div><div><b className={marchDelta.cpm > 20 ? 'bad' : 'warn'}>{pct(marchDelta.cpm)}</b><small>CPM</small></div><div><b className={marchDelta.reach_per_dollar < -8 ? 'bad' : 'good'}>{pct(marchDelta.reach_per_dollar)}</b><small>Reach / $</small></div></section> : <section className="benchmark-card muted-benchmark"><span>March baseline disabled</span></section>}
-            </section>
-          </aside>
-        </section>
-
-        <CampaignPerformanceTable attribution={campaignAttribution} />
-
-      <section className="leadership-zone">
-        <div className="panel-title product-title"><div><h2>Leadership tables</h2></div><span>{adRows.length} ads</span></div>
-        <LeadershipTables products={productRows} ads={adRows} />
+        <div className="flex flex-wrap gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full bg-gold/12 px-3 py-1.5 text-xs font-medium text-gold">
+            <span className="h-2 w-2 rounded-full bg-gold" />{budgetChangeCount} budget / bid edits
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            <span className="h-2 w-2 rounded-full bg-border" />{otherChangeCount} other edits
+          </span>
+        </div>
       </section>
-
-      <section className="change-strip">
-        <div><b>Budget changes are the priority marker</b></div>
-        <strong><i className="dot budget" /> {budgetChangeCount} budget / bid edits</strong>
-        <strong><i className="dot normal" /> {otherChangeCount} other edits</strong>
-      </section>
-
-      <DeliveryComparisonPanel comparison={deliveryComparison} shopifyComparison={deliveryShopifyComparison} />
-
-      <section className="workbench"><div className="chart-panel"><div className="panel-title"><h2>Daily delivery shape</h2></div><ReactECharts option={trendOption(deliveryTrendRows, march, launchSelectedChanges, launchProductData.daily || [])} style={{ height: 438 }} /></div><aside className="rank-panel"><div className="panel-title"><h2>Ad sets ranked</h2></div>{filtered.slice(0, 9).map((a, i) => <div className={`rank-row ${slug(a.status)}`} key={a.adset_id}><strong>{i+1}</strong><div><b>{a.adset_name}</b><small>{a.campaign_name}</small></div><span>{statusLabels[a.status]}</span></div>)}</aside></section>
-
-      <section className="table-panel"><div className="panel-title"><h2>Ad set decision table</h2></div><div className="table-wrap"><table><thead><tr><th>Ad set</th><th>Campaign</th><th>Status</th><th>Sales</th><th>ROAS</th><th>Meta spend</th><th>Active days</th><th>Freq</th><th>CPM</th><th>Reach / $</th><th>Freq vs hist</th><th>CPM vs hist</th><th>Reach/$ vs hist</th><th>Freq vs Mar</th><th>CPM vs Mar</th><th>Reach/$ vs Mar</th><th>Action</th></tr></thead><tbody>{filtered.map((a) => { const perf = adsetPerfById.get(a.adset_id) || {}; return <tr key={a.adset_id}><td className="name-cell"><b>{a.adset_name}</b></td><td className="name-cell">{a.campaign_name}</td><td><span className={`pill ${slug(a.status)}`}>{statusLabels[a.status]}</span></td><td>{perf.purchases || 0}</td><td>{Number(perf.roas || 0).toFixed(2)}x</td><td>{money.format(perf.spend_usd || a.current.spend || 0)}</td><td>{a.activeDays}</td><td>{a.current.frequency.toFixed(2)}</td><td>{money.format(a.current.cpm)}</td><td>{Number(a.current.reach_per_dollar || 0).toFixed(1)}</td><td className={a.histDelta.frequency > 18 ? 'bad' : a.histDelta.frequency > 8 ? 'warn' : 'good'}>{pct(a.histDelta.frequency)}</td><td className={a.histDelta.cpm > 20 ? 'bad' : a.histDelta.cpm > 10 ? 'warn' : 'good'}>{pct(a.histDelta.cpm)}</td><td className={a.histDelta.reach_per_dollar < -10 ? 'bad' : 'good'}>{pct(a.histDelta.reach_per_dollar)}</td><td>{pct(a.marchDelta.frequency)}</td><td>{pct(a.marchDelta.cpm)}</td><td>{pct(a.marchDelta.reach_per_dollar)}</td><td className="name-cell"><b>{a.recommendation}</b></td></tr>; })}</tbody></table></div></section>
-
-      <section className="product-zone">
-        <div className="panel-title product-title"><div><h2>Product demand after launch</h2><TipSummary tips={launchProductData.tips} /></div><span>{(launchProductData.families || []).reduce((a, f) => a + Number(f.units || 0), 0)} merch units · since {launchDateRange.since}</span></div>
-        <ProductTotals families={launchProductData.families || []} />
-        <OverallProducts products={launchProductData.products || []} />
-        <section className="product-grid"><div className="growth-card"><div className="panel-title"><h2>Developing growth chart</h2></div><ReactECharts option={productGrowthOption(launchProductData)} style={{ height: 390 }} /></div><div className="country-card country-roas-card"><div className="panel-title"><h2>Country sales + ROAS</h2></div><div className="country-list">{(launchProductData.countries || []).map((c) => { const entries = Object.entries(c.mix || {}).sort((a,b)=>b[1]-a[1]); const metaCountry = launchCountryMetaByCode.get(c.country_code); const countryRoas = shopifyCountryRoas(c, metaCountry); return <div className="country-row" key={c.country_code}><div className="country-head"><b><span className="flag">{countryFlag(c.country_code)}</span>{c.country}</b><span className="country-roas-number">{countryRoas.toFixed(2)}x ROAS</span></div><div className="country-metrics"><span>{c.units} units</span><span>{money.format(c.revenue_usd || 0)} Shopify</span><span>{money.format(metaCountry?.spend_usd || 0)} Meta spend</span><span>{c.unique_products} products</span></div><MixBars mix={c.mix} total={c.units} subtypes={c.subtypes || {}} /><div className="mix-labels">{entries.slice(0, 6).map(([f,u]) => <small key={f} title={mixTooltip(f, u, c.units, c.subtypes || {})}><i style={{ background: familyStyle[f]?.color || familyStyle.Other.color }} />{f} {c.units ? Math.round((u / c.units) * 100) : 0}%</small>)}</div></div>; })}</div></div></section>
-      </section>
-        <BehaviorAnalyticsModule behavior={behaviorData} collapsed />
+    ),
+    usa: usaOk ? <UsaComparison comparison={usaComparison} curve={usaCurve} /> : null,
+    delivery: (
+      <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
+        <DailyDelivery data={deliveryShape} />
+        <DevelopingGrowth data={growth.data} lines={growth.lines} />
       </div>
-    </section>
-  </main>;
+    ),
+    decision: <AdSetDecisionTable rows={decisions} />,
+    product: <ProductDemand data={productDemand} />,
+    country: <CountrySalesPanel countries={countrySales} />,
+    behavior: <BehaviorAnalytics behavior={behaviorData} />,
+    data: <DataTable rows={dayRows} />,
+  };
+  const desktopOrder = ['monitor', 'kpis', 'revenue', 'salesBench', 'tree', 'leaders', 'edits', 'usa', 'delivery', 'decision', 'product', 'country', 'behavior', 'data'];
+  const mobileGroups = [
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['monitor', 'kpis', 'revenue'] },
+    { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'leaders', 'edits', 'decision'] },
+    { key: 'launch', label: 'Launch', icon: Rocket, ids: ['usa', 'delivery'] },
+    { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['salesBench', 'product', 'country'] },
+    { key: 'behavior', label: 'Behavior', icon: Activity, ids: ['behavior', 'data'] },
+  ];
+  const activeGroup = mobileGroups.find((g) => g.key === mobileTab) || mobileGroups[0];
+
+  return (
+    <div className="flex min-h-screen text-foreground">
+      <Sidebar {...filterProps} />
+      <main className="min-w-0 flex-1 overflow-x-clip px-5 py-7 sm:px-8 lg:px-10">
+        <div className="mx-auto max-w-7xl space-y-7">
+          <MobileFilters {...filterProps} />
+
+          <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Commerce command center</p>
+              <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
+                Sales &amp; Ads Performance
+              </h1>
+              <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">
+                Live Shopify sales, Meta spend, and launch momentum in one command view · {dateRangeLabel(activeDateRange, datePreset)}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <div className="panel px-5 py-3">
+                <p className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">Total revenue</p>
+                <p className="font-display text-xl font-semibold tracking-tight">{money.format(business.revenue_usd)}</p>
+              </div>
+              <div className="panel px-5 py-3">
+                <p className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">Blended ROAS</p>
+                <p className="font-display text-xl font-semibold tracking-tight text-positive">{business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'}</p>
+              </div>
+            </div>
+          </header>
+
+          {isMobile ? (
+            <>
+              <nav className="sticky top-0 z-30 -mx-5 border-b border-border bg-background/85 px-5 py-2.5 backdrop-blur-md sm:-mx-8 sm:px-8">
+                <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {mobileGroups.map((g) => {
+                    const Icon = g.icon;
+                    const on = g.key === activeGroup.key;
+                    return (
+                      <button
+                        key={g.key}
+                        type="button"
+                        onClick={() => setMobileTab(g.key)}
+                        aria-pressed={on}
+                        className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${on ? 'bg-brand text-white shadow-sm' : 'bg-surface-2 text-muted-foreground'}`}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        {g.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </nav>
+              <div className="space-y-7">
+                {activeGroup.ids.map((id) => (
+                  <Fragment key={id}>{sectionEls[id]}</Fragment>
+                ))}
+              </div>
+            </>
+          ) : (
+            desktopOrder.map((id) => <Fragment key={id}>{sectionEls[id]}</Fragment>)
+          )}
+
+          <footer className="pb-6 pt-2 text-center text-xs text-muted-foreground">
+            ShawQ Business Monitoring · Shopify revenue and Meta spend in {REPORTING_TIMEZONE}
+          </footer>
+        </div>
+      </main>
+    </div>
+  );
 }
 
 export default App;
