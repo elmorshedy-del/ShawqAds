@@ -19,6 +19,7 @@ import { DevelopingGrowth } from './components/dashboard/DevelopingGrowth';
 import { AdSetDecisionTable } from './components/dashboard/AdSetDecisionTable';
 import { ProductDemand } from './components/dashboard/ProductDemand';
 import { CountrySalesPanel } from './components/dashboard/CountrySalesPanel';
+import { TopMovers } from './components/dashboard/TopMovers';
 import { BehaviorAnalytics } from './components/dashboard/BehaviorAnalytics';
 import { DataTable } from './components/dashboard/DataTable';
 import * as adapt from './lib/adapt.js';
@@ -2586,6 +2587,13 @@ function App() {
   const healthTone = (h) => (h === 'Live' ? 'good' : h === 'Offline' ? 'bad' : 'warn');
 
   const dayRows = adapt.toDayRows(businessRows);
+  // Performance trend is a multi-day view with its own 3D/7D/14D/All control, so it draws
+  // from the full loaded history rather than the active date filter (which can be a
+  // single day under the "Today" preset and would leave nothing to connect into a line).
+  // The current reporting day is omitted: it is still accumulating sales/spend, so its
+  // partial totals would render as a misleading end-of-line droop on every metric.
+  const reportingToday = loadedBounds.today || currentReportingDay();
+  const trendDayRows = adapt.toDayRows(allBusinessRows).filter((r) => r.date && r.date !== reportingToday);
   const campaignTree = adapt.toCampaignTree(campaignAttribution);
   const salesLeader = adapt.toSalesLeader(dailySalesHighlights(productData.order_lines || [], activeDateRange));
   const benchmarks = adapt.toBenchmarks(overall, march, marchDelta, overallDelta);
@@ -2596,6 +2604,71 @@ function App() {
   const decisions = adapt.toAdSetDecisions(filtered, adsetPerfById, statusLabels);
   const productDemand = adapt.toProductDemand(launchProductData, launchDateRange.since);
   const countrySales = adapt.toCountrySales(launchProductData.countries || [], launchCountryMetaByCode);
+  // Trailing-window country aggregates (3D/7D/14D) for the panel's range toggle.
+  // Each window re-runs the exact same filter + adapt pipeline as the "All" view
+  // above, just over a shorter trailing range — so no business logic is recomputed,
+  // every figure stays calculation-identical to the launch-window view.
+  const countrySalesWindows = useMemo(() => {
+    const anchor = loadedBounds.until || loadedBounds.calendar_until || currentReportingDay();
+    if (!anchor) return {};
+    const build = (sinceDays) => {
+      const win = clampDateRange({ since: shiftDate(anchor, sinceDays), until: anchor }, loadedBounds);
+      const ws = filterShopifyByDateRange(baseProductData, win);
+      const wm = filterMetaDataByDateRange(baseData, win);
+      const metaByCode = new Map((wm.countries || []).map((row) => [row.country_code, row]));
+      return adapt.toCountrySales(ws.countries || [], metaByCode);
+    };
+    return { '3D': build(-2), '7D': build(-6), '14D': build(-13) };
+  }, [baseProductData, baseData, loadedBounds]);
+  // Mobile "Top movers" — top product / ad / country for the latest reporting day,
+  // each with the previous day and same-day-last-week winner as a comparison line.
+  // Reuses the leader adapters over single-day windows, so the math matches the
+  // desktop leadership boards exactly.
+  const topMovers = useMemo(() => {
+    const anchor = loadedBounds.until || loadedBounds.calendar_until || currentReportingDay();
+    const dayLeaders = (day) => {
+      const win = clampDateRange({ since: day, until: day }, loadedBounds);
+      const ws = filterShopifyByDateRange(baseProductData, win);
+      const wm = filterMetaDataByDateRange(baseData, win);
+      const metaByCode = new Map((wm.countries || []).map((row) => [row.country_code, row]));
+      const adRowsForDay = enrichAdsWithShopifySales(wm.ads || [], ws.order_lines || []);
+      return {
+        product: adapt.toProductLeaders(ws.products || [])[0] || null,
+        ad: adapt.toAdLeaders(adRowsForDay)[0] || null,
+        country: adapt.toCountrySales(ws.countries || [], metaByCode)[0] || null,
+      };
+    };
+    if (!anchor) return { anchor: '', today: {}, prevDay: {}, prevWeek: {} };
+    return {
+      anchor,
+      today: dayLeaders(anchor),
+      prevDay: dayLeaders(shiftDate(anchor, -1)),
+      prevWeek: dayLeaders(shiftDate(anchor, -7)),
+    };
+  }, [baseProductData, baseData, loadedBounds]);
+  const topMoverCards = useMemo(() => ([
+    {
+      kind: 'product',
+      label: 'Top product',
+      today: topMovers.today.product,
+      prevDay: topMovers.prevDay.product,
+      prevWeek: topMovers.prevWeek.product,
+    },
+    {
+      kind: 'ad',
+      label: 'Top ad / source',
+      today: topMovers.today.ad,
+      prevDay: topMovers.prevDay.ad,
+      prevWeek: topMovers.prevWeek.ad,
+    },
+    {
+      kind: 'country',
+      label: 'Top country',
+      today: topMovers.today.country,
+      prevDay: topMovers.prevDay.country,
+      prevWeek: topMovers.prevWeek.country,
+    },
+  ]), [topMovers]);
 
   const histPeriod = deliveryComparison.historical || {};
   const curPeriod = deliveryComparison.current || {};
@@ -2639,7 +2712,7 @@ function App() {
         <KpiCard label="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" delta={businessDeltas.roas.pct} series={adapt.sparkSeries(businessRows, 'roas', allBusinessRows)} accent="positive" />
       </section>
     ),
-    revenue: <RevenueChart rows={dayRows} />,
+    revenue: <RevenueChart rows={trendDayRows} />,
     salesBench: (
       <div className="grid grid-cols-1 gap-7 lg:grid-cols-3">
         <div className="lg:col-span-2"><SalesLeaders leader={salesLeader} /></div>
@@ -2678,13 +2751,14 @@ function App() {
     ),
     decision: <AdSetDecisionTable rows={decisions} />,
     product: <ProductDemand data={productDemand} />,
-    country: <CountrySalesPanel countries={countrySales} />,
+    country: <CountrySalesPanel countries={countrySales} windows={countrySalesWindows} />,
+    mobileTops: <TopMovers cards={topMoverCards} />,
     behavior: <BehaviorAnalytics behavior={behaviorData} />,
     data: <DataTable rows={dayRows} />,
   };
   const desktopOrder = ['monitor', 'kpis', 'revenue', 'salesBench', 'tree', 'leaders', 'edits', 'usa', 'delivery', 'decision', 'product', 'country', 'behavior', 'data'];
   const mobileGroups = [
-    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['monitor', 'kpis', 'revenue'] },
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['monitor', 'kpis', 'revenue', 'mobileTops'] },
     { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'leaders', 'edits', 'decision'] },
     { key: 'launch', label: 'Launch', icon: Rocket, ids: ['usa', 'delivery'] },
     { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['salesBench', 'product', 'country'] },

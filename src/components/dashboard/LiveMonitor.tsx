@@ -10,6 +10,13 @@ const toneClass: Record<Tone, string> = {
   neutral: "text-foreground",
 };
 
+const dotClass: Record<Tone, string> = {
+  good: "bg-positive",
+  warn: "bg-gold",
+  bad: "bg-destructive",
+  neutral: "bg-muted-foreground",
+};
+
 export interface LiveMonitorProps {
   saleTitle: string;
   saleItemsLabel?: string;
@@ -102,25 +109,25 @@ export function LiveMonitor({
         {adSource ? <p className="mt-2 text-xs text-muted-foreground">Ad / source: {adSource}</p> : null}
       </div>
 
-      <div className="panel flex flex-col justify-between p-5">
-        <div className="flex items-center justify-between">
-          <p className="font-display text-base font-semibold">{metaLabel}</p>
-          <RefreshCw className="h-4 w-4 text-primary" />
+      <div className="panel flex flex-col justify-between gap-3 p-4 sm:p-5">
+        <div>
+          <div className="flex items-center justify-between">
+            <p className="font-display text-base font-semibold">{metaLabel}</p>
+            <RefreshCw className="h-4 w-4 text-primary" />
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">{metaSyncText}</p>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">{metaSyncText}</p>
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-surface-2 p-3">
-            <p className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">Sync health</p>
-            <p className={cn("mt-1 font-display text-lg font-semibold", toneClass[syncHealthTone])}>
-              {syncHealth}
-            </p>
-          </div>
-          <div className="rounded-xl bg-surface-2 p-3">
-            <p className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">Shopify data</p>
-            <p className={cn("mt-1 font-display text-lg font-semibold", toneClass[shopifyHealthTone])}>
-              {shopifyHealth}
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+          <span className="inline-flex items-center gap-2">
+            <span className={cn("h-2 w-2 rounded-full", dotClass[syncHealthTone])} />
+            <span className="text-muted-foreground">Sync health</span>
+            <span className={cn("font-semibold", toneClass[syncHealthTone])}>{syncHealth}</span>
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className={cn("h-2 w-2 rounded-full", dotClass[shopifyHealthTone])} />
+            <span className="text-muted-foreground">Shopify data</span>
+            <span className={cn("font-semibold", toneClass[shopifyHealthTone])}>{shopifyHealth}</span>
+          </span>
         </div>
       </div>
     </div>
