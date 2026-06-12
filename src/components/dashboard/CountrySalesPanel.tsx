@@ -3,6 +3,9 @@ import { Globe2 } from "lucide-react";
 import { familyColors, fmtCurrency, type CountrySales } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
+const ranges = ["3D", "7D", "14D", "All"] as const;
+type Range = (typeof ranges)[number];
+
 function roasClass(v: number) {
   if (v >= 3) return "text-positive";
   if (v >= 1.5) return "text-gold";
@@ -81,24 +84,63 @@ function CountryRow({ c, delay }: { c: CountrySales; delay: number }) {
   );
 }
 
-export function CountrySalesPanel({ countries }: { countries: CountrySales[] }) {
+export function CountrySalesPanel({
+  countries,
+  windows,
+}: {
+  countries: CountrySales[];
+  /** Optional per-window country aggregates. Falls back to `countries` (the
+   *  full launch-window view) for any range that isn't supplied. */
+  windows?: Partial<Record<Range, CountrySales[]>>;
+}) {
+  const [range, setRange] = useState<Range>("All");
+  const shown = windows?.[range] ?? countries;
+
   return (
     <div className="panel p-6">
-      <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-soft text-brand">
-          <Globe2 className="h-4 w-4" />
-        </span>
-        <h2 className="font-display text-lg font-semibold tracking-tight">Country sales + ROAS</h2>
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Per-market revenue, spend and product-mix breakdown · tap a country for detail
-      </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-soft text-brand">
+              <Globe2 className="h-4 w-4" />
+            </span>
+            <h2 className="font-display text-lg font-semibold tracking-tight">Country sales + ROAS</h2>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Per-market revenue, spend and product-mix breakdown
+            {range === "All" ? " since launch" : ` · trailing ${range}`} · tap a country for detail
+          </p>
+        </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {countries.map((c, i) => (
-          <CountryRow key={c.country} c={c} delay={i * 40} />
-        ))}
+        <div className="inline-flex self-start rounded-full border border-border bg-surface-2 p-1">
+          {ranges.map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-medium transition-all",
+                range === r
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {shown.length ? (
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {shown.map((c, i) => (
+            <CountryRow key={`${range}-${c.country}`} c={c} delay={i * 40} />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-5 rounded-xl border border-dashed border-border bg-surface-2/40 px-4 py-10 text-center text-sm text-muted-foreground">
+          No country sales in the trailing {range} window.
+        </div>
+      )}
     </div>
   );
 }

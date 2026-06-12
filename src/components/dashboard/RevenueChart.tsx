@@ -14,9 +14,9 @@ import { TrendingUp } from "lucide-react";
 import { fmtCurrency, fmtNumber, fmtX, type DayRow } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
-const ranges = ["3D", "7D", "All"] as const;
+const ranges = ["3D", "7D", "14D", "All"] as const;
 type Range = (typeof ranges)[number];
-const sliceFor: Record<Range, number> = { "3D": 3, "7D": 7, All: 9999 };
+const sliceFor: Record<Range, number> = { "3D": 3, "7D": 7, "14D": 14, All: 9999 };
 
 type FocusKey = "revenue" | "profit" | "orders" | "roas";
 const focusDefs: { key: FocusKey; label: string; color: string; fmt: (n: number) => string }[] = [
