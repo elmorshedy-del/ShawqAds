@@ -1,11 +1,11 @@
 {
   "source": "Shopify",
-  "generated_at": "2026-06-10T05:22:09.077Z",
+  "generated_at": "2026-06-12T01:59:37.548Z",
   "period": {
     "since": "2026-06-03",
-    "until": "2026-06-10",
-    "completed_until": "2026-06-09",
-    "current_reporting_day": "2026-06-10",
+    "until": "2026-06-12",
+    "completed_until": "2026-06-11",
+    "current_reporting_day": "2026-06-12",
     "includes_developing_day": true,
     "timezone": "Europe/Istanbul",
     "shop_timezone": "Europe/Istanbul",
@@ -13,17 +13,17 @@
     "currency": "USD",
     "api_window": {
       "created_at_min": "2026-06-02T21:00:00.000Z",
-      "created_at_max": "2026-06-10T20:59:59.999Z"
+      "created_at_max": "2026-06-12T20:59:59.999Z"
     }
   },
   "orders": {
-    "pulled": 159,
-    "included": 157
+    "pulled": 194,
+    "included": 191
   },
   "tips": {
-    "orders": 19,
-    "people": 19,
-    "total_usd": 312.83,
+    "orders": 21,
+    "people": 21,
+    "total_usd": 332.89,
     "by_date": [
       {
         "date": "2026-06-03",
@@ -62,8 +62,13 @@
       },
       {
         "date": "2026-06-10",
+        "orders": 2,
+        "total_usd": 25.130000000000003
+      },
+      {
+        "date": "2026-06-12",
         "orders": 1,
-        "total_usd": 15.57
+        "total_usd": 10.5
       }
     ]
   },
@@ -77,7 +82,7 @@
     {
       "date": "2026-06-04",
       "revenue_usd": 3157.6299999999997,
-      "orders": 29,
+      "orders": 28,
       "units": 36
     },
     {
@@ -112,41 +117,53 @@
     },
     {
       "date": "2026-06-10",
-      "revenue_usd": 568.76,
-      "orders": 4,
-      "units": 7
+      "revenue_usd": 1763.4199999999998,
+      "orders": 15,
+      "units": 21
+    },
+    {
+      "date": "2026-06-11",
+      "revenue_usd": 2633.8100000000004,
+      "orders": 19,
+      "units": 30
+    },
+    {
+      "date": "2026-06-12",
+      "revenue_usd": 552.0799999999999,
+      "orders": 5,
+      "units": 6
     }
   ],
   "families": [
     {
       "family": "Tops",
-      "units": 80,
-      "revenue_usd": 6500.560374076047
+      "units": 104,
+      "revenue_usd": 8457.849726900124
     },
     {
       "family": "Denim pants",
-      "units": 35,
-      "revenue_usd": 3413.767999797779
+      "units": 44,
+      "revenue_usd": 4256.578646973703
     },
     {
       "family": "Crewnecks",
-      "units": 30,
-      "revenue_usd": 2817.3401641345636
+      "units": 32,
+      "revenue_usd": 2999.740164134563
     },
     {
       "family": "Hoodies",
-      "units": 24,
-      "revenue_usd": 2504.578092485549
+      "units": 28,
+      "revenue_usd": 2888.0680924855483
     },
     {
       "family": "Skirts",
-      "units": 18,
-      "revenue_usd": 1677.3667268906008
+      "units": 27,
+      "revenue_usd": 2589.2867268906007
     },
     {
       "family": "Kuffiyah accessory",
-      "units": 7,
-      "revenue_usd": 267.05664261545735
+      "units": 9,
+      "revenue_usd": 349.6366426154574
     },
     {
       "family": "Art-frame",
@@ -162,51 +179,67 @@
   "products": [
     {
       "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
-      "units": 35,
-      "revenue_usd": 2891.0612550294104,
+      "units": 45,
+      "revenue_usd": 3679.0099415511327,
       "family": "Tops",
       "subtype": "Short sleeve",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121"
     },
     {
       "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
-      "units": 35,
-      "revenue_usd": 3413.767999797779,
+      "units": 44,
+      "revenue_usd": 4256.578646973703,
       "family": "Denim pants",
       "subtype": "Denim pants",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299"
     },
     {
       "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Hoodie (Unisex)",
-      "units": 18,
-      "revenue_usd": 1905.5500000000002,
+      "units": 21,
+      "revenue_usd": 2190.94,
       "family": "Hoodies",
       "subtype": "Ghalabany Al-ShawQ hoodie",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493"
     },
     {
-      "product": "Quote crewneck (Unisex)",
-      "units": 16,
-      "revenue_usd": 1424.3288550069915,
-      "family": "Crewnecks",
-      "subtype": "Quote crewneck",
-      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538"
-    },
-    {
       "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Long Sleeve Shirt (Unisex)",
-      "units": 14,
-      "revenue_usd": 1148.1274340799546,
+      "units": 20,
+      "revenue_usd": 1625.1974340799545,
       "family": "Tops",
       "subtype": "Long sleeve",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443"
     },
     {
       "product": "Kuffiyah Engraved Denim Skirt",
-      "units": 11,
-      "revenue_usd": 1161.1458917486225,
+      "units": 19,
+      "revenue_usd": 1964.1558917486223,
       "family": "Skirts",
       "subtype": "Kuffiyah skirt",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861"
+    },
+    {
+      "product": "Quote crewneck (Unisex)",
+      "units": 18,
+      "revenue_usd": 1606.7288550069916,
+      "family": "Crewnecks",
+      "subtype": "Quote crewneck",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538"
+    },
+    {
+      "product": "Zahrat Al-Mada'en - زَهرة المدائِن T-shirt (Unisex)",
+      "units": 15,
+      "revenue_usd": 1308.5506148244901,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407"
+    },
+    {
+      "product": "QUOTE T-shirt (Unisex)",
+      "units": 11,
+      "revenue_usd": 788.7046654427154,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190"
     },
     {
       "product": "Zahrat Al-Mada'en - زَهرة المدائِن Crewneck (Unisex)",
@@ -217,28 +250,20 @@
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_9.jpg?v=1776384054"
     },
     {
-      "product": "Zahrat Al-Mada'en - زَهرة المدائِن T-shirt (Unisex)",
-      "units": 9,
-      "revenue_usd": 775.2199485221365,
-      "family": "Tops",
-      "subtype": "Short sleeve",
-      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407"
-    },
-    {
-      "product": "QUOTE T-shirt (Unisex)",
-      "units": 9,
-      "revenue_usd": 629.7646654427155,
-      "family": "Tops",
-      "subtype": "Short sleeve",
-      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190"
-    },
-    {
       "product": "Kuffiyah",
-      "units": 7,
-      "revenue_usd": 267.05664261545735,
+      "units": 9,
+      "revenue_usd": 349.6366426154574,
       "family": "Kuffiyah accessory",
       "subtype": "Kuffiyah accessory",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2564_1.jpg?v=1767270820"
+    },
+    {
+      "product": "Zaytoun Tree Denim Skirt",
+      "units": 6,
+      "revenue_usd": 600.7866666666666,
+      "family": "Skirts",
+      "subtype": "Zaytoun skirt",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/skirt-fixed.jpg?v=1769597744"
     },
     {
       "product": "Zahrat Al-Mada'en - زَهرة المدائِن Long Sleeve Shirt (Unisex)",
@@ -255,14 +280,6 @@
       "family": "Hoodies",
       "subtype": "Quote hoodie",
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/qoute-off.png?v=1779270408"
-    },
-    {
-      "product": "Zaytoun Tree Denim Skirt",
-      "units": 5,
-      "revenue_usd": 491.87666666666667,
-      "family": "Skirts",
-      "subtype": "Zaytoun skirt",
-      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/skirt-fixed.jpg?v=1769597744"
     },
     {
       "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Crewneck (Unisex)",
@@ -297,6 +314,14 @@
       "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2652-3_1.jpg?v=1768574144"
     },
     {
+      "product": "Zahrat Al-Mada'en - زَهرة المدائِن Hoodie (Unisex)",
+      "units": 2,
+      "revenue_usd": 196.2,
+      "family": "Hoodies",
+      "subtype": "Other hoodie",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/zahrat-hoodie-off.png?v=1779270413"
+    },
+    {
       "product": "Palestine Art-Frame",
       "units": 1,
       "revenue_usd": 166.57000000000002,
@@ -311,33 +336,25 @@
       "family": "Other",
       "subtype": "Other",
       "image_url": ""
-    },
-    {
-      "product": "Zahrat Al-Mada'en - زَهرة المدائِن Hoodie (Unisex)",
-      "units": 1,
-      "revenue_usd": 98.10000000000001,
-      "family": "Hoodies",
-      "subtype": "Other hoodie",
-      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/zahrat-hoodie-off.png?v=1779270413"
     }
   ],
   "countries": [
     {
       "country_code": "US",
       "country": "United States",
-      "units": 58,
-      "revenue_usd": 4982.8399999999965,
+      "units": 82,
+      "revenue_usd": 7002.959999999997,
       "mix": {
-        "Tops": 31,
+        "Tops": 47,
         "Crewnecks": 11,
-        "Skirts": 3,
-        "Hoodies": 8,
-        "Denim pants": 5
+        "Skirts": 5,
+        "Hoodies": 10,
+        "Denim pants": 9
       },
       "subtypes": {
         "Tops": {
-          "Long sleeve": 6,
-          "Short sleeve": 25
+          "Long sleeve": 11,
+          "Short sleeve": 36
         },
         "Crewnecks": {
           "Quote crewneck": 8,
@@ -345,16 +362,16 @@
           "Other crewneck": 1
         },
         "Skirts": {
-          "Kuffiyah skirt": 2,
+          "Kuffiyah skirt": 4,
           "Zaytoun skirt": 1
         },
         "Hoodies": {
           "Quote hoodie": 3,
-          "Ghalabany Al-ShawQ hoodie": 4,
-          "Other hoodie": 1
+          "Ghalabany Al-ShawQ hoodie": 5,
+          "Other hoodie": 2
         },
         "Denim pants": {
-          "Denim pants": 5
+          "Denim pants": 9
         }
       },
       "unique_products": 17
@@ -362,10 +379,10 @@
     {
       "country_code": "AU",
       "country": "Australia",
-      "units": 19,
-      "revenue_usd": 1815.3199999999997,
+      "units": 20,
+      "revenue_usd": 1909.7799999999997,
       "mix": {
-        "Denim pants": 8,
+        "Denim pants": 9,
         "Tops": 5,
         "Hoodies": 4,
         "Skirts": 1,
@@ -373,7 +390,7 @@
       },
       "subtypes": {
         "Denim pants": {
-          "Denim pants": 8
+          "Denim pants": 9
         },
         "Tops": {
           "Long sleeve": 5
@@ -393,14 +410,14 @@
     {
       "country_code": "GB",
       "country": "United Kingdom",
-      "units": 17,
-      "revenue_usd": 1631.4200000000003,
+      "units": 19,
+      "revenue_usd": 1826.0900000000004,
       "mix": {
         "Hoodies": 4,
         "Crewnecks": 7,
         "Skirts": 1,
-        "Tops": 2,
-        "Denim pants": 3
+        "Tops": 3,
+        "Denim pants": 4
       },
       "subtypes": {
         "Hoodies": {
@@ -415,10 +432,10 @@
           "Kuffiyah skirt": 1
         },
         "Tops": {
-          "Long sleeve": 2
+          "Long sleeve": 3
         },
         "Denim pants": {
-          "Denim pants": 3
+          "Denim pants": 4
         }
       },
       "unique_products": 7
@@ -426,18 +443,18 @@
     {
       "country_code": "CA",
       "country": "Canada",
-      "units": 14,
-      "revenue_usd": 1360.2199999999998,
+      "units": 18,
+      "revenue_usd": 1767.9299999999996,
       "mix": {
-        "Hoodies": 5,
+        "Hoodies": 6,
         "Tops": 3,
         "Crewnecks": 2,
         "Denim pants": 1,
-        "Skirts": 3
+        "Skirts": 6
       },
       "subtypes": {
         "Hoodies": {
-          "Ghalabany Al-ShawQ hoodie": 4,
+          "Ghalabany Al-ShawQ hoodie": 5,
           "Quote hoodie": 1
         },
         "Tops": {
@@ -452,7 +469,7 @@
           "Denim pants": 1
         },
         "Skirts": {
-          "Kuffiyah skirt": 3
+          "Kuffiyah skirt": 6
         }
       },
       "unique_products": 9
@@ -460,18 +477,19 @@
     {
       "country_code": "DE",
       "country": "Germany",
-      "units": 14,
-      "revenue_usd": 1302.5,
+      "units": 17,
+      "revenue_usd": 1577.03,
       "mix": {
-        "Tops": 6,
+        "Tops": 7,
         "Crewnecks": 4,
         "Skirts": 2,
         "Hoodies": 1,
-        "Kuffiyah accessory": 1
+        "Kuffiyah accessory": 1,
+        "Denim pants": 2
       },
       "subtypes": {
         "Tops": {
-          "Short sleeve": 5,
+          "Short sleeve": 6,
           "Long sleeve": 1
         },
         "Crewnecks": {
@@ -485,9 +503,12 @@
         },
         "Kuffiyah accessory": {
           "Kuffiyah accessory": 1
+        },
+        "Denim pants": {
+          "Denim pants": 2
         }
       },
-      "unique_products": 7
+      "unique_products": 8
     },
     {
       "country_code": "FR",
@@ -523,14 +544,38 @@
       "unique_products": 8
     },
     {
+      "country_code": "AE",
+      "country": "United Arab Emirates",
+      "units": 12,
+      "revenue_usd": 1121.98,
+      "mix": {
+        "Denim pants": 6,
+        "Tops": 4,
+        "Skirts": 2
+      },
+      "subtypes": {
+        "Denim pants": {
+          "Denim pants": 6
+        },
+        "Tops": {
+          "Short sleeve": 4
+        },
+        "Skirts": {
+          "Kuffiyah skirt": 1,
+          "Zaytoun skirt": 1
+        }
+      },
+      "unique_products": 6
+    },
+    {
       "country_code": "BE",
       "country": "Belgium",
-      "units": 9,
-      "revenue_usd": 854.87,
+      "units": 10,
+      "revenue_usd": 951.84,
       "mix": {
         "Tops": 6,
         "Skirts": 2,
-        "Crewnecks": 1
+        "Crewnecks": 2
       },
       "subtypes": {
         "Tops": {
@@ -541,10 +586,38 @@
           "Zaytoun skirt": 2
         },
         "Crewnecks": {
-          "Other crewneck": 1
+          "Other crewneck": 1,
+          "Quote crewneck": 1
         }
       },
-      "unique_products": 6
+      "unique_products": 7
+    },
+    {
+      "country_code": "ES",
+      "country": "Spain",
+      "units": 9,
+      "revenue_usd": 897.1,
+      "mix": {
+        "Crewnecks": 2,
+        "Tops": 3,
+        "Denim pants": 1,
+        "Skirts": 3
+      },
+      "subtypes": {
+        "Crewnecks": {
+          "Other crewneck": 2
+        },
+        "Tops": {
+          "Short sleeve": 3
+        },
+        "Denim pants": {
+          "Denim pants": 1
+        },
+        "Skirts": {
+          "Kuffiyah skirt": 3
+        }
+      },
+      "unique_products": 5
     },
     {
       "country_code": "QA",
@@ -570,65 +643,15 @@
       "unique_products": 5
     },
     {
-      "country_code": "AE",
-      "country": "United Arab Emirates",
-      "units": 7,
-      "revenue_usd": 699.5600000000001,
-      "mix": {
-        "Denim pants": 5,
-        "Tops": 1,
-        "Skirts": 1
-      },
-      "subtypes": {
-        "Denim pants": {
-          "Denim pants": 5
-        },
-        "Tops": {
-          "Short sleeve": 1
-        },
-        "Skirts": {
-          "Kuffiyah skirt": 1
-        }
-      },
-      "unique_products": 3
-    },
-    {
-      "country_code": "ES",
-      "country": "Spain",
-      "units": 7,
-      "revenue_usd": 693.25,
-      "mix": {
-        "Crewnecks": 2,
-        "Tops": 3,
-        "Denim pants": 1,
-        "Skirts": 1
-      },
-      "subtypes": {
-        "Crewnecks": {
-          "Other crewneck": 2
-        },
-        "Tops": {
-          "Short sleeve": 3
-        },
-        "Denim pants": {
-          "Denim pants": 1
-        },
-        "Skirts": {
-          "Kuffiyah skirt": 1
-        }
-      },
-      "unique_products": 5
-    },
-    {
       "country_code": "IT",
       "country": "Italy",
-      "units": 7,
-      "revenue_usd": 476.42999999999995,
+      "units": 8,
+      "revenue_usd": 568.8299999999999,
       "mix": {
         "Kuffiyah accessory": 2,
         "Skirts": 1,
         "Crewnecks": 1,
-        "Tops": 1,
+        "Tops": 2,
         "Denim pants": 2
       },
       "subtypes": {
@@ -642,7 +665,7 @@
           "Other crewneck": 1
         },
         "Tops": {
-          "Short sleeve": 1
+          "Short sleeve": 2
         },
         "Denim pants": {
           "Denim pants": 2
@@ -651,14 +674,38 @@
       "unique_products": 5
     },
     {
+      "country_code": "SA",
+      "country": "Saudi Arabia",
+      "units": 7,
+      "revenue_usd": 564.73,
+      "mix": {
+        "Tops": 2,
+        "Denim pants": 3,
+        "Kuffiyah accessory": 2
+      },
+      "subtypes": {
+        "Tops": {
+          "Short sleeve": 2
+        },
+        "Denim pants": {
+          "Denim pants": 3
+        },
+        "Kuffiyah accessory": {
+          "Kuffiyah accessory": 2
+        }
+      },
+      "unique_products": 3
+    },
+    {
       "country_code": "NL",
       "country": "Netherlands",
-      "units": 5,
-      "revenue_usd": 462.75,
+      "units": 7,
+      "revenue_usd": 648.6300000000001,
       "mix": {
         "Tops": 1,
         "Denim pants": 2,
-        "Crewnecks": 2
+        "Crewnecks": 3,
+        "Hoodies": 1
       },
       "subtypes": {
         "Tops": {
@@ -668,11 +715,14 @@
           "Denim pants": 2
         },
         "Crewnecks": {
-          "Quote crewneck": 1,
+          "Quote crewneck": 2,
           "Ghalabany Al-ShawQ crewneck": 1
+        },
+        "Hoodies": {
+          "Ghalabany Al-ShawQ hoodie": 1
         }
       },
-      "unique_products": 4
+      "unique_products": 5
     },
     {
       "country_code": "TR",
@@ -695,36 +745,17 @@
       "unique_products": 4
     },
     {
-      "country_code": "SA",
-      "country": "Saudi Arabia",
-      "units": 4,
-      "revenue_usd": 383.33,
-      "mix": {
-        "Tops": 1,
-        "Denim pants": 3
-      },
-      "subtypes": {
-        "Tops": {
-          "Short sleeve": 1
-        },
-        "Denim pants": {
-          "Denim pants": 3
-        }
-      },
-      "unique_products": 2
-    },
-    {
       "country_code": "DK",
       "country": "Denmark",
-      "units": 3,
-      "revenue_usd": 286.68,
+      "units": 4,
+      "revenue_usd": 370.96000000000004,
       "mix": {
-        "Tops": 2,
+        "Tops": 3,
         "Hoodies": 1
       },
       "subtypes": {
         "Tops": {
-          "Short sleeve": 2
+          "Short sleeve": 3
         },
         "Hoodies": {
           "Ghalabany Al-ShawQ hoodie": 1
@@ -766,6 +797,21 @@
         }
       },
       "unique_products": 3
+    },
+    {
+      "country_code": "CH",
+      "country": "Switzerland",
+      "units": 1,
+      "revenue_usd": 101.8,
+      "mix": {
+        "Skirts": 1
+      },
+      "subtypes": {
+        "Skirts": {
+          "Kuffiyah skirt": 1
+        }
+      },
+      "unique_products": 1
     }
   ],
   "cumulative": [
@@ -848,12 +894,34 @@
     },
     {
       "date": "2026-06-10",
-      "Tops": 80,
-      "Denim pants": 35,
-      "Crewnecks": 30,
-      "Hoodies": 24,
-      "Skirts": 18,
-      "Kuffiyah accessory": 7,
+      "Tops": 84,
+      "Denim pants": 39,
+      "Crewnecks": 32,
+      "Hoodies": 25,
+      "Skirts": 19,
+      "Kuffiyah accessory": 9,
+      "Art-frame": 1,
+      "Other": 1
+    },
+    {
+      "date": "2026-06-11",
+      "Tops": 102,
+      "Denim pants": 42,
+      "Crewnecks": 32,
+      "Hoodies": 27,
+      "Skirts": 26,
+      "Kuffiyah accessory": 9,
+      "Art-frame": 1,
+      "Other": 1
+    },
+    {
+      "date": "2026-06-12",
+      "Tops": 104,
+      "Denim pants": 44,
+      "Crewnecks": 32,
+      "Hoodies": 28,
+      "Skirts": 27,
+      "Kuffiyah accessory": 9,
       "Art-frame": 1,
       "Other": 1
     }
@@ -10990,6 +11058,2608 @@
           "ad_name": "Quote VO"
         }
       }
+    },
+    {
+      "order_id": "7529956737322",
+      "order_name": "#3884",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T13:14:04+03:00",
+      "country_code": "IT",
+      "country": "Italy",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922300714",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 80.85,
+      "order_revenue_usd": 92.4,
+      "line_revenue_usd": 92.4,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "fb",
+          "utm_medium": "paid_social",
+          "utm_campaign": "IT_ES_CBO",
+          "utm_term": "IT_ES_Summer_Tops",
+          "utm_content": "VSC Blurry Shirt 98"
+        },
+        "note_attributes": {
+          "utm_source": "fb",
+          "utm_source_first": "fb",
+          "utm_source_last": "fb",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "IT_ES_CBO",
+          "utm_campaign_first": "IT_ES_CBO",
+          "utm_campaign_last": "IT_ES_CBO",
+          "utm_content": "VSC Blurry Shirt 98",
+          "utm_content_first": "VSC Blurry Shirt 98",
+          "utm_content_last": "VSC Blurry Shirt 98",
+          "utm_term": "IT_ES_Summer_Tops",
+          "utm_term_first": "IT_ES_Summer_Tops",
+          "utm_term_last": "IT_ES_Summer_Tops"
+        },
+        "campaign_hint": "IT_ES_CBO",
+        "adset_hint": "IT_ES_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt 98",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "IT_ES_CBO",
+          "adset_name": "IT_ES_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt 98"
+        }
+      }
+    },
+    {
+      "order_id": "7530107109674",
+      "order_name": "#3885",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T15:00:14+03:00",
+      "country_code": "BE",
+      "country": "Belgium",
+      "product": "Quote crewneck (Unisex)",
+      "product_id": "10095860449578",
+      "variant_id": "51424560775466",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
+      "quantity": 1,
+      "line_item_subtotal_usd": 85.43,
+      "order_revenue_usd": 96.97,
+      "line_revenue_usd": 96.97,
+      "family": "Crewnecks",
+      "subtype": "Quote crewneck",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/nl/products/quote-crewneck",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "FR_NL_BE_CBO - Copy",
+          "utm_term": "FR_NL_BE_Winter_Tops",
+          "utm_content": "Quote VO",
+          "utm_id": "120243206772210138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "FR_NL_BE_CBO - Copy",
+          "utm_campaign_first": "FR_NL_BE_CBO - Copy",
+          "utm_campaign_last": "FR_NL_BE_CBO - Copy",
+          "utm_content": "Quote VO",
+          "utm_content_first": "Quote VO",
+          "utm_content_last": "Quote VO",
+          "utm_term": "FR_NL_BE_Winter_Tops",
+          "utm_term_first": "FR_NL_BE_Winter_Tops",
+          "utm_term_last": "FR_NL_BE_Winter_Tops"
+        },
+        "campaign_hint": "FR_NL_BE_CBO - Copy",
+        "adset_hint": "FR_NL_BE_Winter_Tops",
+        "ad_hint": "Quote VO",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "FR_NL_BE_CBO - Copy",
+          "adset_name": "FR_NL_BE_Winter_Tops",
+          "ad_name": "Quote VO"
+        }
+      }
+    },
+    {
+      "order_id": "7530248601898",
+      "order_name": "#3886",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T16:10:27+03:00",
+      "country_code": "AE",
+      "country": "United Arab Emirates",
+      "product": "Zaytoun Tree Denim Skirt",
+      "product_id": "10025118826794",
+      "variant_id": "51149271171370",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/skirt-fixed.jpg?v=1769597744",
+      "quantity": 1,
+      "line_item_subtotal_usd": 95.57,
+      "order_revenue_usd": 118.47,
+      "line_revenue_usd": 108.91,
+      "family": "Skirts",
+      "subtype": "Zaytoun skirt",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/bottoms",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "GCC_CBO - Copy",
+          "utm_term": "GCC_Skirts",
+          "utm_content": "Kuffiyah Skirt Hind",
+          "utm_id": "120243206772220138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "GCC_CBO - Copy",
+          "utm_campaign_first": "GCC_CBO - Copy",
+          "utm_campaign_last": "GCC_CBO - Copy",
+          "utm_content": "Kuffiyah Skirt Hind",
+          "utm_content_first": "Kuffiyah Skirt Hind",
+          "utm_content_last": "Kuffiyah Skirt Hind",
+          "utm_term": "GCC_Skirts",
+          "utm_term_first": "GCC_Skirts",
+          "utm_term_last": "GCC_Skirts"
+        },
+        "campaign_hint": "GCC_CBO - Copy",
+        "adset_hint": "GCC_Skirts",
+        "ad_hint": "Kuffiyah Skirt Hind",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "GCC_CBO - Copy",
+          "adset_name": "GCC_Skirts",
+          "ad_name": "Kuffiyah Skirt Hind"
+        }
+      }
+    },
+    {
+      "order_id": "7530494460202",
+      "order_name": "#3887",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T17:38:07+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
+      "product_id": "9508626858282",
+      "variant_id": "50155572560170",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
+      "quantity": 1,
+      "line_item_subtotal_usd": 89,
+      "order_revenue_usd": 90.09,
+      "line_revenue_usd": 90.09,
+      "family": "Denim pants",
+      "subtype": "Denim pants",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/bottoms",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CBO",
+          "utm_term": "USA_Denim",
+          "utm_content": "Denim Social 1",
+          "utm_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CBO",
+          "utm_campaign_first": "USA_CBO",
+          "utm_campaign_last": "USA_CBO",
+          "utm_content": "Denim Social 1",
+          "utm_content_first": "Denim Social 1",
+          "utm_content_last": "Denim Social 1",
+          "utm_term": "USA_Denim",
+          "utm_term_first": "USA_Denim",
+          "utm_term_last": "USA_Denim"
+        },
+        "campaign_hint": "USA_CBO",
+        "adset_hint": "USA_Denim",
+        "ad_hint": "Denim Social 1",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "USA_CBO",
+          "adset_name": "USA_Denim",
+          "ad_name": "Denim Social 1"
+        }
+      }
+    },
+    {
+      "order_id": "7531026022698",
+      "order_name": "#3888",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T19:12:10+03:00",
+      "country_code": "SA",
+      "country": "Saudi Arabia",
+      "product": "Kuffiyah",
+      "product_id": "9772495405354",
+      "variant_id": "51212443353386",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2564_1.jpg?v=1767270820",
+      "quantity": 1,
+      "line_item_subtotal_usd": 34.63,
+      "order_revenue_usd": 82.58,
+      "line_revenue_usd": 41.29,
+      "family": "Kuffiyah accessory",
+      "subtype": "Kuffiyah accessory",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/ar/collections/tops",
+        "referrer_host": "facebook.com",
+        "utm": {
+          "utm_source": "fb",
+          "utm_medium": "paid_social",
+          "utm_campaign": "GCC_CBO - Copy",
+          "utm_term": "GCC_Skirts",
+          "utm_content": "Kuffiyah Skirt Hind"
+        },
+        "note_attributes": {
+          "utm_source": "fb",
+          "utm_source_first": "fb",
+          "utm_source_last": "fb",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "GCC_CBO - Copy",
+          "utm_campaign_first": "GCC_CBO - Copy",
+          "utm_campaign_last": "GCC_CBO - Copy",
+          "utm_content": "Kuffiyah Skirt Hind",
+          "utm_content_first": "VSC Blurry Shirt 98",
+          "utm_content_last": "Kuffiyah Skirt Hind",
+          "utm_term": "GCC_Skirts",
+          "utm_term_first": "GCC_Summer_Tops",
+          "utm_term_last": "GCC_Skirts"
+        },
+        "campaign_hint": "GCC_CBO - Copy",
+        "adset_hint": "GCC_Skirts",
+        "ad_hint": "Kuffiyah Skirt Hind",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "GCC_CBO - Copy",
+          "adset_name": "GCC_Skirts",
+          "ad_name": "Kuffiyah Skirt Hind"
+        }
+      }
+    },
+    {
+      "order_id": "7531026022698",
+      "order_name": "#3888",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T19:12:10+03:00",
+      "country_code": "SA",
+      "country": "Saudi Arabia",
+      "product": "Kuffiyah",
+      "product_id": "9772495405354",
+      "variant_id": "51212443255082",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/IMG_2564_1.jpg?v=1767270820",
+      "quantity": 1,
+      "line_item_subtotal_usd": 34.63,
+      "order_revenue_usd": 82.58,
+      "line_revenue_usd": 41.29,
+      "family": "Kuffiyah accessory",
+      "subtype": "Kuffiyah accessory",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/ar/collections/tops",
+        "referrer_host": "facebook.com",
+        "utm": {
+          "utm_source": "fb",
+          "utm_medium": "paid_social",
+          "utm_campaign": "GCC_CBO - Copy",
+          "utm_term": "GCC_Skirts",
+          "utm_content": "Kuffiyah Skirt Hind"
+        },
+        "note_attributes": {
+          "utm_source": "fb",
+          "utm_source_first": "fb",
+          "utm_source_last": "fb",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "GCC_CBO - Copy",
+          "utm_campaign_first": "GCC_CBO - Copy",
+          "utm_campaign_last": "GCC_CBO - Copy",
+          "utm_content": "Kuffiyah Skirt Hind",
+          "utm_content_first": "VSC Blurry Shirt 98",
+          "utm_content_last": "Kuffiyah Skirt Hind",
+          "utm_term": "GCC_Skirts",
+          "utm_term_first": "GCC_Summer_Tops",
+          "utm_term_last": "GCC_Skirts"
+        },
+        "campaign_hint": "GCC_CBO - Copy",
+        "adset_hint": "GCC_Skirts",
+        "ad_hint": "Kuffiyah Skirt Hind",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "GCC_CBO - Copy",
+          "adset_name": "GCC_Skirts",
+          "ad_name": "Kuffiyah Skirt Hind"
+        }
+      }
+    },
+    {
+      "order_id": "7531391549738",
+      "order_name": "#3889",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T20:07:46+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
+      "product_id": "9508626858282",
+      "variant_id": "50600296579370",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
+      "quantity": 1,
+      "line_item_subtotal_usd": 89,
+      "order_revenue_usd": 98.99,
+      "line_revenue_usd": 98.99,
+      "family": "Denim pants",
+      "subtype": "Denim pants",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/bottoms",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CBO",
+          "utm_term": "USA_Denim",
+          "utm_content": "Denim Social 1",
+          "utm_id": "120243127929760138"
+        },
+        "note_attributes": {},
+        "campaign_hint": "USA_CBO",
+        "adset_hint": "USA_Denim",
+        "ad_hint": "Denim Social 1",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "USA_CBO",
+          "adset_name": "USA_Denim",
+          "ad_name": "Denim Social 1"
+        }
+      }
+    },
+    {
+      "order_id": "7531471995178",
+      "order_name": "#3890",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T20:20:57+03:00",
+      "country_code": "DK",
+      "country": "Denmark",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922267946",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 80.82,
+      "order_revenue_usd": 84.28,
+      "line_revenue_usd": 84.28,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/tops",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "{{site_source_name}}",
+          "utm_medium": "paid_social",
+          "utm_campaign": "{{campaign.name}}",
+          "utm_term": "{{adset.name}}",
+          "utm_content": "{{ad.name}}"
+        },
+        "note_attributes": {
+          "utm_source": "{{site_source_name}}",
+          "utm_source_first": "{{site_source_name}}",
+          "utm_source_last": "{{site_source_name}}",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "{{campaign.name}}",
+          "utm_campaign_first": "{{campaign.name}}",
+          "utm_campaign_last": "{{campaign.name}}",
+          "utm_content": "{{ad.name}}",
+          "utm_content_first": "{{ad.name}}",
+          "utm_content_last": "{{ad.name}}",
+          "utm_term": "{{adset.name}}",
+          "utm_term_first": "{{adset.name}}",
+          "utm_term_last": "{{adset.name}}"
+        },
+        "campaign_hint": "{{campaign.name}}",
+        "adset_hint": "{{adset.name}}",
+        "ad_hint": "{{ad.name}}",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "{{campaign.name}}",
+          "adset_name": "{{adset.name}}",
+          "ad_name": "{{ad.name}}"
+        }
+      }
+    },
+    {
+      "order_id": "7531533828394",
+      "order_name": "#3891",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T20:30:11+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
+      "product_id": "9508626858282",
+      "variant_id": "50155572592938",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
+      "quantity": 1,
+      "line_item_subtotal_usd": 89,
+      "order_revenue_usd": 90.09,
+      "line_revenue_usd": 90.09,
+      "family": "Denim pants",
+      "subtype": "Denim pants",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/bottoms",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CBO",
+          "utm_term": "USA_Denim",
+          "utm_content": "Denim Social 1",
+          "utm_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CBO",
+          "utm_campaign_first": "USA_CBO",
+          "utm_campaign_last": "USA_CBO",
+          "utm_content": "Denim Social 1",
+          "utm_content_first": "Denim Social 1",
+          "utm_content_last": "Denim Social 1",
+          "utm_term": "USA_Denim",
+          "utm_term_first": "USA_Denim",
+          "utm_term_last": "USA_Denim"
+        },
+        "campaign_hint": "USA_CBO",
+        "adset_hint": "USA_Denim",
+        "ad_hint": "Denim Social 1",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "USA_CBO",
+          "adset_name": "USA_Denim",
+          "ad_name": "Denim Social 1"
+        }
+      }
+    },
+    {
+      "order_id": "7531654480170",
+      "order_name": "#3892",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T20:48:30+03:00",
+      "country_code": "AE",
+      "country": "United Arab Emirates",
+      "product": "QUOTE T-shirt (Unisex)",
+      "product_id": "10134294462762",
+      "variant_id": "51553103708458",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190",
+      "quantity": 1,
+      "line_item_subtotal_usd": 77.33,
+      "order_revenue_usd": 82.94,
+      "line_revenue_usd": 82.94,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/quote-t-shirt-unisex-copy",
+        "referrer_host": "",
+        "utm": {},
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "GCC_CBO - Copy",
+          "utm_campaign_first": "GCC_CBO - Copy",
+          "utm_campaign_last": "GCC_CBO - Copy",
+          "utm_content": "Denim Social 1",
+          "utm_content_first": "Denim Social 1",
+          "utm_content_last": "Denim Social 1",
+          "utm_term": "GCC_Denim",
+          "utm_term_first": "GCC_Denim",
+          "utm_term_last": "GCC_Denim"
+        },
+        "campaign_hint": "GCC_CBO - Copy",
+        "adset_hint": "GCC_Denim",
+        "ad_hint": "Denim Social 1",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "GCC_CBO - Copy",
+          "adset_name": "GCC_Denim",
+          "ad_name": "Denim Social 1"
+        }
+      }
+    },
+    {
+      "order_id": "7531873599786",
+      "order_name": "#3893",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T21:52:35+03:00",
+      "country_code": "NL",
+      "country": "Netherlands",
+      "product": "Quote crewneck (Unisex)",
+      "product_id": "10095860449578",
+      "variant_id": "51424560808234",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_13.jpg?v=1776188538",
+      "quantity": 1,
+      "line_item_subtotal_usd": 85.43,
+      "order_revenue_usd": 185.88,
+      "line_revenue_usd": 85.43,
+      "family": "Crewnecks",
+      "subtype": "Quote crewneck",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/tops",
+        "referrer_host": "l.facebook.com",
+        "utm": {
+          "utm_source": "fb",
+          "utm_medium": "paid_social",
+          "utm_campaign": "FR_NL_BE_CBO - Copy",
+          "utm_term": "FR_NL_BE_Summer_Tops",
+          "utm_content": "VSC Blurry Shirt 98"
+        },
+        "note_attributes": {
+          "utm_source": "fb",
+          "utm_source_first": "fb",
+          "utm_source_last": "fb",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "FR_NL_BE_CBO - Copy",
+          "utm_campaign_first": "FR_NL_BE_CBO - Copy",
+          "utm_campaign_last": "FR_NL_BE_CBO - Copy",
+          "utm_content": "VSC Blurry Shirt 98",
+          "utm_content_first": "VSC Blurry Shirt 98",
+          "utm_content_last": "VSC Blurry Shirt 98",
+          "utm_term": "FR_NL_BE_Summer_Tops",
+          "utm_term_first": "FR_NL_BE_Summer_Tops",
+          "utm_term_last": "FR_NL_BE_Summer_Tops"
+        },
+        "campaign_hint": "FR_NL_BE_CBO - Copy",
+        "adset_hint": "FR_NL_BE_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt 98",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "FR_NL_BE_CBO - Copy",
+          "adset_name": "FR_NL_BE_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt 98"
+        }
+      }
+    },
+    {
+      "order_id": "7531873599786",
+      "order_name": "#3893",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T21:52:35+03:00",
+      "country_code": "NL",
+      "country": "Netherlands",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Hoodie (Unisex)",
+      "product_id": "10025020064042",
+      "variant_id": "51081857499434",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
+      "quantity": 1,
+      "line_item_subtotal_usd": 100.45,
+      "order_revenue_usd": 185.88,
+      "line_revenue_usd": 100.45000000000002,
+      "family": "Hoodies",
+      "subtype": "Ghalabany Al-ShawQ hoodie",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/tops",
+        "referrer_host": "l.facebook.com",
+        "utm": {
+          "utm_source": "fb",
+          "utm_medium": "paid_social",
+          "utm_campaign": "FR_NL_BE_CBO - Copy",
+          "utm_term": "FR_NL_BE_Summer_Tops",
+          "utm_content": "VSC Blurry Shirt 98"
+        },
+        "note_attributes": {
+          "utm_source": "fb",
+          "utm_source_first": "fb",
+          "utm_source_last": "fb",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "FR_NL_BE_CBO - Copy",
+          "utm_campaign_first": "FR_NL_BE_CBO - Copy",
+          "utm_campaign_last": "FR_NL_BE_CBO - Copy",
+          "utm_content": "VSC Blurry Shirt 98",
+          "utm_content_first": "VSC Blurry Shirt 98",
+          "utm_content_last": "VSC Blurry Shirt 98",
+          "utm_term": "FR_NL_BE_Summer_Tops",
+          "utm_term_first": "FR_NL_BE_Summer_Tops",
+          "utm_term_last": "FR_NL_BE_Summer_Tops"
+        },
+        "campaign_hint": "FR_NL_BE_CBO - Copy",
+        "adset_hint": "FR_NL_BE_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt 98",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "FR_NL_BE_CBO - Copy",
+          "adset_name": "FR_NL_BE_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt 98"
+        }
+      }
+    },
+    {
+      "order_id": "7531904270634",
+      "order_name": "#3894",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T22:07:41+03:00",
+      "country_code": "DE",
+      "country": "Germany",
+      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
+      "product_id": "9508626858282",
+      "variant_id": "50600296579370",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
+      "quantity": 1,
+      "line_item_subtotal_usd": 91.18,
+      "order_revenue_usd": 171.97,
+      "line_revenue_usd": 91.17999999999999,
+      "family": "Denim pants",
+      "subtype": "Denim pants",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/ar/products/never-forgotten-never-forgiven-stone-washed-denim-jeans",
+        "referrer_host": "",
+        "utm": {},
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "DACH_CBO",
+          "utm_campaign_first": "DACH_CBO",
+          "utm_campaign_last": "DACH_CBO",
+          "utm_content": "VSC Blurry Shirt 98",
+          "utm_content_first": "VSC Blurry Shirt 98",
+          "utm_content_last": "VSC Blurry Shirt 98",
+          "utm_term": "DACH_Summer_Tops",
+          "utm_term_first": "DACH_Summer_Tops",
+          "utm_term_last": "DACH_Summer_Tops"
+        },
+        "campaign_hint": "DACH_CBO",
+        "adset_hint": "DACH_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt 98",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "DACH_CBO",
+          "adset_name": "DACH_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt 98"
+        }
+      }
+    },
+    {
+      "order_id": "7531904270634",
+      "order_name": "#3894",
+      "date": "2026-06-10",
+      "created_at": "2026-06-10T22:07:41+03:00",
+      "country_code": "DE",
+      "country": "Germany",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922366250",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 80.79,
+      "order_revenue_usd": 171.97,
+      "line_revenue_usd": 80.78999999999999,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/ar/products/never-forgotten-never-forgiven-stone-washed-denim-jeans",
+        "referrer_host": "",
+        "utm": {},
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "DACH_CBO",
+          "utm_campaign_first": "DACH_CBO",
+          "utm_campaign_last": "DACH_CBO",
+          "utm_content": "VSC Blurry Shirt 98",
+          "utm_content_first": "VSC Blurry Shirt 98",
+          "utm_content_last": "VSC Blurry Shirt 98",
+          "utm_term": "DACH_Summer_Tops",
+          "utm_term_first": "DACH_Summer_Tops",
+          "utm_term_last": "DACH_Summer_Tops"
+        },
+        "campaign_hint": "DACH_CBO",
+        "adset_hint": "DACH_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt 98",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "DACH_CBO",
+          "adset_name": "DACH_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt 98"
+        }
+      }
+    },
+    {
+      "order_id": "7532175982890",
+      "order_name": "#3895",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T00:13:02+03:00",
+      "country_code": "CA",
+      "country": "Canada",
+      "product": "Kuffiyah Engraved Denim Skirt",
+      "product_id": "10025119351082",
+      "variant_id": "51094999630122",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
+      "quantity": 1,
+      "line_item_subtotal_usd": 99.68,
+      "order_revenue_usd": 106.84,
+      "line_revenue_usd": 106.84,
+      "family": "Skirts",
+      "subtype": "Kuffiyah skirt",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/kuffiyah-engraved-denim-skirt",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "meta",
+          "utm_medium": "paid_social",
+          "utm_campaign": "CA_CBO",
+          "utm_term": "CA_Skirts",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_id": "120243203134870138",
+          "adset_id": "120243203135140138",
+          "ad_id": "120243203135250138"
+        },
+        "note_attributes": {
+          "utm_source": "meta",
+          "utm_source_first": "meta",
+          "utm_source_last": "meta",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "CA_CBO",
+          "utm_campaign_first": "CA_CBO",
+          "utm_campaign_last": "CA_CBO",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_content_first": "Vescarts Skirt 2",
+          "utm_content_last": "Vescarts Skirt 2",
+          "utm_term": "CA_Skirts",
+          "utm_term_first": "CA_Skirts",
+          "utm_term_last": "CA_Skirts"
+        },
+        "campaign_hint": "CA_CBO",
+        "adset_hint": "CA_Skirts",
+        "ad_hint": "Vescarts Skirt 2",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "120243203135140138",
+          "ad_id": "120243203135250138",
+          "campaign_name": "CA_CBO",
+          "adset_name": "CA_Skirts",
+          "ad_name": "Vescarts Skirt 2"
+        }
+      }
+    },
+    {
+      "order_id": "7532181193002",
+      "order_name": "#3896",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T00:16:43+03:00",
+      "country_code": "CA",
+      "country": "Canada",
+      "product": "Kuffiyah Engraved Denim Skirt",
+      "product_id": "10025119351082",
+      "variant_id": "51094999597354",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
+      "quantity": 1,
+      "line_item_subtotal_usd": 99.68,
+      "order_revenue_usd": 106.84,
+      "line_revenue_usd": 106.84,
+      "family": "Skirts",
+      "subtype": "Kuffiyah skirt",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/kuffiyah-engraved-denim-skirt",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "meta",
+          "utm_medium": "paid_social",
+          "utm_campaign": "CA_CBO",
+          "utm_term": "CA_Skirts",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_id": "120243203134870138",
+          "adset_id": "120243203135140138",
+          "ad_id": "120243203135250138"
+        },
+        "note_attributes": {
+          "utm_source": "meta",
+          "utm_source_first": "meta",
+          "utm_source_last": "meta",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "CA_CBO",
+          "utm_campaign_first": "CA_CBO",
+          "utm_campaign_last": "CA_CBO",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_content_first": "Vescarts Skirt 2",
+          "utm_content_last": "Vescarts Skirt 2",
+          "utm_term": "CA_Skirts",
+          "utm_term_first": "CA_Skirts",
+          "utm_term_last": "CA_Skirts"
+        },
+        "campaign_hint": "CA_CBO",
+        "adset_hint": "CA_Skirts",
+        "ad_hint": "Vescarts Skirt 2",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "120243203135140138",
+          "ad_id": "120243203135250138",
+          "campaign_name": "CA_CBO",
+          "adset_name": "CA_Skirts",
+          "ad_name": "Vescarts Skirt 2"
+        }
+      }
+    },
+    {
+      "order_id": "7532182143274",
+      "order_name": "#3897",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T00:17:40+03:00",
+      "country_code": "CH",
+      "country": "Switzerland",
+      "product": "Kuffiyah Engraved Denim Skirt",
+      "product_id": "10025119351082",
+      "variant_id": "51094999630122",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
+      "quantity": 1,
+      "line_item_subtotal_usd": 100.3,
+      "order_revenue_usd": 101.8,
+      "line_revenue_usd": 101.8,
+      "family": "Skirts",
+      "subtype": "Kuffiyah skirt",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/de/collections/bottoms",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "DACH_CBO",
+          "utm_term": "DACH_Skirts",
+          "utm_content": "Kuffiyah Skirt Background change",
+          "utm_id": "120243205357090138"
+        },
+        "note_attributes": {},
+        "campaign_hint": "DACH_CBO",
+        "adset_hint": "DACH_Skirts",
+        "ad_hint": "Kuffiyah Skirt Background change",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "DACH_CBO",
+          "adset_name": "DACH_Skirts",
+          "ad_name": "Kuffiyah Skirt Background change"
+        }
+      }
+    },
+    {
+      "order_id": "7532212289834",
+      "order_name": "#3898",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T00:37:16+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Long Sleeve Shirt (Unisex)",
+      "product_id": "9508611096874",
+      "variant_id": "49352934850858",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
+      "quantity": 1,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 163.8,
+      "line_revenue_usd": 75.60000000000001,
+      "family": "Tops",
+      "subtype": "Long sleeve",
+      "attribution": {
+        "source_name": "2329312",
+        "landing_path": "/",
+        "referrer_host": "l.instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "social",
+          "utm_content": "link_in_bio"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "social",
+          "utm_medium_first": "social",
+          "utm_medium_last": "social",
+          "utm_content": "link_in_bio",
+          "utm_content_first": "link_in_bio",
+          "utm_content_last": "link_in_bio",
+          "Channel": "Instagram",
+          "utm_campaign": "{{campaign.name}}",
+          "utm_campaign_first": "{{campaign.name}}",
+          "utm_campaign_last": "{{campaign.name}}",
+          "utm_term": "{{adset.name}}",
+          "utm_term_first": "{{adset.name}}",
+          "utm_term_last": "{{adset.name}}"
+        },
+        "campaign_hint": "{{campaign.name}}",
+        "adset_hint": "{{adset.name}}",
+        "ad_hint": "link_in_bio",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "{{campaign.name}}",
+          "adset_name": "{{adset.name}}",
+          "ad_name": "link_in_bio"
+        }
+      }
+    },
+    {
+      "order_id": "7532212289834",
+      "order_name": "#3898",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T00:37:16+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Kuffiyah Engraved Denim Skirt",
+      "product_id": "10025119351082",
+      "variant_id": "51094999630122",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
+      "quantity": 1,
+      "line_item_subtotal_usd": 98,
+      "order_revenue_usd": 163.8,
+      "line_revenue_usd": 88.2,
+      "family": "Skirts",
+      "subtype": "Kuffiyah skirt",
+      "attribution": {
+        "source_name": "2329312",
+        "landing_path": "/",
+        "referrer_host": "l.instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "social",
+          "utm_content": "link_in_bio"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "social",
+          "utm_medium_first": "social",
+          "utm_medium_last": "social",
+          "utm_content": "link_in_bio",
+          "utm_content_first": "link_in_bio",
+          "utm_content_last": "link_in_bio",
+          "Channel": "Instagram",
+          "utm_campaign": "{{campaign.name}}",
+          "utm_campaign_first": "{{campaign.name}}",
+          "utm_campaign_last": "{{campaign.name}}",
+          "utm_term": "{{adset.name}}",
+          "utm_term_first": "{{adset.name}}",
+          "utm_term_last": "{{adset.name}}"
+        },
+        "campaign_hint": "{{campaign.name}}",
+        "adset_hint": "{{adset.name}}",
+        "ad_hint": "link_in_bio",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "{{campaign.name}}",
+          "adset_name": "{{adset.name}}",
+          "ad_name": "link_in_bio"
+        }
+      }
+    },
+    {
+      "order_id": "7532369281322",
+      "order_name": "#3899",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T02:14:05+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Long Sleeve Shirt (Unisex)",
+      "product_id": "9508611096874",
+      "variant_id": "49352934949162",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
+      "quantity": 1,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 461.7,
+      "line_revenue_usd": 75.6,
+      "family": "Tops",
+      "subtype": "Long sleeve",
+      "attribution": {
+        "source_name": "2329312",
+        "landing_path": "/cart/49352922366250:1",
+        "referrer_host": "m.facebook.com",
+        "utm": {
+          "utm_source": "fb",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "ad_id": "120243202117370138",
+          "campaign_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "Channel": "Facebook",
+          "utm_source": "fb",
+          "utm_source_first": "fb",
+          "utm_source_last": "fb",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_campaign_first": "USA_CA_CBO",
+          "utm_campaign_last": "USA_CA_CBO",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "utm_content_first": "VSC Blurry Shirt Masterpiece",
+          "utm_content_last": "VSC Blurry Shirt Masterpiece",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_term_first": "USA_CA_Summer_Tops",
+          "utm_term_last": "USA_CA_Summer_Tops"
+        },
+        "campaign_hint": "USA_CA_CBO",
+        "adset_hint": "USA_CA_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt Masterpiece",
+        "match_hints": {
+          "campaign_id": "120243127929760138",
+          "adset_id": "",
+          "ad_id": "120243202117370138",
+          "campaign_name": "USA_CA_CBO",
+          "adset_name": "USA_CA_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt Masterpiece"
+        }
+      }
+    },
+    {
+      "order_id": "7532369281322",
+      "order_name": "#3899",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T02:14:05+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Zahrat Al-Mada'en - زَهرة المدائِن T-shirt (Unisex)",
+      "product_id": "10134281617706",
+      "variant_id": "51553004192042",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
+      "quantity": 1,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 461.7,
+      "line_revenue_usd": 75.6,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "2329312",
+        "landing_path": "/cart/49352922366250:1",
+        "referrer_host": "m.facebook.com",
+        "utm": {
+          "utm_source": "fb",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "ad_id": "120243202117370138",
+          "campaign_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "Channel": "Facebook",
+          "utm_source": "fb",
+          "utm_source_first": "fb",
+          "utm_source_last": "fb",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_campaign_first": "USA_CA_CBO",
+          "utm_campaign_last": "USA_CA_CBO",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "utm_content_first": "VSC Blurry Shirt Masterpiece",
+          "utm_content_last": "VSC Blurry Shirt Masterpiece",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_term_first": "USA_CA_Summer_Tops",
+          "utm_term_last": "USA_CA_Summer_Tops"
+        },
+        "campaign_hint": "USA_CA_CBO",
+        "adset_hint": "USA_CA_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt Masterpiece",
+        "match_hints": {
+          "campaign_id": "120243127929760138",
+          "adset_id": "",
+          "ad_id": "120243202117370138",
+          "campaign_name": "USA_CA_CBO",
+          "adset_name": "USA_CA_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt Masterpiece"
+        }
+      }
+    },
+    {
+      "order_id": "7532369281322",
+      "order_name": "#3899",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T02:14:05+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Long Sleeve Shirt (Unisex)",
+      "product_id": "9508611096874",
+      "variant_id": "49352934916394",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
+      "quantity": 2,
+      "line_item_subtotal_usd": 168,
+      "order_revenue_usd": 461.7,
+      "line_revenue_usd": 151.2,
+      "family": "Tops",
+      "subtype": "Long sleeve",
+      "attribution": {
+        "source_name": "2329312",
+        "landing_path": "/cart/49352922366250:1",
+        "referrer_host": "m.facebook.com",
+        "utm": {
+          "utm_source": "fb",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "ad_id": "120243202117370138",
+          "campaign_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "Channel": "Facebook",
+          "utm_source": "fb",
+          "utm_source_first": "fb",
+          "utm_source_last": "fb",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_campaign_first": "USA_CA_CBO",
+          "utm_campaign_last": "USA_CA_CBO",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "utm_content_first": "VSC Blurry Shirt Masterpiece",
+          "utm_content_last": "VSC Blurry Shirt Masterpiece",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_term_first": "USA_CA_Summer_Tops",
+          "utm_term_last": "USA_CA_Summer_Tops"
+        },
+        "campaign_hint": "USA_CA_CBO",
+        "adset_hint": "USA_CA_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt Masterpiece",
+        "match_hints": {
+          "campaign_id": "120243127929760138",
+          "adset_id": "",
+          "ad_id": "120243202117370138",
+          "campaign_name": "USA_CA_CBO",
+          "adset_name": "USA_CA_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt Masterpiece"
+        }
+      }
+    },
+    {
+      "order_id": "7532369281322",
+      "order_name": "#3899",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T02:14:05+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922366250",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 461.7,
+      "line_revenue_usd": 71.1,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "2329312",
+        "landing_path": "/cart/49352922366250:1",
+        "referrer_host": "m.facebook.com",
+        "utm": {
+          "utm_source": "fb",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "ad_id": "120243202117370138",
+          "campaign_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "Channel": "Facebook",
+          "utm_source": "fb",
+          "utm_source_first": "fb",
+          "utm_source_last": "fb",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_campaign_first": "USA_CA_CBO",
+          "utm_campaign_last": "USA_CA_CBO",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "utm_content_first": "VSC Blurry Shirt Masterpiece",
+          "utm_content_last": "VSC Blurry Shirt Masterpiece",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_term_first": "USA_CA_Summer_Tops",
+          "utm_term_last": "USA_CA_Summer_Tops"
+        },
+        "campaign_hint": "USA_CA_CBO",
+        "adset_hint": "USA_CA_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt Masterpiece",
+        "match_hints": {
+          "campaign_id": "120243127929760138",
+          "adset_id": "",
+          "ad_id": "120243202117370138",
+          "campaign_name": "USA_CA_CBO",
+          "adset_name": "USA_CA_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt Masterpiece"
+        }
+      }
+    },
+    {
+      "order_id": "7532369281322",
+      "order_name": "#3899",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T02:14:05+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Hoodie (Unisex)",
+      "product_id": "10025020064042",
+      "variant_id": "51081857564970",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
+      "quantity": 1,
+      "line_item_subtotal_usd": 98,
+      "order_revenue_usd": 461.7,
+      "line_revenue_usd": 88.19999999999999,
+      "family": "Hoodies",
+      "subtype": "Ghalabany Al-ShawQ hoodie",
+      "attribution": {
+        "source_name": "2329312",
+        "landing_path": "/cart/49352922366250:1",
+        "referrer_host": "m.facebook.com",
+        "utm": {
+          "utm_source": "fb",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "ad_id": "120243202117370138",
+          "campaign_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "Channel": "Facebook",
+          "utm_source": "fb",
+          "utm_source_first": "fb",
+          "utm_source_last": "fb",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_campaign_first": "USA_CA_CBO",
+          "utm_campaign_last": "USA_CA_CBO",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "utm_content_first": "VSC Blurry Shirt Masterpiece",
+          "utm_content_last": "VSC Blurry Shirt Masterpiece",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_term_first": "USA_CA_Summer_Tops",
+          "utm_term_last": "USA_CA_Summer_Tops"
+        },
+        "campaign_hint": "USA_CA_CBO",
+        "adset_hint": "USA_CA_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt Masterpiece",
+        "match_hints": {
+          "campaign_id": "120243127929760138",
+          "adset_id": "",
+          "ad_id": "120243202117370138",
+          "campaign_name": "USA_CA_CBO",
+          "adset_name": "USA_CA_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt Masterpiece"
+        }
+      }
+    },
+    {
+      "order_id": "7532462604586",
+      "order_name": "#3900",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T03:19:30+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Zahrat Al-Mada'en - زَهرة المدائِن T-shirt (Unisex)",
+      "product_id": "10134281617706",
+      "variant_id": "51553004060970",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
+      "quantity": 1,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 93.99,
+      "line_revenue_usd": 93.99,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/quote-crewneck",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_term": "USA_CA_Winter_Tops",
+          "utm_content": "Quote VO",
+          "utm_id": "120243127929760138"
+        },
+        "note_attributes": {},
+        "campaign_hint": "USA_CA_CBO",
+        "adset_hint": "USA_CA_Winter_Tops",
+        "ad_hint": "Quote VO",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "USA_CA_CBO",
+          "adset_name": "USA_CA_Winter_Tops",
+          "ad_name": "Quote VO"
+        }
+      }
+    },
+    {
+      "order_id": "7532463653162",
+      "order_name": "#3901",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T03:20:14+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Zahrat Al-Mada'en - زَهرة المدائِن T-shirt (Unisex)",
+      "product_id": "10134281617706",
+      "variant_id": "51553004028202",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
+      "quantity": 1,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 93.99,
+      "line_revenue_usd": 93.99,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/quote-crewneck",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_term": "USA_CA_Winter_Tops",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "utm_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_campaign_first": "USA_CA_CBO",
+          "utm_campaign_last": "USA_CA_CBO",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "utm_content_first": "Quote VO",
+          "utm_content_last": "VSC Blurry Shirt Masterpiece",
+          "utm_term": "USA_CA_Winter_Tops",
+          "utm_term_first": "USA_CA_Winter_Tops",
+          "utm_term_last": "USA_CA_Winter_Tops"
+        },
+        "campaign_hint": "USA_CA_CBO",
+        "adset_hint": "USA_CA_Winter_Tops",
+        "ad_hint": "VSC Blurry Shirt Masterpiece",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "USA_CA_CBO",
+          "adset_name": "USA_CA_Winter_Tops",
+          "ad_name": "VSC Blurry Shirt Masterpiece"
+        }
+      }
+    },
+    {
+      "order_id": "7532719112490",
+      "order_name": "#3902",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T06:22:58+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Zahrat Al-Mada'en - زَهرة المدائِن Hoodie (Unisex)",
+      "product_id": "10132319240490",
+      "variant_id": "51549197041962",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/zahrat-hoodie-off.png?v=1779270413",
+      "quantity": 1,
+      "line_item_subtotal_usd": 109,
+      "order_revenue_usd": 169.2,
+      "line_revenue_usd": 98.1,
+      "family": "Hoodies",
+      "subtype": "Other hoodie",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/",
+        "referrer_host": "www.google.com",
+        "utm": {},
+        "note_attributes": {},
+        "campaign_hint": "",
+        "adset_hint": "",
+        "ad_hint": "",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "",
+          "adset_name": "",
+          "ad_name": ""
+        }
+      }
+    },
+    {
+      "order_id": "7532719112490",
+      "order_name": "#3902",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T06:22:58+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922235178",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 169.2,
+      "line_revenue_usd": 71.1,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/",
+        "referrer_host": "www.google.com",
+        "utm": {},
+        "note_attributes": {},
+        "campaign_hint": "",
+        "adset_hint": "",
+        "ad_hint": "",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "",
+          "adset_name": "",
+          "ad_name": ""
+        }
+      }
+    },
+    {
+      "order_id": "7532748996906",
+      "order_name": "#3903",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T06:43:16+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922366250",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 155,
+      "line_revenue_usd": 79,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "2329312",
+        "landing_path": "/cart/51553103741226:1,49352922366250:1",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "ad_id": "120243200500680138",
+          "campaign_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "Channel": "Instagram"
+        },
+        "campaign_hint": "120243127929760138",
+        "adset_hint": "",
+        "ad_hint": "120243200500680138",
+        "match_hints": {
+          "campaign_id": "120243127929760138",
+          "adset_id": "",
+          "ad_id": "120243200500680138",
+          "campaign_name": "120243127929760138",
+          "adset_name": "",
+          "ad_name": "120243200500680138"
+        }
+      }
+    },
+    {
+      "order_id": "7532748996906",
+      "order_name": "#3903",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T06:43:16+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "QUOTE T-shirt (Unisex)",
+      "product_id": "10134294462762",
+      "variant_id": "51553103741226",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Quote-short-sleeve.png?v=1779195190",
+      "quantity": 1,
+      "line_item_subtotal_usd": 76,
+      "order_revenue_usd": 155,
+      "line_revenue_usd": 76,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "2329312",
+        "landing_path": "/cart/51553103741226:1,49352922366250:1",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "ad_id": "120243200500680138",
+          "campaign_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "Channel": "Instagram"
+        },
+        "campaign_hint": "120243127929760138",
+        "adset_hint": "",
+        "ad_hint": "120243200500680138",
+        "match_hints": {
+          "campaign_id": "120243127929760138",
+          "adset_id": "",
+          "ad_id": "120243200500680138",
+          "campaign_name": "120243127929760138",
+          "adset_name": "",
+          "ad_name": "120243200500680138"
+        }
+      }
+    },
+    {
+      "order_id": "7533436010794",
+      "order_name": "#3904",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T14:25:50+03:00",
+      "country_code": "DE",
+      "country": "Germany",
+      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
+      "product_id": "9508626858282",
+      "variant_id": "50155572592938",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
+      "quantity": 1,
+      "line_item_subtotal_usd": 91.04,
+      "order_revenue_usd": 102.56,
+      "line_revenue_usd": 102.56,
+      "family": "Denim pants",
+      "subtype": "Denim pants",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/de/products/zahraa-almada2en",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "meta",
+          "utm_medium": "paid_social",
+          "utm_campaign": "DACH_CBO",
+          "utm_term": "DACH_Skirts",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_id": "120243205357090138",
+          "adset_id": "120243205356980138",
+          "ad_id": "120243205357080138"
+        },
+        "note_attributes": {
+          "utm_source": "meta",
+          "utm_source_first": "ig",
+          "utm_source_last": "meta",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "DACH_CBO",
+          "utm_campaign_first": "DACH_CBO",
+          "utm_campaign_last": "DACH_CBO",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_content_first": "Almada2en lighter",
+          "utm_content_last": "Vescarts Skirt 2",
+          "utm_term": "DACH_Skirts",
+          "utm_term_first": "DACH_Winter_Tops",
+          "utm_term_last": "DACH_Skirts"
+        },
+        "campaign_hint": "DACH_CBO",
+        "adset_hint": "DACH_Skirts",
+        "ad_hint": "Vescarts Skirt 2",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "120243205356980138",
+          "ad_id": "120243205357080138",
+          "campaign_name": "DACH_CBO",
+          "adset_name": "DACH_Skirts",
+          "ad_name": "Vescarts Skirt 2"
+        }
+      }
+    },
+    {
+      "order_id": "7533654180138",
+      "order_name": "#3905",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T16:23:32+03:00",
+      "country_code": "ES",
+      "country": "Spain",
+      "product": "Kuffiyah Engraved Denim Skirt",
+      "product_id": "10025119351082",
+      "variant_id": "51094999630122",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
+      "quantity": 1,
+      "line_item_subtotal_usd": 100.33,
+      "order_revenue_usd": 101.83,
+      "line_revenue_usd": 101.83,
+      "family": "Skirts",
+      "subtype": "Kuffiyah skirt",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/es/products/kuffiyah-engraved-denim-skirt",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "meta",
+          "utm_medium": "paid_social",
+          "utm_campaign": "IT_ES_CBO",
+          "utm_term": "IT_ES_Skirts",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_id": "120243206772330138",
+          "adset_id": "120243206771880138",
+          "ad_id": "120243206772080138"
+        },
+        "note_attributes": {
+          "utm_source": "meta",
+          "utm_source_first": "meta",
+          "utm_source_last": "meta",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "IT_ES_CBO",
+          "utm_campaign_first": "IT_ES_CBO",
+          "utm_campaign_last": "IT_ES_CBO",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_content_first": "Vescarts Skirt 2",
+          "utm_content_last": "Vescarts Skirt 2",
+          "utm_term": "IT_ES_Skirts",
+          "utm_term_first": "IT_ES_Skirts",
+          "utm_term_last": "IT_ES_Skirts"
+        },
+        "campaign_hint": "IT_ES_CBO",
+        "adset_hint": "IT_ES_Skirts",
+        "ad_hint": "Vescarts Skirt 2",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "120243206771880138",
+          "ad_id": "120243206772080138",
+          "campaign_name": "IT_ES_CBO",
+          "adset_name": "IT_ES_Skirts",
+          "ad_name": "Vescarts Skirt 2"
+        }
+      }
+    },
+    {
+      "order_id": "7534071513386",
+      "order_name": "#3906",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T19:52:23+03:00",
+      "country_code": "GB",
+      "country": "United Kingdom",
+      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
+      "product_id": "9508626858282",
+      "variant_id": "50600296579370",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
+      "quantity": 1,
+      "line_item_subtotal_usd": 90.68,
+      "order_revenue_usd": 104,
+      "line_revenue_usd": 104,
+      "family": "Denim pants",
+      "subtype": "Denim pants",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "social",
+          "utm_content": "link_in_bio"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "social",
+          "utm_medium_first": "social",
+          "utm_medium_last": "social",
+          "utm_content": "link_in_bio",
+          "utm_content_first": "link_in_bio",
+          "utm_content_last": "link_in_bio"
+        },
+        "campaign_hint": "",
+        "adset_hint": "",
+        "ad_hint": "link_in_bio",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "",
+          "adset_name": "",
+          "ad_name": "link_in_bio"
+        }
+      }
+    },
+    {
+      "order_id": "7534238892330",
+      "order_name": "#3907",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T21:15:47+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Zahrat Al-Mada'en - زَهرة المدائِن T-shirt (Unisex)",
+      "product_id": "10134281617706",
+      "variant_id": "51553004126506",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
+      "quantity": 1,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 93.99,
+      "line_revenue_usd": 93.99,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/",
+        "referrer_host": "www.google.com",
+        "utm": {},
+        "note_attributes": {},
+        "campaign_hint": "",
+        "adset_hint": "",
+        "ad_hint": "",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "",
+          "adset_name": "",
+          "ad_name": ""
+        }
+      }
+    },
+    {
+      "order_id": "7534348304682",
+      "order_name": "#3908",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T22:17:53+03:00",
+      "country_code": "AE",
+      "country": "United Arab Emirates",
+      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
+      "product_id": "9508626858282",
+      "variant_id": "50155572691242",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
+      "quantity": 1,
+      "line_item_subtotal_usd": 90.39,
+      "order_revenue_usd": 230.57,
+      "line_revenue_usd": 81.35064717592411,
+      "family": "Denim pants",
+      "subtype": "Denim pants",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/ghalabany-al-shawq-ْغَلبَني-الشَوق-long-sleeve-shirt",
+        "referrer_host": "www.google.com",
+        "utm": {},
+        "note_attributes": {},
+        "campaign_hint": "",
+        "adset_hint": "",
+        "ad_hint": "",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "",
+          "adset_name": "",
+          "ad_name": ""
+        }
+      }
+    },
+    {
+      "order_id": "7534348304682",
+      "order_name": "#3908",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T22:17:53+03:00",
+      "country_code": "AE",
+      "country": "United Arab Emirates",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922333482",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 80.31,
+      "order_revenue_usd": 230.57,
+      "line_revenue_usd": 72.27868652172215,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/ghalabany-al-shawq-ْغَلبَني-الشَوق-long-sleeve-shirt",
+        "referrer_host": "www.google.com",
+        "utm": {},
+        "note_attributes": {},
+        "campaign_hint": "",
+        "adset_hint": "",
+        "ad_hint": "",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "",
+          "adset_name": "",
+          "ad_name": ""
+        }
+      }
+    },
+    {
+      "order_id": "7534348304682",
+      "order_name": "#3908",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T22:17:53+03:00",
+      "country_code": "AE",
+      "country": "United Arab Emirates",
+      "product": "Zahrat Al-Mada'en - زَهرة المدائِن T-shirt (Unisex)",
+      "product_id": "10134281617706",
+      "variant_id": "51553004159274",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
+      "quantity": 1,
+      "line_item_subtotal_usd": 85.49,
+      "order_revenue_usd": 230.57,
+      "line_revenue_usd": 76.94066630235372,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/ghalabany-al-shawq-ْغَلبَني-الشَوق-long-sleeve-shirt",
+        "referrer_host": "www.google.com",
+        "utm": {},
+        "note_attributes": {},
+        "campaign_hint": "",
+        "adset_hint": "",
+        "ad_hint": "",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "",
+          "adset_name": "",
+          "ad_name": ""
+        }
+      }
+    },
+    {
+      "order_id": "7534355054890",
+      "order_name": "#3909",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T22:21:37+03:00",
+      "country_code": "ES",
+      "country": "Spain",
+      "product": "Kuffiyah Engraved Denim Skirt",
+      "product_id": "10025119351082",
+      "variant_id": "51094999630122",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
+      "quantity": 1,
+      "line_item_subtotal_usd": 100.51,
+      "order_revenue_usd": 102.02,
+      "line_revenue_usd": 102.02,
+      "family": "Skirts",
+      "subtype": "Kuffiyah skirt",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "social",
+          "utm_content": "link_in_bio"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "social",
+          "utm_medium_first": "social",
+          "utm_medium_last": "social",
+          "utm_content": "link_in_bio",
+          "utm_content_first": "link_in_bio",
+          "utm_content_last": "link_in_bio"
+        },
+        "campaign_hint": "",
+        "adset_hint": "",
+        "ad_hint": "link_in_bio",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "",
+          "adset_name": "",
+          "ad_name": "link_in_bio"
+        }
+      }
+    },
+    {
+      "order_id": "7534472102186",
+      "order_name": "#3910",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T23:33:36+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Kuffiyah Engraved Denim Skirt",
+      "product_id": "10025119351082",
+      "variant_id": "51094999662890",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
+      "quantity": 1,
+      "line_item_subtotal_usd": 98,
+      "order_revenue_usd": 98.19,
+      "line_revenue_usd": 98.19,
+      "family": "Skirts",
+      "subtype": "Kuffiyah skirt",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/",
+        "referrer_host": "",
+        "utm": {},
+        "note_attributes": {},
+        "campaign_hint": "",
+        "adset_hint": "",
+        "ad_hint": "",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "",
+          "adset_name": "",
+          "ad_name": ""
+        }
+      }
+    },
+    {
+      "order_id": "7534477607210",
+      "order_name": "#3911",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T23:36:41+03:00",
+      "country_code": "GB",
+      "country": "United Kingdom",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Long Sleeve Shirt (Unisex)",
+      "product_id": "9508611096874",
+      "variant_id": "49352934916394",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
+      "quantity": 1,
+      "line_item_subtotal_usd": 85.86,
+      "order_revenue_usd": 90.67,
+      "line_revenue_usd": 90.67,
+      "family": "Tops",
+      "subtype": "Long sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "UK_CBO",
+          "utm_term": "USA_Denim",
+          "utm_content": "Denim Social 2",
+          "utm_id": "120243203134880138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "UK_CBO",
+          "utm_campaign_first": "UK_CBO",
+          "utm_campaign_last": "UK_CBO",
+          "utm_content": "Denim Social 2",
+          "utm_content_first": "Denim Social 2",
+          "utm_content_last": "Denim Social 2",
+          "utm_term": "USA_Denim",
+          "utm_term_first": "USA_Denim",
+          "utm_term_last": "USA_Denim"
+        },
+        "campaign_hint": "UK_CBO",
+        "adset_hint": "USA_Denim",
+        "ad_hint": "Denim Social 2",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "UK_CBO",
+          "adset_name": "USA_Denim",
+          "ad_name": "Denim Social 2"
+        }
+      }
+    },
+    {
+      "order_id": "7534504345898",
+      "order_name": "#3912",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T23:54:14+03:00",
+      "country_code": "SA",
+      "country": "Saudi Arabia",
+      "product": "Zahrat Al-Mada'en - زَهرة المدائِن T-shirt (Unisex)",
+      "product_id": "10134281617706",
+      "variant_id": "51553004192042",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Zahrat-short-sleeve_1.png?v=1779193407",
+      "quantity": 1,
+      "line_item_subtotal_usd": 85.5,
+      "order_revenue_usd": 98.82,
+      "line_revenue_usd": 98.82,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/",
+        "referrer_host": "l.instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "social",
+          "utm_content": "link_in_bio"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "social",
+          "utm_medium_first": "social",
+          "utm_medium_last": "social",
+          "utm_content": "link_in_bio",
+          "utm_content_first": "link_in_bio",
+          "utm_content_last": "link_in_bio"
+        },
+        "campaign_hint": "",
+        "adset_hint": "",
+        "ad_hint": "link_in_bio",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "",
+          "adset_name": "",
+          "ad_name": "link_in_bio"
+        }
+      }
+    },
+    {
+      "order_id": "7534511227178",
+      "order_name": "#3913",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T23:58:07+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922267946",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 158,
+      "line_revenue_usd": 79,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/",
+        "referrer_host": "l.instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "social",
+          "utm_content": "link_in_bio"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "social",
+          "utm_medium_first": "social",
+          "utm_medium_last": "social",
+          "utm_campaign": "{{campaign.name}}",
+          "utm_campaign_first": "{{campaign.name}}",
+          "utm_campaign_last": "{{campaign.name}}",
+          "utm_content": "link_in_bio",
+          "utm_content_first": "link_in_bio",
+          "utm_content_last": "link_in_bio",
+          "utm_term": "{{adset.name}}",
+          "utm_term_first": "{{adset.name}}",
+          "utm_term_last": "{{adset.name}}"
+        },
+        "campaign_hint": "{{campaign.name}}",
+        "adset_hint": "{{adset.name}}",
+        "ad_hint": "link_in_bio",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "{{campaign.name}}",
+          "adset_name": "{{adset.name}}",
+          "ad_name": "link_in_bio"
+        }
+      }
+    },
+    {
+      "order_id": "7534511227178",
+      "order_name": "#3913",
+      "date": "2026-06-11",
+      "created_at": "2026-06-11T23:58:07+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922235178",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 158,
+      "line_revenue_usd": 79,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/",
+        "referrer_host": "l.instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "social",
+          "utm_content": "link_in_bio"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "social",
+          "utm_medium_first": "social",
+          "utm_medium_last": "social",
+          "utm_campaign": "{{campaign.name}}",
+          "utm_campaign_first": "{{campaign.name}}",
+          "utm_campaign_last": "{{campaign.name}}",
+          "utm_content": "link_in_bio",
+          "utm_content_first": "link_in_bio",
+          "utm_content_last": "link_in_bio",
+          "utm_term": "{{adset.name}}",
+          "utm_term_first": "{{adset.name}}",
+          "utm_term_last": "{{adset.name}}"
+        },
+        "campaign_hint": "{{campaign.name}}",
+        "adset_hint": "{{adset.name}}",
+        "ad_hint": "link_in_bio",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "{{campaign.name}}",
+          "adset_name": "{{adset.name}}",
+          "ad_name": "link_in_bio"
+        }
+      }
+    },
+    {
+      "order_id": "7534585119018",
+      "order_name": "#3914",
+      "date": "2026-06-12",
+      "created_at": "2026-06-12T00:47:03+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
+      "product_id": "9508626858282",
+      "variant_id": "50155572625706",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
+      "quantity": 1,
+      "line_item_subtotal_usd": 89,
+      "order_revenue_usd": 90.09,
+      "line_revenue_usd": 90.09,
+      "family": "Denim pants",
+      "subtype": "Denim pants",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/discount/IG-EMAIL-RJKE6YL1",
+        "referrer_host": "shawq.co",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CBO",
+          "utm_term": "USA_Denim",
+          "utm_content": "Denim Social 1",
+          "utm_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CBO",
+          "utm_campaign_first": "USA_CBO",
+          "utm_campaign_last": "USA_CBO",
+          "utm_content": "Denim Social 1",
+          "utm_content_first": "Denim Social 1",
+          "utm_content_last": "Denim Social 1",
+          "utm_term": "USA_Denim",
+          "utm_term_first": "USA_Denim",
+          "utm_term_last": "USA_Denim"
+        },
+        "campaign_hint": "USA_CBO",
+        "adset_hint": "USA_Denim",
+        "ad_hint": "Denim Social 1",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "USA_CBO",
+          "adset_name": "USA_Denim",
+          "ad_name": "Denim Social 1"
+        }
+      }
+    },
+    {
+      "order_id": "7534612152618",
+      "order_name": "#3915",
+      "date": "2026-06-12",
+      "created_at": "2026-06-12T01:06:30+03:00",
+      "country_code": "CA",
+      "country": "Canada",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Hoodie (Unisex)",
+      "product_id": "10025020064042",
+      "variant_id": "51081857466666",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/1_d9dd41f8-6223-4e55-81c2-930e4fdf5b0d.jpg?v=1769768493",
+      "quantity": 1,
+      "line_item_subtotal_usd": 99.54,
+      "order_revenue_usd": 96.74,
+      "line_revenue_usd": 96.74,
+      "family": "Hoodies",
+      "subtype": "Ghalabany Al-ShawQ hoodie",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/ghalabany-al-shawq-غَلبَني-الشَوق-hoodie-unisex",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "CA_CBO",
+          "utm_term": "CA_Winter_Tops",
+          "utm_content": "VSC Hoodie Masterpiece",
+          "utm_id": "120243203"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "CA_CBO",
+          "utm_campaign_first": "CA_CBO",
+          "utm_campaign_last": "CA_CBO",
+          "utm_content": "VSC Hoodie Masterpiece",
+          "utm_content_first": "VSC Hoodie Masterpiece",
+          "utm_content_last": "VSC Hoodie Masterpiece",
+          "utm_term": "CA_Winter_Tops",
+          "utm_term_first": "CA_Winter_Tops",
+          "utm_term_last": "CA_Winter_Tops"
+        },
+        "campaign_hint": "CA_CBO",
+        "adset_hint": "CA_Winter_Tops",
+        "ad_hint": "VSC Hoodie Masterpiece",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "CA_CBO",
+          "adset_name": "CA_Winter_Tops",
+          "ad_name": "VSC Hoodie Masterpiece"
+        }
+      }
+    },
+    {
+      "order_id": "7534783889706",
+      "order_name": "#3916",
+      "date": "2026-06-12",
+      "created_at": "2026-06-12T02:29:48+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق Long Sleeve Shirt (Unisex)",
+      "product_id": "9508611096874",
+      "variant_id": "49352934850858",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/36.jpg?v=1759214443",
+      "quantity": 1,
+      "line_item_subtotal_usd": 84,
+      "order_revenue_usd": 163,
+      "line_revenue_usd": 84,
+      "family": "Tops",
+      "subtype": "Long sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/tops",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "utm_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_campaign_first": "USA_CA_CBO",
+          "utm_campaign_last": "USA_CA_CBO",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "utm_content_first": "VSC Blurry Shirt Masterpiece",
+          "utm_content_last": "VSC Blurry Shirt Masterpiece",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_term_first": "USA_CA_Summer_Tops",
+          "utm_term_last": "USA_CA_Summer_Tops"
+        },
+        "campaign_hint": "USA_CA_CBO",
+        "adset_hint": "USA_CA_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt Masterpiece",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "USA_CA_CBO",
+          "adset_name": "USA_CA_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt Masterpiece"
+        }
+      }
+    },
+    {
+      "order_id": "7534783889706",
+      "order_name": "#3916",
+      "date": "2026-06-12",
+      "created_at": "2026-06-12T02:29:48+03:00",
+      "country_code": "US",
+      "country": "United States",
+      "product": "Ghalabany Al-ShawQ - غَلبَني الشَوق T-shirt (Unisex)",
+      "product_id": "9508610933034",
+      "variant_id": "49352922366250",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/18_6b7d37b8-b82c-4b38-89c3-8b97303eda05.jpg?v=1772044121",
+      "quantity": 1,
+      "line_item_subtotal_usd": 79,
+      "order_revenue_usd": 163,
+      "line_revenue_usd": 79,
+      "family": "Tops",
+      "subtype": "Short sleeve",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/collections/tops",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "utm_id": "120243127929760138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "USA_CA_CBO",
+          "utm_campaign_first": "USA_CA_CBO",
+          "utm_campaign_last": "USA_CA_CBO",
+          "utm_content": "VSC Blurry Shirt Masterpiece",
+          "utm_content_first": "VSC Blurry Shirt Masterpiece",
+          "utm_content_last": "VSC Blurry Shirt Masterpiece",
+          "utm_term": "USA_CA_Summer_Tops",
+          "utm_term_first": "USA_CA_Summer_Tops",
+          "utm_term_last": "USA_CA_Summer_Tops"
+        },
+        "campaign_hint": "USA_CA_CBO",
+        "adset_hint": "USA_CA_Summer_Tops",
+        "ad_hint": "VSC Blurry Shirt Masterpiece",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "USA_CA_CBO",
+          "adset_name": "USA_CA_Summer_Tops",
+          "ad_name": "VSC Blurry Shirt Masterpiece"
+        }
+      }
+    },
+    {
+      "order_id": "7535077982506",
+      "order_name": "#3917",
+      "date": "2026-06-12",
+      "created_at": "2026-06-12T04:21:34+03:00",
+      "country_code": "AU",
+      "country": "Australia",
+      "product": "“Never Forgotten, Never Forgiven” Denim Jeans (Unisex)",
+      "product_id": "9508626858282",
+      "variant_id": "50155572691242",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/NEW__2.jpg?v=1756851299",
+      "quantity": 1,
+      "line_item_subtotal_usd": 104.96,
+      "order_revenue_usd": 104.96,
+      "line_revenue_usd": 94.46,
+      "family": "Denim pants",
+      "subtype": "Denim pants",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/never-forgotten-never-forgiven-stone-washed-denim-jeans",
+        "referrer_host": "",
+        "utm": {
+          "utm_source": "ig",
+          "utm_medium": "paid_social",
+          "utm_campaign": "AU_CBO",
+          "utm_term": "AU_Denim",
+          "utm_content": "Denim Social 1",
+          "utm_id": "120243326767050138"
+        },
+        "note_attributes": {
+          "utm_source": "ig",
+          "utm_source_first": "ig",
+          "utm_source_last": "ig",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "AU_CBO",
+          "utm_campaign_first": "AU_CBO",
+          "utm_campaign_last": "AU_CBO",
+          "utm_content": "Denim Social 1",
+          "utm_content_first": "Denim Social 1",
+          "utm_content_last": "Denim Social 1",
+          "utm_term": "AU_Denim",
+          "utm_term_first": "AU_Denim",
+          "utm_term_last": "AU_Denim"
+        },
+        "campaign_hint": "AU_CBO",
+        "adset_hint": "AU_Denim",
+        "ad_hint": "Denim Social 1",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "",
+          "ad_id": "",
+          "campaign_name": "AU_CBO",
+          "adset_name": "AU_Denim",
+          "ad_name": "Denim Social 1"
+        }
+      }
+    },
+    {
+      "order_id": "7535140372778",
+      "order_name": "#3918",
+      "date": "2026-06-12",
+      "created_at": "2026-06-12T04:41:05+03:00",
+      "country_code": "CA",
+      "country": "Canada",
+      "product": "Kuffiyah Engraved Denim Skirt",
+      "product_id": "10025119351082",
+      "variant_id": "51094999597354",
+      "image_url": "https://cdn.shopify.com/s/files/1/0818/0203/5498/files/Reshooted-retouched_14.jpg?v=1769656861",
+      "quantity": 1,
+      "line_item_subtotal_usd": 100.16,
+      "order_revenue_usd": 97.29,
+      "line_revenue_usd": 97.29,
+      "family": "Skirts",
+      "subtype": "Kuffiyah skirt",
+      "attribution": {
+        "source_name": "web",
+        "landing_path": "/products/kuffiyah-engraved-denim-skirt",
+        "referrer_host": "instagram.com",
+        "utm": {
+          "utm_source": "meta",
+          "utm_medium": "paid_social",
+          "utm_campaign": "CA_CBO",
+          "utm_term": "CA_Skirts",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_id": "120243203134870138",
+          "adset_id": "120243203135140138",
+          "ad_id": "120243203135250138"
+        },
+        "note_attributes": {
+          "utm_source": "meta",
+          "utm_source_first": "meta",
+          "utm_source_last": "meta",
+          "utm_medium": "paid_social",
+          "utm_medium_first": "paid_social",
+          "utm_medium_last": "paid_social",
+          "utm_campaign": "CA_CBO",
+          "utm_campaign_first": "CA_CBO",
+          "utm_campaign_last": "CA_CBO",
+          "utm_content": "Vescarts Skirt 2",
+          "utm_content_first": "Vescarts Skirt 2",
+          "utm_content_last": "Vescarts Skirt 2",
+          "utm_term": "CA_Skirts",
+          "utm_term_first": "CA_Skirts",
+          "utm_term_last": "CA_Skirts"
+        },
+        "campaign_hint": "CA_CBO",
+        "adset_hint": "CA_Skirts",
+        "ad_hint": "Vescarts Skirt 2",
+        "match_hints": {
+          "campaign_id": "",
+          "adset_id": "120243203135140138",
+          "ad_id": "120243203135250138",
+          "campaign_name": "CA_CBO",
+          "adset_name": "CA_Skirts",
+          "ad_name": "Vescarts Skirt 2"
+        }
+      }
     }
   ],
   "delivery_comparison": {
@@ -11565,8 +14235,8 @@
       "country_code": "US",
       "country": "United States",
       "requested_since": "2026-06-06",
-      "requested_until": "2026-06-10",
-      "completed_until": "2026-06-09",
+      "requested_until": "2026-06-12",
+      "completed_until": "2026-06-11",
       "campaign_patterns": [
         "USA_CBO",
         "USA CBO"
@@ -11615,16 +14285,38 @@
           "country_units": 9,
           "country_revenue_usd": 759.76,
           "unmatched_country_orders": 5
+        },
+        {
+          "date": "2026-06-10",
+          "orders": 3,
+          "units": 3,
+          "revenue_usd": 279.16999999999996,
+          "matched_orders": 3,
+          "country_orders": 5,
+          "country_units": 8,
+          "country_revenue_usd": 618.4300000000001,
+          "unmatched_country_orders": 2
+        },
+        {
+          "date": "2026-06-11",
+          "orders": 0,
+          "units": 0,
+          "revenue_usd": 0,
+          "matched_orders": 0,
+          "country_orders": 9,
+          "country_units": 18,
+          "country_revenue_usd": 1487.8600000000001,
+          "unmatched_country_orders": 9
         }
       ],
       "totals": {
-        "orders": 1,
-        "units": 1,
-        "revenue_usd": 98.99,
-        "country_orders": 21,
-        "country_units": 31,
-        "country_revenue_usd": 2529.33,
-        "unmatched_country_orders": 20
+        "orders": 4,
+        "units": 4,
+        "revenue_usd": 378.15999999999997,
+        "country_orders": 35,
+        "country_units": 57,
+        "country_revenue_usd": 4635.620000000001,
+        "unmatched_country_orders": 31
       }
     }
   }
