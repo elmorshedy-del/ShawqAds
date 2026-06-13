@@ -22,6 +22,8 @@ import { CountrySalesPanel } from './components/dashboard/CountrySalesPanel';
 import { TopMovers } from './components/dashboard/TopMovers';
 import { EmailCampaign } from './components/dashboard/EmailCampaign';
 import { BehaviorAnalytics } from './components/dashboard/BehaviorAnalytics';
+import { DataTable } from './components/dashboard/DataTable';
+import * as adapt from './lib/adapt.js';
 import { OrderDropRankings } from './components/dashboard/OrderDropRankings';
 import { buildOrderDropRankings } from './lib/orderDropRankings.js';
 

@@ -8,9 +8,12 @@ function countOrdersByKey(lines, keyFor, labelFor) {
     const orderId = orderKey(line);
     const key = keyFor(line);
     if (!orderId || !key) continue;
-    const row = map.get(key) || { key, label: labelFor(line), orderIds: new Set() };
+    let row = map.get(key);
+    if (!row) {
+      row = { key, label: labelFor(line), orderIds: new Set() };
+      map.set(key, row);
+    }
     row.orderIds.add(orderId);
-    map.set(key, row);
   }
   return map;
 }
@@ -31,7 +34,7 @@ function rankNegativeDeltas(currentMap, previousMap, limit = 3) {
       delta,
     });
   }
-  return rows.sort((a, b) => a.delta - b.delta).slice(0, limit);
+  return rows.sort((a, b) => a.delta - b.delta || b.previous - a.previous || a.label.localeCompare(b.label)).slice(0, limit);
 }
 
 export function buildOrderDropRankings(orderLines, day, prevDay, { limit = 3, minDropPct = 40, countryFlag, cleanAdLabel, isTipLine } = {}) {
