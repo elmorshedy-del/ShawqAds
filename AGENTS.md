@@ -18,8 +18,10 @@ After pushing a PR:
 1. Check for a review from `gemini-code-assist`:
    ```bash
    gh pr view <number> --json reviews,comments
+   gh api repos/elmorshedy-del/ShawqAds/pulls/<number>/reviews
    gh api repos/elmorshedy-del/ShawqAds/pulls/<number>/comments
    ```
+   Use `/reviews` for review summaries; use `/comments` for inline diff comments.
 2. If no Gemini review yet, poll again before merging (do not skip this step).
 3. Read inline comments and the review summary; fix real bugs and worthwhile suggestions.
 4. Push follow-up commits addressing feedback, then re-check that nothing new is blocking.
