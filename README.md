@@ -125,6 +125,10 @@ curl -H "Authorization: Bearer $REFRESH_API_KEY" \
 
 ## Live Orders Map
 
+> Full implementation + handoff guide (how to switch from demo to live Shopify
+> data, env vars, webhook setup, verification): [`docs/LIVE_ORDERS_MAP.md`](docs/LIVE_ORDERS_MAP.md).
+
+
 A live global orders map is the lead card of the Overview and now also carries
 the **Live sales monitor** headline (live indicator, sale-sound toggle, last
 check time, and Meta/Shopify sync health), so there is no separate monitor row.
