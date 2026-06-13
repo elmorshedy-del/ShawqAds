@@ -6,7 +6,7 @@ import { buildCampaignAttribution } from './lib/campaignAttribution.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
 import { Sidebar, MobileFilters } from './components/dashboard/Sidebar';
-import { LiveMonitor } from './components/dashboard/LiveMonitor';
+import { OrdersMap } from './components/dashboard/OrdersMap';
 import { KpiCard } from './components/dashboard/KpiCard';
 import { RevenueChart } from './components/dashboard/RevenueChart';
 import { SalesLeaders } from './components/dashboard/SalesLeaders';
@@ -28,6 +28,20 @@ const SALE_POLL_MS = 30000;
 const META_POLL_MS = 120000;
 const REPORTING_TIMEZONE = 'Europe/Istanbul';
 const CAMPAIGN_LAUNCH_DATE = '2026-06-03';
+
+// Demo orders used to visualize the live map before Shopify is connected.
+// Newest order is first (Toronto) — it gets the animated route from ShawQ HQ.
+const DEMO_PURCHASES = [
+  { id: 'demo-1', name: '#3940', country: 'Canada', location: 'Toronto, Canada', city: 'Toronto', region: 'ON', countryCode: 'CA', flag: '🇨🇦', amount: 95.99, currency: 'USD', items: 1, product: 'ShawQ Signature Hoodie', source: 'Meta · Prospecting', coordinates: [-79.3832, 43.6532], time: 'Just now' },
+  { id: 'demo-2', name: '#3939', country: 'USA', location: 'New York, New York, USA', city: 'New York', region: 'NY', countryCode: 'US', flag: '🇺🇸', amount: 142, currency: 'USD', items: 2, product: 'ShawQ Tee 2-Pack', source: 'Meta · Retargeting', coordinates: [-74.006, 40.7128], time: '2m ago' },
+  { id: 'demo-3', name: '#3938', country: 'USA', location: 'Brooklyn, New York, New York, USA', city: 'Brooklyn', region: 'NY', countryCode: 'US', flag: '🇺🇸', amount: 54, currency: 'USD', items: 1, product: 'ShawQ Tee', source: 'Meta · Retargeting', coordinates: [-73.9442, 40.6782], time: '6m ago' },
+  { id: 'demo-4', name: '#3937', country: 'USA', location: 'Los Angeles, California, USA', city: 'Los Angeles', region: 'CA', countryCode: 'US', flag: '🇺🇸', amount: 88.5, currency: 'USD', items: 1, product: 'ShawQ Cap', source: 'Organic', coordinates: [-118.2437, 34.0522], time: '12m ago' },
+  { id: 'demo-5', name: '#3936', country: 'USA', location: 'Denver, Colorado, USA', city: 'Denver', region: 'CO', countryCode: 'US', flag: '🇺🇸', amount: 64, currency: 'USD', items: 1, product: 'ShawQ Tee', source: 'Meta · Prospecting', coordinates: [-104.9903, 39.7392], time: '18m ago' },
+  { id: 'demo-6', name: '#3935', country: 'France', location: 'Paris, France', city: 'Paris', region: undefined, countryCode: 'FR', flag: '🇫🇷', amount: 120, currency: 'EUR', items: 2, product: 'ShawQ Hoodie', source: 'Meta · Prospecting', coordinates: [2.3522, 48.8566], time: '23m ago' },
+  { id: 'demo-7', name: '#3934', country: 'Germany', location: 'Berlin, Germany', city: 'Berlin', region: undefined, countryCode: 'DE', flag: '🇩🇪', amount: 75, currency: 'EUR', items: 1, product: 'ShawQ Tee', source: 'Organic', coordinates: [13.405, 52.52], time: '34m ago' },
+  { id: 'demo-8', name: '#3933', country: 'United Kingdom', location: 'London, United Kingdom', city: 'London', region: undefined, countryCode: 'GB', flag: '🇬🇧', amount: 99, currency: 'GBP', items: 1, product: 'ShawQ Cap', source: 'Meta · Retargeting', coordinates: [-0.1276, 51.5072], time: '48m ago' },
+  { id: 'demo-9', name: '#3932', country: 'Australia', location: 'Sydney, Australia', city: 'Sydney', region: undefined, countryCode: 'AU', flag: '🇦🇺', amount: 130, currency: 'AUD', items: 2, product: 'ShawQ Hoodie', source: 'Organic', coordinates: [151.2093, -33.8688], time: '1h ago' },
+];
 
 // Below Tailwind's `lg` breakpoint we swap the long scroll for a tabbed layout.
 function useIsMobile(maxWidth = 1023) {
@@ -2331,7 +2345,7 @@ function App() {
   const [customRange, setCustomRange] = useState({ since: '', until: '' });
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
   const [saleSoundEnabled, setSaleSoundEnabled] = useState(true);
-  const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '', todaySummary: null });
+  const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '', todaySummary: null, purchases: [] });
   const [metaMonitor, setMetaMonitor] = useState({ status: 'checking', live: null, checkedAt: null, error: '' });
   const isMobile = useIsMobile();
   const [mobileTab, setMobileTab] = useState('overview');
@@ -2392,6 +2406,7 @@ function App() {
           status: payload.configured === false ? 'not_configured' : 'live',
           sale,
           todaySummary: payload.today_summary || null,
+          purchases: Array.isArray(payload.purchases) ? payload.purchases : [],
           checkedAt: payload.checked_at || new Date().toISOString(),
           fresh: isNewSale,
           error: '',
@@ -2577,6 +2592,11 @@ function App() {
 
   const sale = saleMonitor.sale;
   const saleItems = sale?.line_items || [];
+  const livePurchases = saleMonitor.purchases || [];
+  // Fall back to demo data so the map renders before Shopify is connected
+  // or while today has no orders yet.
+  const mapPurchases = livePurchases.length ? livePurchases : DEMO_PURCHASES;
+  const mapIsDemo = livePurchases.length === 0;
   const monitorStatusText = saleMonitor.status === 'live'
     ? 'Live Shopify sales monitor'
     : saleMonitor.status === 'checking'
@@ -2682,20 +2702,15 @@ function App() {
   const usaOk = Boolean(deliveryComparison.ok) && usaCurve.length > 0;
 
   const sectionEls = {
-    monitor: (
-      <LiveMonitor
-        saleTitle={sale ? saleMoney(sale) : monitorStatusText}
-        saleItemsLabel={sale ? `${sale.item_count || 0} item${Number(sale.item_count || 0) === 1 ? '' : 's'}` : undefined}
-        orderChip={sale ? sale.name : undefined}
-        productChip={sale ? (saleItems[0]?.title || sale.product_title || undefined) : undefined}
-        countryChip={sale?.country?.code ? `${countryFlag(sale.country.code)} ${sale.country.name || sale.country.code}` : undefined}
-        adSource={sale ? (sale.matched_ad?.ad_name || sale.attribution_label || 'Unattributed in Shopify') : undefined}
-        fresh={saleMonitor.fresh}
-        monitorTime={saleMonitor.checkedAt ? `Checked ${saleTime(saleMonitor.checkedAt)}` : (saleMonitor.error || undefined)}
+    ordersMap: (
+      <OrdersMap
+        purchases={mapPurchases}
+        title="Live sales monitor"
+        statusLabel={mapIsDemo ? 'Showing sample orders · waiting for live Shopify orders' : (saleMonitor.error || monitorStatusText)}
+        checkedLabel={saleMonitor.checkedAt ? `Checked ${saleTime(saleMonitor.checkedAt)}` : (saleMonitor.error || undefined)}
+        metaSyncText={refreshText}
         soundEnabled={saleSoundEnabled}
         onEnableSound={enableSaleSound}
-        metaLabel={sourceLabel}
-        metaSyncText={refreshText}
         syncHealth={syncHealthLabel}
         syncHealthTone={healthTone(syncHealthLabel)}
         shopifyHealth={shopifyHealthLabel}
@@ -2756,9 +2771,9 @@ function App() {
     behavior: <BehaviorAnalytics behavior={behaviorData} />,
     data: <DataTable rows={dayRows} />,
   };
-  const desktopOrder = ['monitor', 'kpis', 'revenue', 'salesBench', 'tree', 'leaders', 'edits', 'usa', 'delivery', 'decision', 'product', 'country', 'behavior', 'data'];
+  const desktopOrder = ['ordersMap', 'kpis', 'revenue', 'salesBench', 'tree', 'leaders', 'edits', 'usa', 'delivery', 'decision', 'product', 'country', 'behavior', 'data'];
   const mobileGroups = [
-    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['monitor', 'kpis', 'revenue', 'mobileTops'] },
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'revenue', 'mobileTops'] },
     { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'leaders', 'edits', 'decision'] },
     { key: 'launch', label: 'Launch', icon: Rocket, ids: ['usa', 'delivery'] },
     { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['salesBench', 'product', 'country'] },

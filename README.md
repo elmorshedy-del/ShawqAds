@@ -103,6 +103,8 @@ GET /api/data/behavior-intelligence.json
 GET /api/session-events/status
 POST /api/session-events
 GET /api/shopify/latest-sale
+GET /api/shopify/orders-map
+POST /api/shopify/webhook
 GET /api/refresh
 ```
 
@@ -120,6 +122,66 @@ Example backfill refresh:
 curl -H "Authorization: Bearer $REFRESH_API_KEY" \
   "https://YOUR_APP/api/refresh?since=2026-06-03&until=2026-06-04"
 ```
+
+## Live Orders Map
+
+A live global orders map is the lead card of the Overview and now also carries
+the **Live sales monitor** headline (live indicator, sale-sound toggle, last
+check time, and Meta/Shopify sync health), so there is no separate monitor row.
+It draws a dark SVG world map with `d3-geo` (`geoEqualEarth`) and
+`world-atlas/countries-110m.json` (converted with `topojson-client`), framed by a
+light platform card. Every paid order of the current reporting day is plotted as
+a pink dot, and a curved route animates from ShawQ HQ in Turkey to the newest
+order only. A light side list shows the last 5 orders (newest on top) with the
+same order detail the monitor showed — order name, product, item count, amount,
+and relative time. The map respects `prefers-reduced-motion`.
+
+### Safe order data
+
+Orders are sanitized server-side into a small `Purchase` shape before they reach
+the browser. The customer name, email, street address, phone, and postal code are
+never sent to the frontend, and Shopify credentials/secrets stay on the server.
+
+### Location resolution
+
+Coordinates are resolved server-side from the shipping address (falling back to
+the billing address) in this priority order:
+
+1. Exact `country|state|city` match in the built-in table
+2. Optional server-side geocode of `city, region, country` (result is cached)
+3. State/province centroid
+4. Country centroid
+5. Skip the order if no reliable location is available
+
+US orders use Shopify's two-letter `province_code` (e.g. `NY`, `CA`, `CO`), so a
+New York order lands on New York rather than the center of the USA. Full state
+names and country aliases (`USA`, `United States`, …) are normalized. Resolved
+cities are cached to `data/location-cache.json` so the geocoder is not called
+again for the same destination. To enable geocoding for unknown cities, set a
+provider key (see `.env.example`): Mapbox, OpenCage, or Google.
+
+### Initial load and live updates
+
+The frontend reads `purchases` from the existing `GET /api/shopify/latest-sale`
+poll, and `GET /api/shopify/orders-map` returns the same sanitized list for
+standalone use / initial load. Before Shopify is connected (or when today has no
+orders), the map shows sample demo data.
+
+### orders/create webhook
+
+`POST /api/shopify/webhook` (alias `POST /webhooks/shopify/orders-create`)
+listens for the Shopify `orders/create` topic:
+
+- The `X-Shopify-Hmac-Sha256` signature is validated against the raw request body
+  (using `SHOPIFY_WEBHOOK_SECRET`) **before** the body is parsed or stored.
+- Invalid signatures are rejected with `401`.
+- Processing is idempotent on the Shopify order ID, so retries never create
+  duplicate dots.
+- Stored purchases are written to `data/orders-map.json` (sanitized, no PII).
+
+Register the webhook in Shopify Admin (or via the Admin API) pointing at the
+deployed HTTPS URL, e.g. `https://YOUR_APP/api/shopify/webhook`, and set
+`SHOPIFY_WEBHOOK_SECRET` to the webhook's signing secret.
 
 ## Shopify Session Events
 

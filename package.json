@@ -23,9 +23,12 @@
     "@radix-ui/react-label": "latest",
     "@radix-ui/react-select": "latest",
     "@tailwindcss/vite": "latest",
+    "@types/d3-geo": "^3.1.0",
+    "@types/topojson-client": "^3.1.5",
     "@vitejs/plugin-react": "latest",
     "class-variance-authority": "latest",
     "clsx": "latest",
+    "d3-geo": "^3.1.1",
     "echarts": "latest",
     "echarts-for-react": "latest",
     "lucide-react": "latest",
@@ -34,8 +37,10 @@
     "recharts": "^3.8.1",
     "tailwind-merge": "latest",
     "tailwindcss": "latest",
+    "topojson-client": "^3.1.0",
     "tw-animate-css": "latest",
     "typescript": "latest",
-    "vite": "latest"
+    "vite": "latest",
+    "world-atlas": "^2.0.2"
   }
 }

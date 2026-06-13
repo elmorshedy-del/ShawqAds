@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { productTaxonomyForName } from './src/lib/productMapping.js';
+import { createLocationStore, createGeocoder, buildPurchase, relativeTime } from './src/lib/orderResolver.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -45,6 +47,38 @@ let metaLiveInFlight = { key: '', promise: null };
 let metaAccountCache = { fetchedAt: 0, payload: null };
 const fxCache = new Map();
 
+// Live orders map: location resolver + webhook-sourced purchase store.
+const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET || '';
+const locationCachePath = process.env.LOCATION_CACHE_PATH || path.join(__dirname, 'data', 'location-cache.json');
+const webhookStorePath = process.env.ORDERS_MAP_STORE_PATH || path.join(__dirname, 'data', 'orders-map.json');
+const locationStore = createLocationStore({ cachePath: locationCachePath, geocoder: createGeocoder(process.env) });
+const MAX_STORED_PURCHASES = 250;
+
+function loadWebhookPurchases() {
+  if (!fs.existsSync(webhookStorePath)) return { ids: new Set(), purchases: [] };
+  try {
+    const raw = JSON.parse(fs.readFileSync(webhookStorePath, 'utf8'));
+    const purchases = Array.isArray(raw.purchases) ? raw.purchases : [];
+    return { ids: new Set(purchases.map((p) => String(p.id))), purchases };
+  } catch {
+    return { ids: new Set(), purchases: [] };
+  }
+}
+
+const webhookStore = loadWebhookPurchases();
+
+async function persistWebhookPurchases() {
+  try {
+    await fs.promises.mkdir(path.dirname(webhookStorePath), { recursive: true });
+    await fs.promises.writeFile(
+      webhookStorePath,
+      JSON.stringify({ purchases: webhookStore.purchases.slice(0, MAX_STORED_PURCHASES) }),
+    );
+  } catch {
+    // Best-effort persistence only.
+  }
+}
+
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -73,6 +107,23 @@ function runScript(script, extraEnv = {}) {
 
 function publicDataPath(name) {
   return path.join(__dirname, 'public', 'data', name);
+}
+
+// Cache parsed JSON keyed by file mtime so hot paths (per-order attribution
+// matching, per-row FX lookups) don't re-read and re-parse large files from
+// disk on every call and block the event loop.
+const jsonFileCache = new Map();
+function readJsonCached(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    const cached = jsonFileCache.get(filePath);
+    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.data;
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    jsonFileCache.set(filePath, { mtimeMs: stat.mtimeMs, data });
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 function isAuthorized(req) {
@@ -185,6 +236,78 @@ function readRequestBody(req, maxBytes = 160000) {
     req.on('end', () => resolve(body));
     req.on('error', reject);
   });
+}
+
+function readRawBody(req, maxBytes = 2000000) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        reject(new Error('payload too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+function verifyShopifyHmac(rawBody, headerHmac) {
+  if (!shopifyWebhookSecret || !headerHmac) return false;
+  const digest = crypto.createHmac('sha256', shopifyWebhookSecret).update(rawBody).digest('base64');
+  const a = Buffer.from(digest);
+  const b = Buffer.from(String(headerHmac));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+async function handleShopifyWebhook(req, res) {
+  let rawBody;
+  try {
+    rawBody = await readRawBody(req);
+  } catch (error) {
+    send(res, 413, JSON.stringify({ ok: false, error: error.message }));
+    return;
+  }
+
+  // Validate the HMAC against the raw body BEFORE parsing or storing anything.
+  const headerHmac = req.headers['x-shopify-hmac-sha256'];
+  if (!verifyShopifyHmac(rawBody, headerHmac)) {
+    send(res, 401, JSON.stringify({ ok: false, error: 'invalid webhook signature' }));
+    return;
+  }
+
+  let order;
+  try {
+    order = JSON.parse(rawBody.toString('utf8'));
+  } catch {
+    send(res, 400, JSON.stringify({ ok: false, error: 'invalid json' }));
+    return;
+  }
+
+  const orderId = String(order.id || req.headers['x-shopify-order-id'] || '');
+  // Idempotency: ignore retries for an order we already stored.
+  if (orderId && webhookStore.ids.has(orderId)) {
+    send(res, 200, JSON.stringify({ ok: true, duplicate: true }));
+    return;
+  }
+
+  try {
+    const purchase = await buildPurchase(order, locationStore, orderMapExtras(order));
+    if (purchase && purchase.id) {
+      webhookStore.ids.add(purchase.id);
+      webhookStore.purchases = [purchase, ...webhookStore.purchases.filter((p) => p.id !== purchase.id)]
+        .slice(0, MAX_STORED_PURCHASES);
+      void persistWebhookPurchases();
+    }
+    send(res, 200, JSON.stringify({ ok: true, stored: Boolean(purchase) }));
+  } catch (error) {
+    // Acknowledge with 200 so Shopify does not retry a non-recoverable parse.
+    send(res, 200, JSON.stringify({ ok: false, error: error.message }));
+  }
 }
 
 function sanitizePixelPayload(value, depth = 0) {
@@ -375,8 +498,8 @@ function matchAttributionToMetaAd(attribution) {
   ].filter(Boolean).map(String);
   if (!hints.length) return null;
   try {
-    const data = JSON.parse(fs.readFileSync(publicDataPath('adset-radar.json'), 'utf8'));
-    const ads = data.ads || [];
+    const data = readJsonCached(publicDataPath('adset-radar.json'));
+    const ads = data?.ads || [];
     for (const hint of hints) {
       const normalizedHint = normalizeMatch(hint);
       const idMatch = ads.find((ad) => String(ad.ad_id || '') === hint);
@@ -430,8 +553,8 @@ function cachedFxRateInfo(date, fromCurrency, toCurrency) {
   if (from === to) return { rate: 1, provider: 'identity', source: 'same_currency', requested_date: date, rate_date: date, from, to };
   if (to !== 'USD') return null;
   try {
-    const data = JSON.parse(fs.readFileSync(publicDataPath('adset-radar.json'), 'utf8'));
-    const match = (data.fx_rates?.rates || []).find((row) => row.date === date && Number(row.fx_to_usd || 0) > 0);
+    const data = readJsonCached(publicDataPath('adset-radar.json'));
+    const match = (data?.fx_rates?.rates || []).find((row) => row.date === date && Number(row.fx_to_usd || 0) > 0);
     if (!match) return null;
     return {
       rate: Number(match.fx_to_usd || 0),
@@ -945,6 +1068,38 @@ function summarizeCurrentDayOrders(orders = []) {
   };
 }
 
+function orderMapExtras(order) {
+  const attribution = orderAttribution(order);
+  const matchedAd = matchAttributionToMetaAd(attribution);
+  const source = matchedAd?.ad_name || attribution.ad_hint || attribution.source_name || attribution.referrer_host || '';
+  const merch = (order.line_items || [])
+    .map((item) => ({ item, taxonomy: productTaxonomyForName(item.title) }))
+    .filter(({ item, taxonomy }) => taxonomy.family && !isTipTitle(item.title));
+  const product = merch[0]?.item?.title || (order.line_items || []).find((item) => item?.title)?.title || '';
+  return { source, product };
+}
+
+async function buildDayPurchases(paidOrders = []) {
+  const now = Date.now();
+  const built = await Promise.all(paidOrders.map((order) => buildPurchase(order, locationStore, { now, ...orderMapExtras(order) }).catch(() => null)));
+  const fetched = built.filter(Boolean);
+  const byId = new Map(fetched.map((p) => [p.id, p]));
+
+  // Merge in any webhook-stored purchases the REST fetch did not include
+  // (e.g. orders that arrived between cache windows), deduped by id.
+  for (const stored of webhookStore.purchases) {
+    if (stored?.id && !byId.has(stored.id)) {
+      byId.set(stored.id, { ...stored, time: relativeTime(stored.createdAt, now) });
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => {
+    const at = Date.parse(a.createdAt || '') || 0;
+    const bt = Date.parse(b.createdAt || '') || 0;
+    return bt - at;
+  });
+}
+
 async function fetchLatestShopifySale() {
   const { token, store, apiVersion } = shopifyConfig();
   if (!token || !store) return { ok: false, configured: false, error: 'Shopify token or store is not configured', sale: null };
@@ -973,6 +1128,7 @@ async function fetchLatestShopifySale() {
   const includeStatus = new Set(['paid', 'partially_paid', 'partially_refunded']);
   const paidOrders = orders.filter((order) => !order.cancelled_at && includeStatus.has(order.financial_status));
   const sale = paidOrders[0];
+  const purchases = await buildDayPurchases(paidOrders);
   return {
     ok: true,
     configured: true,
@@ -981,6 +1137,7 @@ async function fetchLatestShopifySale() {
     pages_fetched: pages,
     sale: sale ? summarizeOrder(sale) : null,
     today_summary: summarizeCurrentDayOrders(paidOrders),
+    purchases,
   };
 }
 
@@ -1068,6 +1225,35 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/session-events' && req.method === 'POST') {
     res.setHeader('access-control-allow-origin', '*');
     await recordSessionEvent(req, res, url);
+    return;
+  }
+
+  if (url.pathname === '/api/shopify/webhook' || url.pathname === '/webhooks/shopify/orders-create') {
+    if (req.method !== 'POST') {
+      send(res, 405, JSON.stringify({ ok: false, error: 'method not allowed' }));
+      return;
+    }
+    await handleShopifyWebhook(req, res);
+    return;
+  }
+
+  if (url.pathname === '/api/shopify/orders-map') {
+    if (req.method !== 'GET') {
+      send(res, 405, JSON.stringify({ ok: false, error: 'method not allowed' }));
+      return;
+    }
+    try {
+      const payload = await fetchLatestShopifySale();
+      send(res, payload.ok ? 200 : 503, JSON.stringify({
+        ok: payload.ok,
+        configured: payload.configured,
+        checked_at: payload.checked_at,
+        reporting_day: payload.reporting_day,
+        purchases: payload.purchases || [],
+      }));
+    } catch (error) {
+      send(res, 500, JSON.stringify({ ok: false, configured: true, error: error.message, purchases: [] }));
+    }
     return;
   }
 

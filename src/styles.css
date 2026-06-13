@@ -165,3 +165,83 @@
   background-clip: text;
   color: transparent;
 }
+
+/* Live orders map — light platform card framing a dark world map */
+.orders-map-canvas {
+  --omap-text: oklch(0.97 0.01 280);
+  --omap-bg-1: oklch(0.21 0.05 285);
+  --omap-bg-2: oklch(0.16 0.045 285);
+  --omap-land: oklch(0.32 0.045 285);
+  --omap-land-stroke: oklch(1 0 0 / 0.08);
+  --omap-ocean-1: oklch(0.25 0.05 285);
+  --omap-ocean-2: oklch(0.15 0.045 285);
+  --omap-border: oklch(1 0 0 / 0.1);
+  --omap-dot: oklch(0.68 0.24 352);
+  --omap-dot-strong: oklch(0.82 0.18 352);
+  --omap-route: oklch(0.74 0.23 352);
+  --omap-hq: oklch(0.82 0.16 80);
+
+  background:
+    radial-gradient(120% 100% at 12% -10%, oklch(0.6 0.23 352 / 0.18), transparent 55%),
+    radial-gradient(120% 120% at 100% 120%, oklch(0.55 0.15 265 / 0.18), transparent 55%),
+    linear-gradient(160deg, var(--omap-bg-1), var(--omap-bg-2));
+  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.06), var(--shadow-card);
+}
+
+.orders-map-hq-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  paint-order: stroke;
+  stroke: var(--omap-bg-2);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
+.orders-map-route {
+  stroke-dasharray: 7 9;
+  animation: orders-map-route-dash 1.1s linear infinite;
+  filter: drop-shadow(0 0 5px oklch(0.7 0.23 352 / 0.7));
+}
+
+.orders-map-route--static {
+  stroke-dasharray: 7 9;
+  animation: none;
+}
+
+.orders-map-pulse {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: orders-map-pulse 2.1s ease-out infinite;
+}
+
+@keyframes orders-map-route-dash {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+
+@keyframes orders-map-pulse {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.6;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: scale(3.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orders-map-route {
+    animation: none;
+  }
+  .orders-map-pulse {
+    animation: none;
+    opacity: 0;
+  }
+}
