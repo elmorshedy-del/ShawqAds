@@ -32,6 +32,7 @@ export interface EmailCampaignProps {
   summary?: EmailSummary | null;
   orders?: EmailOrder[];
   isLive?: boolean;
+  rangeLabel?: string;
 }
 
 function formatMoney(amount: number, currency: string): string {
@@ -56,7 +57,7 @@ function StatTile({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-export function EmailCampaign({ summary, orders = [], isLive = true }: EmailCampaignProps) {
+export function EmailCampaign({ summary, orders = [], isLive = true, rangeLabel }: EmailCampaignProps) {
   const orderCount = summary?.orders ?? orders.length;
   const revenue = summary?.revenue_usd ?? orders.reduce((total, order) => total + (Number(order.amount) || 0), 0);
   const units = summary?.units ?? orders.reduce((total, order) => total + (Number(order.items) || 0), 0);
@@ -92,7 +93,7 @@ export function EmailCampaign({ summary, orders = [], isLive = true }: EmailCamp
             <Send className="h-3 w-3" /> Email channel
           </span>
           <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-            {isLive ? "Today" : "Sample"}
+            {rangeLabel || (isLive ? "Today" : "Sample")}
           </span>
         </div>
 
@@ -202,7 +203,7 @@ export function EmailCampaign({ summary, orders = [], isLive = true }: EmailCamp
           <div className="mt-4 flex items-start gap-3 rounded-xl border border-dashed border-border px-4 py-5 text-sm leading-relaxed text-muted-foreground">
             <ShoppingBag className="mt-0.5 h-5 w-5 shrink-0" style={{ color: ACCENT }} />
             <p>
-              No email-driven orders yet today. Orders tagged <span className="font-medium text-foreground">utm_medium = email</span>{" "}
+              No email-driven orders in this date range. Orders tagged <span className="font-medium text-foreground">utm_medium = email</span>{" "}
               in Shopify land here and are excluded from the paid-ads top movers.
             </p>
           </div>

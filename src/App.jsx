@@ -26,6 +26,7 @@ import { DataTable } from './components/dashboard/DataTable';
 import * as adapt from './lib/adapt.js';
 import { OrderDropRankings } from './components/dashboard/OrderDropRankings';
 import { buildOrderDropRankings } from './lib/orderDropRankings.js';
+import { buildEmailCampaignSummary, buildEmailCampaignFromPurchases } from './lib/emailCampaignSummary.js';
 
 const SALE_POLL_MS = 30000;
 const META_POLL_MS = 120000;
@@ -856,6 +857,16 @@ function presetDateRange(preset, bounds) {
     return clampDateRange({ since: bounds.common_since, until: bounds.common_until }, bounds);
   }
   return clampDateRange({ since: bounds?.since || end, until: end }, bounds);
+}
+function emailPanelRangeLabel(range, preset, isDemo) {
+  if (isDemo) return 'Sample';
+  if (!range?.since || !range?.until) return 'Selected range';
+  if (range.since === range.until) {
+    if (preset === 'today') return 'Today';
+    if (preset === 'yesterday') return 'Yesterday';
+    return range.since;
+  }
+  return `${range.since} – ${range.until}`;
 }
 function dateRangeLabel(range, preset) {
   if (!range?.since || !range?.until) return 'Choose dates';
@@ -2622,11 +2633,10 @@ function App() {
   // should stay live (empty map), not flip back to sample orders at midnight.
   const mapIsDemo = saleMonitor.status === 'not_configured';
   const mapPurchases = mapIsDemo ? DEMO_PURCHASES : livePurchases;
-  // Email-channel orders (utm_medium=email) surface in their own section and are
-  // excluded from the paid-ads top movers. Live totals come from the server's
-  // email_campaign summary; demo mode derives them from the sample orders.
-  const emailOrders = mapPurchases.filter((purchase) => String(purchase?.channel || '').toLowerCase() === 'email');
-  const emailSummary = mapIsDemo ? null : (saleMonitor.todaySummary?.email_campaign || null);
+  const emailCampaignData = useMemo(() => {
+    if (mapIsDemo) return buildEmailCampaignFromPurchases(DEMO_PURCHASES, { countryFlag });
+    return buildEmailCampaignSummary(productData.order_lines || [], { countryFlag, timeZone: REPORTING_TIMEZONE });
+  }, [mapIsDemo, productData.order_lines]);
   const monitorStatusText = saleMonitor.status === 'live'
     ? (livePurchases.length ? 'Live Shopify sales monitor' : 'Live Shopify sales monitor · no orders yet today')
     : saleMonitor.status === 'checking'
@@ -2797,7 +2807,14 @@ function App() {
     ),
     tree: <CampaignRoasTree data={campaignTree} />,
     leaders: <LeadershipBoard products={productLeaders} ads={adLeaders} />,
-    emailCampaign: <EmailCampaign summary={emailSummary} orders={emailOrders} isLive={!mapIsDemo} />,
+    emailCampaign: (
+      <EmailCampaign
+        summary={emailCampaignData.summary}
+        orders={emailCampaignData.orders}
+        rangeLabel={emailPanelRangeLabel(activeDateRange, datePreset, mapIsDemo)}
+        isLive={!mapIsDemo}
+      />
+    ),
     edits: (
       <section className="panel flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
