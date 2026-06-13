@@ -63,7 +63,7 @@ const SHAWQ_HQ: [number, number] = [35.24, 38.96];
 // processed asset). Height is in SVG units so it scales with the map.
 const HQ_LOGO_SRC = "/assets/shawq-logo-mark.png";
 const HQ_LOGO_RATIO = 360 / 151;
-const HQ_LOGO_H = 24;
+const HQ_LOGO_H = 10;
 const HQ_LOGO_W = HQ_LOGO_H * HQ_LOGO_RATIO;
 
 // World land geometry, converted from TopoJSON once at module load.
