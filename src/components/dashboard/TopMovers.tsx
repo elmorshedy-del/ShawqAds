@@ -60,7 +60,7 @@ function CompareCell({ label, kind, entry }: { label: string; kind: Kind; entry?
     <div className="min-w-0 rounded-lg bg-surface-2/50 px-2.5 py-2">
       <p className="text-[0.55rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
       <p className="mt-1 break-words text-xs font-medium leading-snug">{c.name}</p>
-      <p className="mt-0.5 break-words text-[0.65rem] tabular-nums leading-snug text-muted-foreground">{c.metric}</p>
+      <p className="mt-0.5 truncate text-[0.65rem] tabular-nums leading-snug text-muted-foreground">{c.metric}</p>
     </div>
   );
 }
