@@ -59,8 +59,8 @@ function CompareCell({ label, kind, entry }: { label: string; kind: Kind; entry?
   return (
     <div className="min-w-0 rounded-lg bg-surface-2/50 px-2.5 py-2">
       <p className="text-[0.55rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
-      <p className="mt-1 truncate text-xs font-medium">{c.name}</p>
-      <p className="truncate text-[0.65rem] tabular-nums text-muted-foreground">{c.metric}</p>
+      <p className="mt-1 break-words text-xs font-medium leading-snug">{c.name}</p>
+      <p className="mt-0.5 truncate text-[0.65rem] tabular-nums leading-snug text-muted-foreground">{c.metric}</p>
     </div>
   );
 }
@@ -90,15 +90,15 @@ function MoverCard({ card }: { card: TopMoverCard }) {
         </span>
       </div>
 
-      <div className="mt-3 flex items-end justify-between gap-3">
-        <p className="min-w-0 flex-1 truncate font-display text-base font-semibold leading-snug">
+      <div className="mt-3 flex items-start justify-between gap-3">
+        <p className="min-w-0 flex-1 break-words font-display text-base font-semibold leading-snug">
           {titleOf(card.kind, card.today)}
         </p>
         <p className="shrink-0 font-display text-lg font-semibold tabular-nums" style={{ color: m.color }}>
           {heroOf(card.kind, card.today)}
         </p>
       </div>
-      <p className="mt-0.5 truncate text-xs text-muted-foreground">{subOf(card.kind, card.today)}</p>
+      <p className="mt-0.5 break-words text-xs leading-snug text-muted-foreground">{subOf(card.kind, card.today)}</p>
 
       <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
         <CompareCell label="This week" kind={card.kind} entry={card.currentWeek} />
