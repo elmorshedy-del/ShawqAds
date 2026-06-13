@@ -14,7 +14,9 @@
     "test:session-events": "node scripts/session-events-smoke-test.mjs",
     "test:dashboard": "node scripts/dashboard-regression-test.mjs",
     "start": "node server.mjs",
-    "build:deploy": "vite build"
+    "build:deploy": "vite build",
+    "go-live": "node scripts/go-live.mjs",
+    "go-live:check": "node scripts/go-live.mjs --check"
   },
   "dependencies": {
     "@nivo/bar": "latest",
