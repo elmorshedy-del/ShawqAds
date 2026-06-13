@@ -304,6 +304,7 @@ export function OrdersMap({
                     height={HQ_LOGO_H}
                     preserveAspectRatio="xMidYMid meet"
                     className="orders-map-hq-logo"
+                    role="img"
                     aria-label="ShawQ HQ"
                   />
                 </g>
