@@ -4,6 +4,7 @@ import { feature } from "topojson-client";
 import worldData from "world-atlas/countries-110m.json";
 import { Bell, Globe, MapPin, ShoppingBag, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SHAWQ_LOGO_MARK_PATH, SHAWQ_LOGO_MARK_VIEWBOX } from "./shawqLogoMark";
 
 export type Purchase = {
   id: string;
@@ -59,12 +60,11 @@ export interface OrdersMapProps {
 const WIDTH = 880;
 const HEIGHT = 430;
 const SHAWQ_HQ: [number, number] = [35.24, 38.96];
-// Cleaned, transparent ShawQ wordmark used as the HQ marker (aspect ratio of the
-// processed asset). Height is in SVG units so it scales with the map.
-const HQ_LOGO_SRC = "/assets/shawq-logo-mark.png";
-const HQ_LOGO_RATIO = 360 / 151;
+// Inline SVG wordmark for the HQ marker (aspect ratio of the brand asset).
+const HQ_LOGO_RATIO = SHAWQ_LOGO_MARK_VIEWBOX.width / SHAWQ_LOGO_MARK_VIEWBOX.height;
 const HQ_LOGO_H = 8;
 const HQ_LOGO_W = HQ_LOGO_H * HQ_LOGO_RATIO;
+const HQ_LOGO_SCALE = HQ_LOGO_H / SHAWQ_LOGO_MARK_VIEWBOX.height;
 
 // World land geometry, converted from TopoJSON once at module load.
 const land = feature(
@@ -296,17 +296,14 @@ export function OrdersMap({
               {hqPoint ? (
                 <g>
                   <circle cx={hqPoint[0]} cy={hqPoint[1]} r={3.4} fill="var(--omap-hq)" stroke="var(--omap-bg-2)" strokeWidth={1.4} />
-                  <image
-                    href={HQ_LOGO_SRC}
-                    x={hqPoint[0] - HQ_LOGO_W / 2}
-                    y={hqPoint[1] - HQ_LOGO_H - 5}
-                    width={HQ_LOGO_W}
-                    height={HQ_LOGO_H}
-                    preserveAspectRatio="xMidYMid meet"
+                  <g
                     className="orders-map-hq-logo"
                     role="img"
                     aria-label="ShawQ HQ"
-                  />
+                    transform={`translate(${hqPoint[0] - HQ_LOGO_W / 2}, ${hqPoint[1] - HQ_LOGO_H - 5}) scale(${HQ_LOGO_SCALE})`}
+                  >
+                    <path d={SHAWQ_LOGO_MARK_PATH} fill="var(--omap-dot-strong)" fillRule="evenodd" />
+                  </g>
                 </g>
               ) : null}
             </svg>
