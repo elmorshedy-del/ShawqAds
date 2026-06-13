@@ -59,6 +59,12 @@ export interface OrdersMapProps {
 const WIDTH = 880;
 const HEIGHT = 430;
 const SHAWQ_HQ: [number, number] = [35.24, 38.96];
+// Cleaned, transparent ShawQ wordmark used as the HQ marker (aspect ratio of the
+// processed asset). Height is in SVG units so it scales with the map.
+const HQ_LOGO_SRC = "/assets/shawq-logo-mark.png";
+const HQ_LOGO_RATIO = 360 / 151;
+const HQ_LOGO_H = 24;
+const HQ_LOGO_W = HQ_LOGO_H * HQ_LOGO_RATIO;
 
 // World land geometry, converted from TopoJSON once at module load.
 const land = feature(
@@ -285,18 +291,22 @@ export function OrdersMap({
                 </g>
               ) : null}
 
-              {/* ShawQ HQ marker */}
+              {/* ShawQ HQ marker — logo wordmark above a precise anchor dot.
+                  Rendered last so routes never occlude it. */}
               {hqPoint ? (
                 <g>
-                  <circle cx={hqPoint[0]} cy={hqPoint[1]} r={4.5} fill="var(--omap-hq)" stroke="var(--omap-bg-2)" strokeWidth={1.4} />
-                  <text
-                    x={hqPoint[0] + 8}
-                    y={hqPoint[1] + 3.5}
-                    className="orders-map-hq-label"
-                    fill="var(--omap-text)"
-                  >
-                    SHAWQ
-                  </text>
+                  <circle cx={hqPoint[0]} cy={hqPoint[1]} r={3.4} fill="var(--omap-hq)" stroke="var(--omap-bg-2)" strokeWidth={1.4} />
+                  <image
+                    href={HQ_LOGO_SRC}
+                    x={hqPoint[0] - HQ_LOGO_W / 2}
+                    y={hqPoint[1] - HQ_LOGO_H - 5}
+                    width={HQ_LOGO_W}
+                    height={HQ_LOGO_H}
+                    preserveAspectRatio="xMidYMid meet"
+                    className="orders-map-hq-logo"
+                    role="img"
+                    aria-label="ShawQ HQ"
+                  />
                 </g>
               ) : null}
             </svg>
