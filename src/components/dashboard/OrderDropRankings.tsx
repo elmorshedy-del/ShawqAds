@@ -16,6 +16,7 @@ export interface OrderDropRankingsProps {
   orderDeltaPct: number;
   countries: DropRow[];
   ads: DropRow[];
+  context?: 'ended-day' | 'selected-day';
 }
 
 function DropList({
@@ -71,7 +72,13 @@ export function OrderDropRankings({
   orderDeltaPct,
   countries,
   ads,
+  context = 'ended-day',
 }: OrderDropRankingsProps) {
+  const title = context === 'ended-day' ? 'Yesterday\'s order drop' : 'What dragged orders down';
+  const lead = context === 'ended-day'
+    ? `The day that just ended (${day}) finished down ${Math.abs(Math.round(orderDeltaPct))}% vs ${prevDay}`
+    : `${day} vs ${prevDay}`;
+
   return (
     <section className="panel overflow-hidden p-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -80,9 +87,9 @@ export function OrderDropRankings({
             <TrendingDown className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="font-display text-base font-semibold tracking-tight">What dragged orders down</h2>
+            <h2 className="font-display text-base font-semibold tracking-tight">{title}</h2>
             <p className="text-xs text-muted-foreground">
-              {day} vs {prevDay} · {currentOrders} orders vs {previousOrders} ({Math.round(orderDeltaPct)}%)
+              {lead} · {currentOrders} orders vs {previousOrders}
             </p>
           </div>
         </div>

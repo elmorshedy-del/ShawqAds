@@ -2719,16 +2719,23 @@ function App() {
   ]), [topMovers]);
 
   const orderDropRankings = useMemo(() => {
+    const lines = baseProductData?.order_lines || [];
+    const opts = { limit: 3, minDropPct: 40, countryFlag, cleanAdLabel, isTipLine };
+    const reportingToday = loadedBounds.today || currentReportingDay();
+    if (!reportingToday) return null;
+
+    // After the Istanbul day rolls over, explain the day that just ended (yesterday).
+    const endedDay = shiftDate(reportingToday, -1);
+    const rollover = buildOrderDropRankings(lines, endedDay, shiftDate(endedDay, -1), opts);
+    if (rollover) return { ...rollover, context: 'ended-day' };
+
+    // Fallback: user picked another single down day in the date filter.
     if (dayCount(activeDateRange) !== 1) return null;
     const day = activeDateRange.until;
-    const prevDay = shiftDate(day, -1);
-    return buildOrderDropRankings(baseProductData?.order_lines || [], day, prevDay, {
-      limit: 3,
-      countryFlag,
-      cleanAdLabel,
-      isTipLine,
-    });
-  }, [baseProductData, activeDateRange]);
+    if (!day || day === endedDay) return null;
+    const selected = buildOrderDropRankings(lines, day, shiftDate(day, -1), opts);
+    return selected ? { ...selected, context: 'selected-day' } : null;
+  }, [baseProductData, activeDateRange, loadedBounds]);
 
   const histPeriod = deliveryComparison.historical || {};
   const curPeriod = deliveryComparison.current || {};
@@ -2776,6 +2783,7 @@ function App() {
         orderDeltaPct={orderDropRankings.orderDeltaPct}
         countries={orderDropRankings.countries}
         ads={orderDropRankings.ads}
+        context={orderDropRankings.context}
       />
     ) : null,
     revenue: <RevenueChart rows={trendDayRows} />,
