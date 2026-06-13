@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { productTaxonomyForName } from '../src/lib/productMapping.js';
+import { isEmailAttribution } from '../src/lib/orderChannel.mjs';
 
 const envPaths = [
   process.env.ENV_FILE,
@@ -260,26 +261,6 @@ function attributionFor(order) {
       ad_name: adHint,
     },
   };
-}
-
-function lowerKeyLookup(obj = {}, ...keys) {
-  const lower = {};
-  for (const [key, value] of Object.entries(obj || {})) lower[key.toLowerCase()] = value;
-  for (const key of keys) {
-    const value = lower[key];
-    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value);
-  }
-  return '';
-}
-
-// utm_medium=email marks an email-marketing order (Klaviyo, Shopify Email, …),
-// tagged so the dashboard can split it out of the paid-ads "top movers" view.
-function isEmailAttribution(attribution = {}) {
-  const medium = String(
-    lowerKeyLookup(attribution.utm || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium')
-      || lowerKeyLookup(attribution.note_attributes || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium'),
-  ).trim().toLowerCase();
-  return medium === 'email';
 }
 
 const orders = await getOrders();

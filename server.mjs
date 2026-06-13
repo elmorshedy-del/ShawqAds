@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { productTaxonomyForName } from './src/lib/productMapping.js';
 import { createLocationStore, createGeocoder, buildPurchase, relativeTime } from './src/lib/orderResolver.mjs';
+import { isEmailAttribution, emailCampaignName, emailSourceLabel } from './src/lib/orderChannel.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -482,40 +483,6 @@ function orderAttribution(order) {
       ad_name: adHint,
     },
   };
-}
-
-function lowerKeyLookup(obj = {}, ...keys) {
-  const lower = {};
-  for (const [key, value] of Object.entries(obj || {})) lower[key.toLowerCase()] = value;
-  for (const key of keys) {
-    const value = lower[key];
-    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value);
-  }
-  return '';
-}
-
-// The marketing medium Shopify recorded for the order (utm_medium), normalized
-// to lowercase. Email-marketing tools (Klaviyo, Shopify Email, …) set
-// utm_medium=email, which we use to split this traffic out of the paid-ads view.
-function attributionUtmMedium(attribution = {}) {
-  return String(
-    lowerKeyLookup(attribution.utm || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium')
-      || lowerKeyLookup(attribution.note_attributes || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium'),
-  ).trim().toLowerCase();
-}
-
-function isEmailAttribution(attribution = {}) {
-  return attributionUtmMedium(attribution) === 'email';
-}
-
-function emailCampaignName(attribution = {}) {
-  return String(attribution.campaign_hint || attribution.utm?.utm_campaign || '').trim();
-}
-
-// Human label shown in the live monitor / map for an email-driven order.
-function emailSourceLabel(attribution = {}) {
-  const campaign = emailCampaignName(attribution);
-  return campaign ? `Email campaign · ${campaign}` : 'Email campaign';
 }
 
 function normalizeMatch(value) {
