@@ -34,7 +34,7 @@ function rankNegativeDeltas(currentMap, previousMap, limit = 3) {
   return rows.sort((a, b) => a.delta - b.delta).slice(0, limit);
 }
 
-export function buildOrderDropRankings(orderLines, day, prevDay, { limit = 3, countryFlag, cleanAdLabel, isTipLine } = {}) {
+export function buildOrderDropRankings(orderLines, day, prevDay, { limit = 3, minDropPct = 40, countryFlag, cleanAdLabel, isTipLine } = {}) {
   if (!day || !prevDay) return null;
 
   const currentLines = (orderLines || []).filter((line) => line.date === day && !isTipLine?.(line));
@@ -44,7 +44,8 @@ export function buildOrderDropRankings(orderLines, day, prevDay, { limit = 3, co
   const currentOrders = new Set(currentLines.map(orderKey).filter(Boolean)).size;
   const previousOrders = new Set(previousLines.map(orderKey).filter(Boolean)).size;
   const orderDelta = currentOrders - previousOrders;
-  if (orderDelta >= 0) return null;
+  const orderDeltaPct = previousOrders ? (orderDelta / previousOrders) * 100 : 0;
+  if (orderDelta >= 0 || orderDeltaPct > -minDropPct) return null;
 
   const countries = rankNegativeDeltas(
     countOrdersByKey(currentLines, (line) => line.country_code || line.country || '', (line) => {
@@ -76,7 +77,7 @@ export function buildOrderDropRankings(orderLines, day, prevDay, { limit = 3, co
     currentOrders,
     previousOrders,
     orderDelta,
-    orderDeltaPct: previousOrders ? (orderDelta / previousOrders) * 100 : 0,
+    orderDeltaPct,
     countries,
     ads,
   };
