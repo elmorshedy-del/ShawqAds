@@ -330,7 +330,7 @@ export function OrdersMap({
                     <span className="rounded-full bg-surface-2 px-2.5 py-1 text-muted-foreground">{newest.name}</span>
                   ) : null}
                   {newest.product ? (
-                    <span className="max-w-full break-words rounded-full bg-surface-2 px-2.5 py-1 text-muted-foreground">
+                    <span className="min-w-0 max-w-full break-words rounded-full bg-surface-2 px-2.5 py-1 text-muted-foreground">
                       {newest.product}
                     </span>
                   ) : null}
