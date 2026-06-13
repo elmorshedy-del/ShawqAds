@@ -45,11 +45,11 @@ export function createLocationStore({ cachePath, geocoder } = {}) {
     }
   }
 
-  function persist() {
+  async function persist() {
     if (!cachePath || !dirty) return;
     try {
-      fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-      fs.writeFileSync(cachePath, JSON.stringify(Object.fromEntries(cache.entries())));
+      await fs.promises.mkdir(path.dirname(cachePath), { recursive: true });
+      await fs.promises.writeFile(cachePath, JSON.stringify(Object.fromEntries(cache.entries())));
       dirty = false;
     } catch {
       // Best-effort persistence only.
@@ -60,7 +60,8 @@ export function createLocationStore({ cachePath, geocoder } = {}) {
     if (!key || !isValidCoord(coord)) return;
     cache.set(key, coord);
     dirty = true;
-    persist();
+    // Fire-and-forget so the request path is not blocked on disk I/O.
+    void persist();
   }
 
   // Implements the documented resolution priority:
@@ -97,6 +98,21 @@ export function createLocationStore({ cachePath, geocoder } = {}) {
   return { resolveOrderCoordinates, cacheLocation, persist, cache };
 }
 
+// Fetch with an abort timeout so a slow/hanging geocoding provider never keeps
+// a webhook request open (which would risk socket exhaustion and Shopify
+// retries). Returns null instead of throwing on timeout/network error.
+async function fetchWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Builds an HTTP geocoder function from env config. Returns null when no
 // provider/key is configured (the resolver then relies on static tables).
 export function createGeocoder(env = process.env) {
@@ -104,6 +120,7 @@ export function createGeocoder(env = process.env) {
   const mapboxKey = env.MAPBOX_GEOCODING_TOKEN || env.MAPBOX_TOKEN || '';
   const openCageKey = env.OPENCAGE_API_KEY || '';
   const googleKey = env.GOOGLE_GEOCODING_API_KEY || '';
+  const timeoutMs = Math.max(1000, Number(env.GEOCODER_TIMEOUT_MS) || 4000);
 
   const effective = provider
     || (mapboxKey && 'mapbox')
@@ -120,8 +137,8 @@ export function createGeocoder(env = process.env) {
       url.searchParams.set('limit', '1');
       url.searchParams.set('types', 'place,region,locality');
       if (norm?.country) url.searchParams.set('country', norm.country);
-      const res = await fetch(url);
-      if (!res.ok) return null;
+      const res = await fetchWithTimeout(url, timeoutMs);
+      if (!res || !res.ok) return null;
       const data = await res.json();
       const center = data?.features?.[0]?.center;
       return isValidCoord(center) ? [center[0], center[1]] : null;
@@ -132,8 +149,8 @@ export function createGeocoder(env = process.env) {
       url.searchParams.set('key', openCageKey);
       url.searchParams.set('limit', '1');
       url.searchParams.set('no_annotations', '1');
-      const res = await fetch(url);
-      if (!res.ok) return null;
+      const res = await fetchWithTimeout(url, timeoutMs);
+      if (!res || !res.ok) return null;
       const data = await res.json();
       const geo = data?.results?.[0]?.geometry;
       return geo && Number.isFinite(geo.lng) && Number.isFinite(geo.lat) ? [geo.lng, geo.lat] : null;
@@ -142,8 +159,8 @@ export function createGeocoder(env = process.env) {
       const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
       url.searchParams.set('address', query);
       url.searchParams.set('key', googleKey);
-      const res = await fetch(url);
-      if (!res.ok) return null;
+      const res = await fetchWithTimeout(url, timeoutMs);
+      if (!res || !res.ok) return null;
       const data = await res.json();
       const loc = data?.results?.[0]?.geometry?.location;
       return loc && Number.isFinite(loc.lng) && Number.isFinite(loc.lat) ? [loc.lng, loc.lat] : null;

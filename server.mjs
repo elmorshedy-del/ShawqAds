@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { productTaxonomyForName } from './src/lib/productMapping.js';
-import { createLocationStore, createGeocoder, buildPurchase } from './src/lib/orderResolver.mjs';
+import { createLocationStore, createGeocoder, buildPurchase, relativeTime } from './src/lib/orderResolver.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -67,10 +67,13 @@ function loadWebhookPurchases() {
 
 const webhookStore = loadWebhookPurchases();
 
-function persistWebhookPurchases() {
+async function persistWebhookPurchases() {
   try {
-    fs.mkdirSync(path.dirname(webhookStorePath), { recursive: true });
-    fs.writeFileSync(webhookStorePath, JSON.stringify({ purchases: webhookStore.purchases.slice(0, MAX_STORED_PURCHASES) }));
+    await fs.promises.mkdir(path.dirname(webhookStorePath), { recursive: true });
+    await fs.promises.writeFile(
+      webhookStorePath,
+      JSON.stringify({ purchases: webhookStore.purchases.slice(0, MAX_STORED_PURCHASES) }),
+    );
   } catch {
     // Best-effort persistence only.
   }
@@ -104,6 +107,23 @@ function runScript(script, extraEnv = {}) {
 
 function publicDataPath(name) {
   return path.join(__dirname, 'public', 'data', name);
+}
+
+// Cache parsed JSON keyed by file mtime so hot paths (per-order attribution
+// matching, per-row FX lookups) don't re-read and re-parse large files from
+// disk on every call and block the event loop.
+const jsonFileCache = new Map();
+function readJsonCached(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    const cached = jsonFileCache.get(filePath);
+    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.data;
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    jsonFileCache.set(filePath, { mtimeMs: stat.mtimeMs, data });
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 function isAuthorized(req) {
@@ -281,7 +301,7 @@ async function handleShopifyWebhook(req, res) {
       webhookStore.ids.add(purchase.id);
       webhookStore.purchases = [purchase, ...webhookStore.purchases.filter((p) => p.id !== purchase.id)]
         .slice(0, MAX_STORED_PURCHASES);
-      persistWebhookPurchases();
+      void persistWebhookPurchases();
     }
     send(res, 200, JSON.stringify({ ok: true, stored: Boolean(purchase) }));
   } catch (error) {
@@ -478,8 +498,8 @@ function matchAttributionToMetaAd(attribution) {
   ].filter(Boolean).map(String);
   if (!hints.length) return null;
   try {
-    const data = JSON.parse(fs.readFileSync(publicDataPath('adset-radar.json'), 'utf8'));
-    const ads = data.ads || [];
+    const data = readJsonCached(publicDataPath('adset-radar.json'));
+    const ads = data?.ads || [];
     for (const hint of hints) {
       const normalizedHint = normalizeMatch(hint);
       const idMatch = ads.find((ad) => String(ad.ad_id || '') === hint);
@@ -533,8 +553,8 @@ function cachedFxRateInfo(date, fromCurrency, toCurrency) {
   if (from === to) return { rate: 1, provider: 'identity', source: 'same_currency', requested_date: date, rate_date: date, from, to };
   if (to !== 'USD') return null;
   try {
-    const data = JSON.parse(fs.readFileSync(publicDataPath('adset-radar.json'), 'utf8'));
-    const match = (data.fx_rates?.rates || []).find((row) => row.date === date && Number(row.fx_to_usd || 0) > 0);
+    const data = readJsonCached(publicDataPath('adset-radar.json'));
+    const match = (data?.fx_rates?.rates || []).find((row) => row.date === date && Number(row.fx_to_usd || 0) > 0);
     if (!match) return null;
     return {
       rate: Number(match.fx_to_usd || 0),
@@ -1069,7 +1089,7 @@ async function buildDayPurchases(paidOrders = []) {
   // (e.g. orders that arrived between cache windows), deduped by id.
   for (const stored of webhookStore.purchases) {
     if (stored?.id && !byId.has(stored.id)) {
-      byId.set(stored.id, { ...stored, time: relativeTimeFromCreatedAt(stored, now) });
+      byId.set(stored.id, { ...stored, time: relativeTime(stored.createdAt, now) });
     }
   }
 
@@ -1078,18 +1098,6 @@ async function buildDayPurchases(paidOrders = []) {
     const bt = Date.parse(b.createdAt || '') || 0;
     return bt - at;
   });
-}
-
-function relativeTimeFromCreatedAt(purchase, now = Date.now()) {
-  const then = Date.parse(purchase?.createdAt || '');
-  if (!Number.isFinite(then)) return purchase?.time || '';
-  const diffSec = Math.max(0, Math.round((now - then) / 1000));
-  if (diffSec < 45) return 'Just now';
-  const diffMin = Math.round(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return `${Math.round(diffHr / 24)}d ago`;
 }
 
 async function fetchLatestShopifySale() {

@@ -69,9 +69,12 @@ export function normalizeCountry(value) {
   const raw = normalize(value);
   if (!raw) return '';
   if (COUNTRY_ALIASES[raw]) return COUNTRY_ALIASES[raw];
-  // Already a 2-letter ISO code.
+  // Already a 2-letter ISO code (this is what Shopify's country_code sends).
   if (/^[A-Z]{2}$/.test(raw)) return raw;
-  return raw.slice(0, 2);
+  // Full country name lookup (e.g. "DENMARK" -> "DK"). Never guess by slicing
+  // the first two letters, which produces wrong ISO codes (Denmark -> "DE").
+  if (NAME_TO_ISO[raw]) return NAME_TO_ISO[raw];
+  return '';
 }
 
 // Full US state name -> USPS abbreviation.
@@ -247,6 +250,12 @@ export const countryNames = {
   BR: 'Brazil', JP: 'Japan', IN: 'India', CN: 'China', SG: 'Singapore',
   ZA: 'South Africa', KR: 'South Korea', IL: 'Israel', GR: 'Greece',
 };
+
+// Full country name -> ISO alpha-2, derived from the known display names so we
+// can resolve names Shopify might send instead of a code, without ever guessing.
+const NAME_TO_ISO = Object.fromEntries(
+  Object.entries(countryNames).map(([iso, name]) => [normalize(name), iso]),
+);
 
 // New York City boroughs, used to render "<Borough>, New York, New York, USA".
 export const NYC_BOROUGHS = new Set(['MANHATTAN', 'BROOKLYN', 'BRONX', 'THE BRONX', 'QUEENS', 'STATEN ISLAND']);
