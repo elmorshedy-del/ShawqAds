@@ -484,6 +484,40 @@ function orderAttribution(order) {
   };
 }
 
+function lowerKeyLookup(obj = {}, ...keys) {
+  const lower = {};
+  for (const [key, value] of Object.entries(obj || {})) lower[key.toLowerCase()] = value;
+  for (const key of keys) {
+    const value = lower[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value);
+  }
+  return '';
+}
+
+// The marketing medium Shopify recorded for the order (utm_medium), normalized
+// to lowercase. Email-marketing tools (Klaviyo, Shopify Email, …) set
+// utm_medium=email, which we use to split this traffic out of the paid-ads view.
+function attributionUtmMedium(attribution = {}) {
+  return String(
+    lowerKeyLookup(attribution.utm || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium')
+      || lowerKeyLookup(attribution.note_attributes || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium'),
+  ).trim().toLowerCase();
+}
+
+function isEmailAttribution(attribution = {}) {
+  return attributionUtmMedium(attribution) === 'email';
+}
+
+function emailCampaignName(attribution = {}) {
+  return String(attribution.campaign_hint || attribution.utm?.utm_campaign || '').trim();
+}
+
+// Human label shown in the live monitor / map for an email-driven order.
+function emailSourceLabel(attribution = {}) {
+  const campaign = emailCampaignName(attribution);
+  return campaign ? `Email campaign · ${campaign}` : 'Email campaign';
+}
+
 function normalizeMatch(value) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
@@ -995,9 +1029,19 @@ function summarizeCurrentDayOrders(orders = []) {
   const tipSummary = { orders: 0, people: 0, total_usd: 0, by_date: [{ date, orders: 0, total_usd: 0 }] };
   let revenue = 0;
   let units = 0;
+  // Email-channel (utm_medium=email) accumulators. These orders stay in the
+  // headline revenue/units totals but are reported separately so they can be
+  // pulled out of the paid-ads "top movers" view downstream.
+  const emailOrderIds = new Set();
+  const emailProducts = new Map();
+  const emailCampaigns = new Map();
+  let emailUnits = 0;
+  let emailRevenue = 0;
   for (const order of todayOrders) {
     const country = orderCountry(order);
     const attribution = orderAttribution(order);
+    const isEmail = isEmailAttribution(attribution);
+    const orderChannel = isEmail ? 'email' : '';
     const lineItems = order.line_items || [];
     const orderRevenue = Number(order.current_total_price || order.total_price || 0);
     const entries = lineItems
@@ -1016,12 +1060,29 @@ function summarizeCurrentDayOrders(orders = []) {
     const merchEntries = entries.filter(({ item, taxonomy }) => taxonomy.family && !isTipTitle(item.title));
     const merchandiseSubtotal = merchEntries.reduce((total, { item, quantity }) => total + (Number(item.price || 0) * quantity), 0);
     revenue += orderRevenue;
+    if (isEmail) {
+      emailOrderIds.add(String(order.id || order.name || `${date}:${orderRevenue}`));
+      emailRevenue += orderRevenue;
+      const campaignKey = emailCampaignName(attribution) || 'Email';
+      const campaignRow = emailCampaigns.get(campaignKey) || { name: campaignKey, orders: 0, revenue_usd: 0 };
+      campaignRow.orders += 1;
+      campaignRow.revenue_usd += orderRevenue;
+      emailCampaigns.set(campaignKey, campaignRow);
+    }
     merchEntries.forEach(({ item, taxonomy, quantity }, index) => {
       const subtotal = Number(item.price || 0) * quantity;
       const lineRevenue = merchandiseSubtotal
         ? merchandiseRevenue * (subtotal / merchandiseSubtotal)
         : merchandiseRevenue / Math.max(1, merchEntries.length);
       units += quantity;
+      if (isEmail) {
+        emailUnits += quantity;
+        const productKey = item.title || 'Unknown product';
+        const productRow = emailProducts.get(productKey) || { product: productKey, units: 0, revenue_usd: 0 };
+        productRow.units += quantity;
+        productRow.revenue_usd += lineRevenue;
+        emailProducts.set(productKey, productRow);
+      }
       orderLines.push({
         order_id: String(order.id || ''),
         order_name: order.name || '',
@@ -1040,6 +1101,7 @@ function summarizeCurrentDayOrders(orders = []) {
         family: taxonomy.family || 'Other',
         subtype: taxonomy.subtype || 'Other',
         attribution,
+        channel: orderChannel,
         live_today: true,
       });
       if (index === merchEntries.length - 1) {
@@ -1055,6 +1117,17 @@ function summarizeCurrentDayOrders(orders = []) {
   tipSummary.people = tipOrders.size;
   tipSummary.by_date[0].orders = tipOrders.size;
   if (!tipSummary.orders && !tipSummary.total_usd) tipSummary.by_date = [];
+  const emailCampaign = {
+    orders: emailOrderIds.size,
+    units: emailUnits,
+    revenue_usd: emailRevenue,
+    products: [...emailProducts.values()]
+      .sort((a, b) => b.units - a.units || b.revenue_usd - a.revenue_usd)
+      .slice(0, 6),
+    campaigns: [...emailCampaigns.values()]
+      .sort((a, b) => b.revenue_usd - a.revenue_usd || b.orders - a.orders)
+      .slice(0, 6),
+  };
   return {
     date,
     timezone: shopifyReportingTimezone,
@@ -1065,18 +1138,24 @@ function summarizeCurrentDayOrders(orders = []) {
     revenue_usd: revenue,
     order_lines: orderLines,
     tips: tipSummary,
+    email_campaign: emailCampaign,
   };
 }
 
 function orderMapExtras(order) {
   const attribution = orderAttribution(order);
-  const matchedAd = matchAttributionToMetaAd(attribution);
-  const source = matchedAd?.ad_name || attribution.ad_hint || attribution.source_name || attribution.referrer_host || '';
+  const isEmail = isEmailAttribution(attribution);
+  // Email orders are a separate channel: never matched to a paid Meta ad, and
+  // always labeled "Email campaign" so the live monitor reads them as such.
+  const matchedAd = isEmail ? null : matchAttributionToMetaAd(attribution);
+  const source = isEmail
+    ? emailSourceLabel(attribution)
+    : (matchedAd?.ad_name || attribution.ad_hint || attribution.source_name || attribution.referrer_host || '');
   const merch = (order.line_items || [])
     .map((item) => ({ item, taxonomy: productTaxonomyForName(item.title) }))
     .filter(({ item, taxonomy }) => taxonomy.family && !isTipTitle(item.title));
   const product = merch[0]?.item?.title || (order.line_items || []).find((item) => item?.title)?.title || '';
-  return { source, product };
+  return { source, product, channel: isEmail ? 'email' : '' };
 }
 
 async function buildDayPurchases(paidOrders = []) {

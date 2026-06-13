@@ -262,6 +262,26 @@ function attributionFor(order) {
   };
 }
 
+function lowerKeyLookup(obj = {}, ...keys) {
+  const lower = {};
+  for (const [key, value] of Object.entries(obj || {})) lower[key.toLowerCase()] = value;
+  for (const key of keys) {
+    const value = lower[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value);
+  }
+  return '';
+}
+
+// utm_medium=email marks an email-marketing order (Klaviyo, Shopify Email, …),
+// tagged so the dashboard can split it out of the paid-ads "top movers" view.
+function isEmailAttribution(attribution = {}) {
+  const medium = String(
+    lowerKeyLookup(attribution.utm || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium')
+      || lowerKeyLookup(attribution.note_attributes || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium'),
+  ).trim().toLowerCase();
+  return medium === 'email';
+}
+
 const orders = await getOrders();
 const includeStatus = new Set(['paid', 'partially_paid', 'partially_refunded']);
 const included = orders.filter((o) => !o.cancelled_at && includeStatus.has(o.financial_status));
@@ -455,6 +475,7 @@ for (const order of included) {
   dailyByDate.set(orderDate, dailyOrder);
   const c = countryFor(order);
   const attribution = attributionFor(order);
+  const orderChannel = isEmailAttribution(attribution) ? 'email' : '';
   if (!countryRows.has(c.code)) countryRows.set(c.code, { country_code: c.code, country: c.name, units: 0, revenue_usd: 0, unique_products_set: new Set(), mix: {}, subtypes: {} });
   const cRow = countryRows.get(c.code);
   const lineEntries = [];
@@ -497,6 +518,7 @@ for (const order of included) {
       family,
       subtype,
       attribution,
+      channel: orderChannel,
     });
     const familyRow = familyTotals.get(family) || { family, units: 0, revenue_usd: 0 };
     familyRow.units += net;
