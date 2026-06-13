@@ -19,6 +19,7 @@ export type Purchase = {
   items: number;
   product?: string;
   source?: string;
+  channel?: string;
   coordinates: [number, number];
   time: string;
   createdAt?: string;

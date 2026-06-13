@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { productTaxonomyForName } from '../src/lib/productMapping.js';
+import { isEmailAttribution } from '../src/lib/orderChannel.mjs';
 
 const envPaths = [
   process.env.ENV_FILE,
@@ -455,6 +456,7 @@ for (const order of included) {
   dailyByDate.set(orderDate, dailyOrder);
   const c = countryFor(order);
   const attribution = attributionFor(order);
+  const orderChannel = isEmailAttribution(attribution) ? 'email' : '';
   if (!countryRows.has(c.code)) countryRows.set(c.code, { country_code: c.code, country: c.name, units: 0, revenue_usd: 0, unique_products_set: new Set(), mix: {}, subtypes: {} });
   const cRow = countryRows.get(c.code);
   const lineEntries = [];
@@ -497,6 +499,7 @@ for (const order of included) {
       family,
       subtype,
       attribution,
+      channel: orderChannel,
     });
     const familyRow = familyTotals.get(family) || { family, units: 0, revenue_usd: 0 };
     familyRow.units += net;

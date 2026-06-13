@@ -229,9 +229,11 @@ export function relativeTime(value, now = Date.now()) {
 // existing live sales monitor surfaced (order name, product, ad/source) is
 // preserved in the map's recents.
 export async function buildPurchase(order, store, opts = {}) {
-  const now = typeof opts === 'number' ? opts : (opts.now || Date.now());
-  const source = typeof opts === 'object' ? (opts.source || '') : '';
-  const productHint = typeof opts === 'object' ? (opts.product || '') : '';
+  const isOptsObject = Boolean(opts) && typeof opts === 'object';
+  const now = typeof opts === 'number' ? opts : (isOptsObject ? (opts.now || Date.now()) : Date.now());
+  const source = isOptsObject ? (opts.source || '') : '';
+  const productHint = isOptsObject ? (opts.product || '') : '';
+  const channel = isOptsObject ? (opts.channel || '') : '';
 
   const address = pickAddress(order);
   const norm = normalizeAddress(address);
@@ -264,6 +266,7 @@ export async function buildPurchase(order, store, opts = {}) {
     items: items || 1,
     product: product || undefined,
     source: source || undefined,
+    channel: channel || undefined,
     coordinates: [Number(coordinates[0]), Number(coordinates[1])],
     time: relativeTime(order.created_at, now),
     createdAt: order.created_at || '',
