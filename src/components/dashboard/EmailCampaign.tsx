@@ -51,7 +51,7 @@ function StatTile({ label, value, sub }: { label: string; value: string; sub?: s
     <div className="rounded-xl border border-border bg-surface-2/40 px-3.5 py-3">
       <p className="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
       <p className="mt-1 font-display text-lg font-semibold tabular-nums tracking-tight">{value}</p>
-      {sub ? <p className="mt-0.5 truncate text-[0.65rem] text-muted-foreground">{sub}</p> : null}
+      {sub ? <p className="mt-0.5 text-[0.65rem] leading-snug text-muted-foreground">{sub}</p> : null}
     </div>
   );
 }
@@ -104,24 +104,29 @@ export function EmailCampaign({ summary, orders = [], isLive = true }: EmailCamp
         </div>
 
         {campaigns.length ? (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <span className="text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Campaigns</span>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="w-full text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground sm:w-auto">
+              Campaigns
+            </span>
             {campaigns.map((campaign) => (
               <span
                 key={campaign.name}
-                className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-xs text-muted-foreground"
-                title={`${campaign.orders} order${campaign.orders === 1 ? "" : "s"} · ${fmtCurrency(campaign.revenue_usd)}`}
+                className="inline-flex max-w-full items-start gap-1.5 rounded-xl border border-border/70 bg-surface-2/80 px-3 py-2 text-xs text-muted-foreground"
               >
-                <Sparkles className="h-3 w-3" style={{ color: ACCENT }} />
-                <span className="max-w-[12rem] truncate font-medium text-foreground">{campaign.name}</span>
-                <span className="tabular-nums">{fmtCurrency(campaign.revenue_usd)}</span>
+                <Sparkles className="mt-0.5 h-3 w-3 shrink-0" style={{ color: ACCENT }} />
+                <span className="min-w-0">
+                  <span className="block break-words font-medium leading-snug text-foreground">{campaign.name}</span>
+                  <span className="mt-0.5 block tabular-nums leading-snug">
+                    {campaign.orders} order{campaign.orders === 1 ? "" : "s"} · {fmtCurrency(campaign.revenue_usd)}
+                  </span>
+                </span>
               </span>
             ))}
           </div>
         ) : null}
 
         {hasActivity ? (
-          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
+          <div className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-[1.4fr_1fr] lg:gap-6">
             <div>
               <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 <Inbox className="h-3.5 w-3.5" /> Recent email orders
@@ -135,34 +140,34 @@ export function EmailCampaign({ summary, orders = [], isLive = true }: EmailCamp
                     <li
                       key={order.id}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                        "flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
                         index === 0 ? "bg-surface-2" : "hover:bg-surface-2/70",
                       )}
                     >
                       <span
-                        className="mt-1 h-2 w-2 shrink-0 self-start rounded-full"
+                        className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
                         style={{ background: ACCENT, opacity: index === 0 ? 1 : 0.6 }}
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="truncate font-medium">
-                            {order.flag ? `${order.flag} ` : ""}
-                            {order.location || order.city || "—"}
-                          </span>
-                          <span className="shrink-0 font-display font-semibold tracking-tight">
-                            {formatMoney(order.amount, order.currency)}
-                          </span>
-                        </div>
-                        <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
-                          <span className="truncate">{subtitle || "—"}</span>
-                          {order.time ? <span className="shrink-0">{order.time}</span> : null}
-                        </div>
+                        <p className="font-medium leading-snug break-words">
+                          {order.flag ? `${order.flag} ` : ""}
+                          {order.location || order.city || "—"}
+                        </p>
+                        {subtitle ? (
+                          <p className="mt-1 break-words text-xs leading-snug text-muted-foreground">{subtitle}</p>
+                        ) : null}
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="font-display font-semibold tabular-nums tracking-tight">
+                          {formatMoney(order.amount, order.currency)}
+                        </p>
+                        {order.time ? <p className="mt-1 text-xs text-muted-foreground">{order.time}</p> : null}
                       </div>
                     </li>
                   );
                 })}
                 {list.length === 0 ? (
-                  <li className="rounded-lg px-2.5 py-2 text-sm text-muted-foreground">
+                  <li className="rounded-xl px-3 py-2.5 text-sm text-muted-foreground">
                     Email orders counted, awaiting per-order detail
                   </li>
                 ) : null}
@@ -177,23 +182,25 @@ export function EmailCampaign({ summary, orders = [], isLive = true }: EmailCamp
                 {products.slice(0, 5).map((product) => (
                   <li
                     key={product.product}
-                    className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-sm hover:bg-surface-2/70"
+                    className="flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm hover:bg-surface-2/70"
                   >
-                    <span className="min-w-0 truncate font-medium">{product.product}</span>
-                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium leading-snug break-words">{product.product}</p>
+                    </div>
+                    <p className="shrink-0 text-right text-xs tabular-nums leading-snug text-muted-foreground">
                       {product.units}u · {fmtCurrency(product.revenue_usd)}
-                    </span>
+                    </p>
                   </li>
                 ))}
                 {products.length === 0 ? (
-                  <li className="rounded-lg px-2.5 py-2 text-sm text-muted-foreground">No product breakdown yet</li>
+                  <li className="rounded-xl px-3 py-2.5 text-sm text-muted-foreground">No product breakdown yet</li>
                 ) : null}
               </ul>
             </div>
           </div>
         ) : (
-          <div className="mt-4 flex items-center gap-3 rounded-xl border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">
-            <ShoppingBag className="h-5 w-5 shrink-0" style={{ color: ACCENT }} />
+          <div className="mt-4 flex items-start gap-3 rounded-xl border border-dashed border-border px-4 py-5 text-sm leading-relaxed text-muted-foreground">
+            <ShoppingBag className="mt-0.5 h-5 w-5 shrink-0" style={{ color: ACCENT }} />
             <p>
               No email-driven orders yet today. Orders tagged <span className="font-medium text-foreground">utm_medium = email</span>{" "}
               in Shopify land here and are excluded from the paid-ads top movers.
