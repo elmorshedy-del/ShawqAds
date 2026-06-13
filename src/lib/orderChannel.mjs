@@ -29,8 +29,8 @@ export function lowerKeyLookup(obj = {}, ...keys) {
 // utm_medium=email, which we use to split this traffic out of the paid-ads view.
 export function attributionUtmMedium(attribution = {}) {
   return String(
-    lowerKeyLookup(attribution.utm || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium')
-      || lowerKeyLookup(attribution.note_attributes || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium'),
+    lowerKeyLookup(attribution?.utm || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium')
+      || lowerKeyLookup(attribution?.note_attributes || {}, 'utm_medium', 'utm_medium_last', 'utm_medium_first', 'medium'),
   ).trim().toLowerCase();
 }
 
@@ -39,7 +39,7 @@ export function isEmailAttribution(attribution = {}) {
 }
 
 export function emailCampaignName(attribution = {}) {
-  return String(attribution.campaign_hint || attribution.utm?.utm_campaign || '').trim();
+  return String(attribution?.campaign_hint || attribution?.utm?.utm_campaign || '').trim();
 }
 
 // Human label shown in the live monitor / map for an email-driven order.
@@ -52,15 +52,16 @@ export function emailSourceLabel(attribution = {}) {
 // for channel detection, built straight from a raw Shopify order. Used by
 // verification scripts that don't need the server's full ad-matching logic.
 export function buildAttributionLite(order = {}) {
+  const safeOrder = order || {};
   const noteAttributes = {};
-  for (const attr of order.note_attributes || []) {
+  for (const attr of safeOrder.note_attributes || []) {
     if (attr?.name) noteAttributes[attr.name] = attr.value;
   }
   const lowerNote = Object.fromEntries(
     Object.entries(noteAttributes).map(([key, value]) => [key.toLowerCase(), value]),
   );
-  const landingParams = queryParamsFromMaybeUrl(order.landing_site || order.landing_site_ref || '');
-  const referrerParams = queryParamsFromMaybeUrl(order.referring_site || '');
+  const landingParams = queryParamsFromMaybeUrl(safeOrder.landing_site || safeOrder.landing_site_ref || '');
+  const referrerParams = queryParamsFromMaybeUrl(safeOrder.referring_site || '');
   const noteLandingLast = queryParamsFromMaybeUrl(lowerNote.landing_page_last || lowerNote.landing_page || '');
   const noteLandingFirst = queryParamsFromMaybeUrl(lowerNote.landing_page_first || '');
   const utm = { ...noteLandingFirst, ...landingParams, ...referrerParams, ...noteLandingLast };

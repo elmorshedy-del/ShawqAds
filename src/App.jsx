@@ -2608,7 +2608,7 @@ function App() {
   // Email-channel orders (utm_medium=email) surface in their own section and are
   // excluded from the paid-ads top movers. Live totals come from the server's
   // email_campaign summary; demo mode derives them from the sample orders.
-  const emailOrders = mapPurchases.filter((purchase) => String(purchase.channel || '').toLowerCase() === 'email');
+  const emailOrders = mapPurchases.filter((purchase) => String(purchase?.channel || '').toLowerCase() === 'email');
   const emailSummary = mapIsDemo ? null : (saleMonitor.todaySummary?.email_campaign || null);
   const monitorStatusText = saleMonitor.status === 'live'
     ? 'Live Shopify sales monitor'
