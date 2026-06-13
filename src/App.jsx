@@ -22,8 +22,8 @@ import { CountrySalesPanel } from './components/dashboard/CountrySalesPanel';
 import { TopMovers } from './components/dashboard/TopMovers';
 import { EmailCampaign } from './components/dashboard/EmailCampaign';
 import { BehaviorAnalytics } from './components/dashboard/BehaviorAnalytics';
-import { DataTable } from './components/dashboard/DataTable';
-import * as adapt from './lib/adapt.js';
+import { OrderDropRankings } from './components/dashboard/OrderDropRankings';
+import { buildOrderDropRankings } from './lib/orderDropRankings.js';
 
 const SALE_POLL_MS = 30000;
 const META_POLL_MS = 120000;
@@ -2718,6 +2718,18 @@ function App() {
     },
   ]), [topMovers]);
 
+  const orderDropRankings = useMemo(() => {
+    if (dayCount(activeDateRange) !== 1) return null;
+    const day = activeDateRange.until;
+    const prevDay = shiftDate(day, -1);
+    return buildOrderDropRankings(baseProductData?.order_lines || [], day, prevDay, {
+      limit: 3,
+      countryFlag,
+      cleanAdLabel,
+      isTipLine,
+    });
+  }, [baseProductData, activeDateRange]);
+
   const histPeriod = deliveryComparison.historical || {};
   const curPeriod = deliveryComparison.current || {};
   const histShopify = deliveryShopifyComparison.historical || {};
@@ -2755,6 +2767,17 @@ function App() {
         <KpiCard label="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" delta={businessDeltas.roas.pct} series={adapt.sparkSeries(businessRows, 'roas', allBusinessRows)} accent="positive" />
       </section>
     ),
+    orderDrop: orderDropRankings ? (
+      <OrderDropRankings
+        day={orderDropRankings.day}
+        prevDay={orderDropRankings.prevDay}
+        currentOrders={orderDropRankings.currentOrders}
+        previousOrders={orderDropRankings.previousOrders}
+        orderDeltaPct={orderDropRankings.orderDeltaPct}
+        countries={orderDropRankings.countries}
+        ads={orderDropRankings.ads}
+      />
+    ) : null,
     revenue: <RevenueChart rows={trendDayRows} />,
     salesBench: (
       <div className="grid grid-cols-1 gap-7 lg:grid-cols-3">
@@ -2800,9 +2823,9 @@ function App() {
     behavior: <BehaviorAnalytics behavior={behaviorData} />,
     data: <DataTable rows={dayRows} />,
   };
-  const desktopOrder = ['ordersMap', 'kpis', 'revenue', 'tree', 'emailCampaign', 'leaders', 'edits', 'decision', 'usa', 'delivery', 'salesBench', 'product', 'country', 'behavior', 'data'];
+  const desktopOrder = ['ordersMap', 'kpis', 'orderDrop', 'revenue', 'tree', 'emailCampaign', 'leaders', 'edits', 'decision', 'usa', 'delivery', 'salesBench', 'product', 'country', 'behavior', 'data'];
   const mobileGroups = [
-    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'revenue', 'mobileTops'] },
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'orderDrop', 'revenue', 'mobileTops'] },
     { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'emailCampaign', 'leaders', 'edits', 'decision'] },
     { key: 'launch', label: 'Launch', icon: Rocket, ids: ['usa', 'delivery'] },
     { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['salesBench', 'product', 'country'] },
