@@ -321,7 +321,7 @@ export function OrdersMap({
                   · {newest.items} item{newest.items === 1 ? "" : "s"}
                 </span>
               </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+              <p className="mt-0.5 break-words text-xs text-muted-foreground">
                 {newest.location || newest.country} · {newest.time}
               </p>
               {newest.name || newest.product ? (
@@ -330,7 +330,7 @@ export function OrdersMap({
                     <span className="rounded-full bg-surface-2 px-2.5 py-1 text-muted-foreground">{newest.name}</span>
                   ) : null}
                   {newest.product ? (
-                    <span className="rounded-full bg-surface-2 px-2.5 py-1 text-muted-foreground">
+                    <span className="max-w-full break-words rounded-full bg-surface-2 px-2.5 py-1 text-muted-foreground">
                       {newest.product}
                     </span>
                   ) : null}
@@ -364,14 +364,14 @@ export function OrdersMap({
                 >
                   <span
                     className={cn(
-                      "mt-[0.4rem] h-2 w-2 shrink-0 rounded-full",
+                      "mt-1.5 h-2 w-2 shrink-0 rounded-full",
                       index === 0 ? "bg-primary" : "bg-brand/70",
                     )}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium leading-snug">{p.flag} {p.location || p.city}</p>
+                    <p className="font-medium leading-snug break-words">{p.flag} {p.location || p.city}</p>
                     {subtitle ? (
-                      <p className="mt-1 text-xs leading-snug text-muted-foreground">{subtitle}</p>
+                      <p className="mt-1 break-words text-xs leading-snug text-muted-foreground">{subtitle}</p>
                     ) : null}
                   </div>
                   <div className="shrink-0 text-right">
