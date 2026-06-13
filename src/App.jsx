@@ -20,6 +20,7 @@ import { AdSetDecisionTable } from './components/dashboard/AdSetDecisionTable';
 import { ProductDemand } from './components/dashboard/ProductDemand';
 import { CountrySalesPanel } from './components/dashboard/CountrySalesPanel';
 import { TopMovers } from './components/dashboard/TopMovers';
+import { EmailCampaign } from './components/dashboard/EmailCampaign';
 import { BehaviorAnalytics } from './components/dashboard/BehaviorAnalytics';
 import { DataTable } from './components/dashboard/DataTable';
 import * as adapt from './lib/adapt.js';
@@ -38,9 +39,9 @@ const DEMO_PURCHASES = [
   { id: 'demo-4', name: '#3937', country: 'USA', location: 'Los Angeles, California, USA', city: 'Los Angeles', region: 'CA', countryCode: 'US', flag: '🇺🇸', amount: 88.5, currency: 'USD', items: 1, product: 'ShawQ Cap', source: 'Organic', coordinates: [-118.2437, 34.0522], time: '12m ago' },
   { id: 'demo-5', name: '#3936', country: 'USA', location: 'Denver, Colorado, USA', city: 'Denver', region: 'CO', countryCode: 'US', flag: '🇺🇸', amount: 64, currency: 'USD', items: 1, product: 'ShawQ Tee', source: 'Meta · Prospecting', coordinates: [-104.9903, 39.7392], time: '18m ago' },
   { id: 'demo-6', name: '#3935', country: 'France', location: 'Paris, France', city: 'Paris', region: undefined, countryCode: 'FR', flag: '🇫🇷', amount: 120, currency: 'EUR', items: 2, product: 'ShawQ Hoodie', source: 'Meta · Prospecting', coordinates: [2.3522, 48.8566], time: '23m ago' },
-  { id: 'demo-7', name: '#3934', country: 'Germany', location: 'Berlin, Germany', city: 'Berlin', region: undefined, countryCode: 'DE', flag: '🇩🇪', amount: 75, currency: 'EUR', items: 1, product: 'ShawQ Tee', source: 'Organic', coordinates: [13.405, 52.52], time: '34m ago' },
+  { id: 'demo-7', name: '#3934', country: 'Germany', location: 'Berlin, Germany', city: 'Berlin', region: undefined, countryCode: 'DE', flag: '🇩🇪', amount: 75, currency: 'EUR', items: 1, product: 'ShawQ Tee', source: 'Email campaign · Welcome flow', channel: 'email', coordinates: [13.405, 52.52], time: '34m ago' },
   { id: 'demo-8', name: '#3933', country: 'United Kingdom', location: 'London, United Kingdom', city: 'London', region: undefined, countryCode: 'GB', flag: '🇬🇧', amount: 99, currency: 'GBP', items: 1, product: 'ShawQ Cap', source: 'Meta · Retargeting', coordinates: [-0.1276, 51.5072], time: '48m ago' },
-  { id: 'demo-9', name: '#3932', country: 'Australia', location: 'Sydney, Australia', city: 'Sydney', region: undefined, countryCode: 'AU', flag: '🇦🇺', amount: 130, currency: 'AUD', items: 2, product: 'ShawQ Hoodie', source: 'Organic', coordinates: [151.2093, -33.8688], time: '1h ago' },
+  { id: 'demo-9', name: '#3932', country: 'Australia', location: 'Sydney, Australia', city: 'Sydney', region: undefined, countryCode: 'AU', flag: '🇦🇺', amount: 130, currency: 'AUD', items: 2, product: 'ShawQ Hoodie', source: 'Email campaign · Spring drop', channel: 'email', coordinates: [151.2093, -33.8688], time: '1h ago' },
 ];
 
 // Below Tailwind's `lg` breakpoint we swap the long scroll for a tabbed layout.
@@ -599,11 +600,18 @@ function filterMetaDataByDateRange(meta, range) {
     },
   };
 }
-function filterShopifyByDateRange(shopify, range) {
+function isEmailLine(line) {
+  return String(line?.channel || '').toLowerCase() === 'email';
+}
+
+function filterShopifyByDateRange(shopify, range, { excludeEmail = false } = {}) {
   const daily = filterRowsByDateRange(shopify?.daily || [], range);
   const rawLines = filterRowsByDateRange(shopify?.order_lines || [], range);
   const tipLines = rawLines.filter(isTipLine);
-  const lines = rawLines.filter((line) => !isTipLine(line));
+  // Email-channel orders (utm_medium=email) are dropped from the product /
+  // country / ad aggregates when requested, so the paid-ads leadership and
+  // "top movers" views never count them.
+  const lines = rawLines.filter((line) => !isTipLine(line) && (!excludeEmail || !isEmailLine(line)));
   const tips = mergeTipSummaries(filterTipSummary(shopify?.tips, range), summarizeTipLines(tipLines));
   if (!lines.length && !(shopify?.order_lines || []).length) {
     return {
@@ -2597,6 +2605,11 @@ function App() {
   // or while today has no orders yet.
   const mapPurchases = livePurchases.length ? livePurchases : DEMO_PURCHASES;
   const mapIsDemo = livePurchases.length === 0;
+  // Email-channel orders (utm_medium=email) surface in their own section and are
+  // excluded from the paid-ads top movers. Live totals come from the server's
+  // email_campaign summary; demo mode derives them from the sample orders.
+  const emailOrders = mapPurchases.filter((purchase) => String(purchase.channel || '').toLowerCase() === 'email');
+  const emailSummary = mapIsDemo ? null : (saleMonitor.todaySummary?.email_campaign || null);
   const monitorStatusText = saleMonitor.status === 'live'
     ? 'Live Shopify sales monitor'
     : saleMonitor.status === 'checking'
@@ -2648,7 +2661,8 @@ function App() {
     const anchor = loadedBounds.until || loadedBounds.calendar_until || currentReportingDay();
     const dayLeaders = (day) => {
       const win = clampDateRange({ since: day, until: day }, loadedBounds);
-      const ws = filterShopifyByDateRange(baseProductData, win);
+      // Top movers track paid-ads performance, so email-channel orders are excluded.
+      const ws = filterShopifyByDateRange(baseProductData, win, { excludeEmail: true });
       const wm = filterMetaDataByDateRange(baseData, win);
       const metaByCode = new Map((wm.countries || []).map((row) => [row.country_code, row]));
       const adRowsForDay = enrichAdsWithShopifySales(wm.ads || [], ws.order_lines || []);
@@ -2736,6 +2750,7 @@ function App() {
     ),
     tree: <CampaignRoasTree data={campaignTree} />,
     leaders: <LeadershipBoard products={productLeaders} ads={adLeaders} />,
+    emailCampaign: <EmailCampaign summary={emailSummary} orders={emailOrders} isLive={!mapIsDemo} />,
     edits: (
       <section className="panel flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -2771,9 +2786,9 @@ function App() {
     behavior: <BehaviorAnalytics behavior={behaviorData} />,
     data: <DataTable rows={dayRows} />,
   };
-  const desktopOrder = ['ordersMap', 'kpis', 'revenue', 'salesBench', 'tree', 'leaders', 'edits', 'usa', 'delivery', 'decision', 'product', 'country', 'behavior', 'data'];
+  const desktopOrder = ['ordersMap', 'kpis', 'revenue', 'salesBench', 'tree', 'leaders', 'emailCampaign', 'edits', 'usa', 'delivery', 'decision', 'product', 'country', 'behavior', 'data'];
   const mobileGroups = [
-    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'revenue', 'mobileTops'] },
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'revenue', 'mobileTops', 'emailCampaign'] },
     { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'leaders', 'edits', 'decision'] },
     { key: 'launch', label: 'Launch', icon: Rocket, ids: ['usa', 'delivery'] },
     { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['salesBench', 'product', 'country'] },
