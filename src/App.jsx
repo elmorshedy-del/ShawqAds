@@ -2786,10 +2786,10 @@ function App() {
     behavior: <BehaviorAnalytics behavior={behaviorData} />,
     data: <DataTable rows={dayRows} />,
   };
-  const desktopOrder = ['ordersMap', 'kpis', 'revenue', 'tree', 'leaders', 'emailCampaign', 'edits', 'decision', 'usa', 'delivery', 'salesBench', 'product', 'country', 'behavior', 'data'];
+  const desktopOrder = ['ordersMap', 'kpis', 'revenue', 'tree', 'emailCampaign', 'leaders', 'edits', 'decision', 'usa', 'delivery', 'salesBench', 'product', 'country', 'behavior', 'data'];
   const mobileGroups = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'revenue', 'mobileTops'] },
-    { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'leaders', 'emailCampaign', 'edits', 'decision'] },
+    { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'emailCampaign', 'leaders', 'edits', 'decision'] },
     { key: 'launch', label: 'Launch', icon: Rocket, ids: ['usa', 'delivery'] },
     { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['salesBench', 'product', 'country'] },
     { key: 'behavior', label: 'Behavior', icon: Activity, ids: ['behavior', 'data'] },
