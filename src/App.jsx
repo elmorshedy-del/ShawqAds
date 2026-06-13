@@ -809,6 +809,21 @@ function shiftDate(date, days) {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
+function mondayOfWeek(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(`${dateStr}T12:00:00Z`);
+  return shiftDate(dateStr, -((d.getUTCDay() + 6) % 7));
+}
+function reportingWeekToDate(anchorDate, bounds) {
+  return clampDateRange({ since: mondayOfWeek(anchorDate), until: anchorDate }, bounds);
+}
+function previousWeekToDate(anchorDate, bounds) {
+  const current = reportingWeekToDate(anchorDate, bounds);
+  return clampDateRange({
+    since: shiftDate(current.since, -7),
+    until: shiftDate(current.until, -7),
+  }, bounds);
+}
 function clampDateRange(range, bounds) {
   const normalized = normalizeDateRange(range, bounds);
   let since = normalized.since;
@@ -2653,31 +2668,30 @@ function App() {
     };
     return { '3D': build(-2), '7D': build(-6), '14D': build(-13) };
   }, [baseProductData, baseData, loadedBounds]);
-  // Mobile "Top movers" — top product / ad / country for the latest reporting day,
-  // each with the previous day and same-day-last-week winner as a comparison line.
-  // Reuses the leader adapters over single-day windows, so the math matches the
-  // desktop leadership boards exactly.
+  // Mobile "Top movers" — today's leader as the hero, with the current week and
+  // previous week as comparison windows (paid-ads only; email orders excluded).
   const topMovers = useMemo(() => {
     const anchor = loadedBounds.until || loadedBounds.calendar_until || currentReportingDay();
-    const dayLeaders = (day) => {
-      const win = clampDateRange({ since: day, until: day }, loadedBounds);
-      // Top movers track paid-ads performance, so email-channel orders are excluded.
+    const leadersFor = (win) => {
       const ws = filterShopifyByDateRange(baseProductData, win, { excludeEmail: true });
       const wm = filterMetaDataByDateRange(baseData, win);
       const metaByCode = new Map((wm.countries || []).map((row) => [row.country_code, row]));
-      const adRowsForDay = enrichAdsWithShopifySales(wm.ads || [], ws.order_lines || []);
+      const adRowsForWindow = enrichAdsWithShopifySales(wm.ads || [], ws.order_lines || []);
       return {
         product: adapt.toProductLeaders(ws.products || [])[0] || null,
-        ad: adapt.toAdLeaders(adRowsForDay)[0] || null,
+        ad: adapt.toAdLeaders(adRowsForWindow)[0] || null,
         country: adapt.toCountrySales(ws.countries || [], metaByCode)[0] || null,
       };
     };
-    if (!anchor) return { anchor: '', today: {}, prevDay: {}, prevWeek: {} };
+    if (!anchor) return { anchor: '', today: {}, currentWeek: {}, prevWeek: {} };
+    const todayWin = clampDateRange({ since: anchor, until: anchor }, loadedBounds);
+    const currentWeekWin = reportingWeekToDate(anchor, loadedBounds);
+    const prevWeekWin = previousWeekToDate(anchor, loadedBounds);
     return {
       anchor,
-      today: dayLeaders(anchor),
-      prevDay: dayLeaders(shiftDate(anchor, -1)),
-      prevWeek: dayLeaders(shiftDate(anchor, -7)),
+      today: leadersFor(todayWin),
+      currentWeek: leadersFor(currentWeekWin),
+      prevWeek: leadersFor(prevWeekWin),
     };
   }, [baseProductData, baseData, loadedBounds]);
   const topMoverCards = useMemo(() => ([
@@ -2685,21 +2699,21 @@ function App() {
       kind: 'product',
       label: 'Top product',
       today: topMovers.today.product,
-      prevDay: topMovers.prevDay.product,
+      currentWeek: topMovers.currentWeek.product,
       prevWeek: topMovers.prevWeek.product,
     },
     {
       kind: 'ad',
       label: 'Top ad / source',
       today: topMovers.today.ad,
-      prevDay: topMovers.prevDay.ad,
+      currentWeek: topMovers.currentWeek.ad,
       prevWeek: topMovers.prevWeek.ad,
     },
     {
       kind: 'country',
       label: 'Top country',
       today: topMovers.today.country,
-      prevDay: topMovers.prevDay.country,
+      currentWeek: topMovers.currentWeek.country,
       prevWeek: topMovers.prevWeek.country,
     },
   ]), [topMovers]);
