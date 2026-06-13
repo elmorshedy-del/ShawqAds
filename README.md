@@ -126,7 +126,7 @@ curl -H "Authorization: Bearer $REFRESH_API_KEY" \
 ## Live Orders Map
 
 > Full implementation + handoff guide (how to switch from demo to live Shopify
-> data, env vars, webhook setup, verification): [`docs/LIVE_ORDERS_MAP.md`](docs/LIVE_ORDERS_MAP.md).
+> data, env vars, webhook setup, verification): [`AI_HANDOFF_LIVE_ORDERS_MAP.md`](AI_HANDOFF_LIVE_ORDERS_MAP.md).
 
 
 A live global orders map is the lead card of the Overview and now also carries
