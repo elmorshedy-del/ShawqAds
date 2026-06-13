@@ -75,12 +75,7 @@ export function EmailCampaign({ summary, orders = [], isLive = true }: EmailCamp
         >
           <Mail className="h-4 w-4" />
         </span>
-        <div className="min-w-0">
-          <h2 className="font-display text-base font-semibold tracking-tight">Email campaign</h2>
-          <p className="text-[0.7rem] text-muted-foreground">
-            Orders attributed to email (utm_medium = email) · tracked apart from paid ads &amp; kept out of top movers
-          </p>
-        </div>
+        <h2 className="font-display text-base font-semibold tracking-tight">Email campaign</h2>
       </div>
 
       <div
