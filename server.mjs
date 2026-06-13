@@ -1125,7 +1125,7 @@ function orderMapExtras(order) {
   return { source, product, channel: isEmail ? 'email' : '' };
 }
 
-async function buildDayPurchases(paidOrders = []) {
+async function buildDayPurchases(paidOrders = [], reportingDay = dateInTimezone(new Date(), shopifyReportingTimezone)) {
   const now = Date.now();
   const built = await Promise.all(paidOrders.map((order) => buildPurchase(order, locationStore, { now, ...orderMapExtras(order) }).catch(() => null)));
   const fetched = built.filter(Boolean);
@@ -1134,9 +1134,12 @@ async function buildDayPurchases(paidOrders = []) {
   // Merge in any webhook-stored purchases the REST fetch did not include
   // (e.g. orders that arrived between cache windows), deduped by id.
   for (const stored of webhookStore.purchases) {
-    if (stored?.id && !byId.has(stored.id)) {
-      byId.set(stored.id, { ...stored, time: relativeTime(stored.createdAt, now) });
-    }
+    if (!stored?.id || byId.has(stored.id)) continue;
+    const orderDay = stored.createdAt
+      ? dateInTimezone(new Date(stored.createdAt), shopifyReportingTimezone)
+      : '';
+    if (orderDay && orderDay !== reportingDay) continue;
+    byId.set(stored.id, { ...stored, time: relativeTime(stored.createdAt, now) });
   }
 
   return [...byId.values()].sort((a, b) => {
@@ -1174,7 +1177,7 @@ async function fetchLatestShopifySale() {
   const includeStatus = new Set(['paid', 'partially_paid', 'partially_refunded']);
   const paidOrders = orders.filter((order) => !order.cancelled_at && includeStatus.has(order.financial_status));
   const sale = paidOrders[0];
-  const purchases = await buildDayPurchases(paidOrders);
+  const purchases = await buildDayPurchases(paidOrders, reportingDay);
   return {
     ok: true,
     configured: true,

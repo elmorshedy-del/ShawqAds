@@ -2601,17 +2601,17 @@ function App() {
   const sale = saleMonitor.sale;
   const saleItems = sale?.line_items || [];
   const livePurchases = saleMonitor.purchases || [];
-  // Fall back to demo data so the map renders before Shopify is connected
-  // or while today has no orders yet.
-  const mapPurchases = livePurchases.length ? livePurchases : DEMO_PURCHASES;
-  const mapIsDemo = livePurchases.length === 0;
+  // Demo data is only for disconnected Shopify. A live day with zero orders
+  // should stay live (empty map), not flip back to sample orders at midnight.
+  const mapIsDemo = saleMonitor.status === 'not_configured';
+  const mapPurchases = mapIsDemo ? DEMO_PURCHASES : livePurchases;
   // Email-channel orders (utm_medium=email) surface in their own section and are
   // excluded from the paid-ads top movers. Live totals come from the server's
   // email_campaign summary; demo mode derives them from the sample orders.
   const emailOrders = mapPurchases.filter((purchase) => String(purchase?.channel || '').toLowerCase() === 'email');
   const emailSummary = mapIsDemo ? null : (saleMonitor.todaySummary?.email_campaign || null);
   const monitorStatusText = saleMonitor.status === 'live'
-    ? 'Live Shopify sales monitor'
+    ? (livePurchases.length ? 'Live Shopify sales monitor' : 'Live Shopify sales monitor · no orders yet today')
     : saleMonitor.status === 'checking'
       ? 'Checking Shopify sales'
       : 'Sale monitor paused';
