@@ -62,7 +62,7 @@ const HEIGHT = 430;
 const SHAWQ_HQ: [number, number] = [35.24, 38.96];
 // Inline SVG wordmark for the HQ marker (aspect ratio of the brand asset).
 const HQ_LOGO_RATIO = SHAWQ_LOGO_MARK_VIEWBOX.width / SHAWQ_LOGO_MARK_VIEWBOX.height;
-const HQ_LOGO_H = 8;
+const HQ_LOGO_H = 12;
 const HQ_LOGO_W = HQ_LOGO_H * HQ_LOGO_RATIO;
 const HQ_LOGO_SCALE = HQ_LOGO_H / SHAWQ_LOGO_MARK_VIEWBOX.height;
 
