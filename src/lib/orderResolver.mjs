@@ -20,6 +20,7 @@ import {
   normalizeRegion,
   normalize,
   US_STATE_CODE_TO_NAME,
+  NYC_BOROUGHS,
 } from './orderLocations.mjs';
 
 function isValidCoord(value) {
@@ -164,22 +165,30 @@ function regionLabel(country, region) {
   return region;
 }
 
-// Display country: e.g. "USA \u00b7 New York" for US orders, "Canada" otherwise.
-function countryLabel(country, region) {
-  const base = countryDisplayName(country);
-  if (country === 'US' && region) {
-    const stateName = US_STATE_CODE_TO_NAME[region] || region;
-    return `${base} \u00b7 ${stateName}`;
-  }
-  return base;
-}
-
 function cityLabel(rawCity) {
   const trimmed = String(rawCity || '').trim();
   if (!trimmed) return '';
   return trimmed
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+// Builds the full display location:
+//   non-US           -> "City, Country"            (e.g. "Paris, France")
+//   US               -> "City, State, USA"         (e.g. "Los Angeles, California, USA")
+//   New York City    -> "Borough, New York, New York, USA"  (e.g. "Brooklyn, New York, New York, USA")
+function locationLabel(country, region, normCity, cityTitle) {
+  const countryName = countryDisplayName(country);
+  if (country === 'US') {
+    const stateName = US_STATE_CODE_TO_NAME[region] || region || '';
+    const parts = [];
+    if (cityTitle) parts.push(cityTitle);
+    if (cityTitle && region === 'NY' && NYC_BOROUGHS.has(normCity)) parts.push('New York');
+    if (stateName) parts.push(stateName);
+    parts.push('USA');
+    return parts.join(', ');
+  }
+  return [cityTitle, countryName].filter(Boolean).join(', ');
 }
 
 export function relativeTime(value, now = Date.now()) {
@@ -215,7 +224,9 @@ export async function buildPurchase(order, store, opts = {}) {
   if (!Array.isArray(coordinates)) return null;
 
   const region = norm.region || '';
-  const city = cityLabel(address.city) || regionLabel(norm.country, region) || countryDisplayName(norm.country);
+  const cityTitle = cityLabel(address.city);
+  const city = cityTitle || regionLabel(norm.country, region) || countryDisplayName(norm.country);
+  const location = locationLabel(norm.country, region, norm.city, cityTitle);
   const amount = Number(order.current_total_price || order.total_price || 0) || 0;
   const currency = order.currency || order.presentment_currency || 'USD';
   const items = (order.line_items || []).reduce((total, item) => total + (Number(item.quantity || 0) || 0), 0);
@@ -225,7 +236,8 @@ export async function buildPurchase(order, store, opts = {}) {
   return {
     id,
     name: order.name || (id ? `#${id}` : ''),
-    country: countryLabel(norm.country, region),
+    country: countryDisplayName(norm.country),
+    location: location || countryDisplayName(norm.country),
     city,
     region: region || undefined,
     countryCode: norm.country,

@@ -119,6 +119,13 @@ export function normalizeRegion(country, value) {
 export const cityCoordinates = {
   // United States
   'US|NY|NEW YORK': [-74.006, 40.7128],
+  // New York City boroughs (so they separate on the map)
+  'US|NY|MANHATTAN': [-73.9712, 40.7831],
+  'US|NY|BROOKLYN': [-73.9442, 40.6782],
+  'US|NY|BRONX': [-73.8648, 40.8448],
+  'US|NY|THE BRONX': [-73.8648, 40.8448],
+  'US|NY|QUEENS': [-73.7949, 40.7282],
+  'US|NY|STATEN ISLAND': [-74.1502, 40.5795],
   'US|CA|LOS ANGELES': [-118.2437, 34.0522],
   'US|CA|SAN FRANCISCO': [-122.4194, 37.7749],
   'US|CA|SAN DIEGO': [-117.1611, 32.7157],
@@ -240,6 +247,9 @@ export const countryNames = {
   BR: 'Brazil', JP: 'Japan', IN: 'India', CN: 'China', SG: 'Singapore',
   ZA: 'South Africa', KR: 'South Korea', IL: 'Israel', GR: 'Greece',
 };
+
+// New York City boroughs, used to render "<Borough>, New York, New York, USA".
+export const NYC_BOROUGHS = new Set(['MANHATTAN', 'BROOKLYN', 'BRONX', 'THE BRONX', 'QUEENS', 'STATEN ISLAND']);
 
 export function countryFlag(code) {
   const cc = String(code || '').trim().toUpperCase();

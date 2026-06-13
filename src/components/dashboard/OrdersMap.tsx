@@ -9,6 +9,7 @@ export type Purchase = {
   id: string;
   name?: string;
   country: string;
+  location?: string;
   city: string;
   region?: string;
   countryCode: string;
@@ -320,7 +321,7 @@ export function OrdersMap({
                 </span>
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {newest.country} · {newest.time}
+                {newest.location || newest.country} · {newest.time}
               </p>
               {newest.name || newest.product ? (
                 <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
@@ -349,7 +350,7 @@ export function OrdersMap({
           </p>
           <ul className="mt-2 flex flex-col gap-1">
             {recent.map((p, index) => {
-              const subtitle = [`${p.items} item${p.items === 1 ? "" : "s"}`, p.product || p.country]
+              const subtitle = [`${p.items} item${p.items === 1 ? "" : "s"}`, p.product]
                 .filter(Boolean)
                 .join(" · ");
               return (
@@ -368,7 +369,7 @@ export function OrdersMap({
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-3">
-                      <span className="truncate font-medium">{p.flag} {p.city}</span>
+                      <span className="truncate font-medium">{p.flag} {p.location || p.city}</span>
                       <span className="shrink-0 font-display font-semibold tracking-tight">
                         {formatMoney(p.amount, p.currency)}
                       </span>
