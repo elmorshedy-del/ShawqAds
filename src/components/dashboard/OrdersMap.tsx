@@ -330,14 +330,14 @@ export function OrdersMap({
                     <span className="rounded-full bg-surface-2 px-2.5 py-1 text-muted-foreground">{newest.name}</span>
                   ) : null}
                   {newest.product ? (
-                    <span className="max-w-[14rem] truncate rounded-full bg-surface-2 px-2.5 py-1 text-muted-foreground">
+                    <span className="rounded-full bg-surface-2 px-2.5 py-1 text-muted-foreground">
                       {newest.product}
                     </span>
                   ) : null}
                 </div>
               ) : null}
               {newest.source ? (
-                <p className="mt-2 truncate text-xs text-muted-foreground">Ad / source: {newest.source}</p>
+                <p className="mt-2 text-xs text-muted-foreground break-words">Ad / source: {newest.source}</p>
               ) : null}
             </div>
           ) : (
@@ -358,33 +358,33 @@ export function OrdersMap({
                 <li
                   key={p.id}
                   className={cn(
-                    "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
-                    index === 0 ? "bg-surface-2" : "hover:bg-surface-2/70",
+                    "flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+                    index === 0 ? "bg-surface-2" : "hover:bg-surface-2/60",
                   )}
                 >
                   <span
                     className={cn(
-                      "mt-1 h-2 w-2 shrink-0 self-start rounded-full",
+                      "mt-[0.4rem] h-2 w-2 shrink-0 rounded-full",
                       index === 0 ? "bg-primary" : "bg-brand/70",
                     )}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="truncate font-medium">{p.flag} {p.location || p.city}</span>
-                      <span className="shrink-0 font-display font-semibold tracking-tight">
-                        {formatMoney(p.amount, p.currency)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
-                      <span className="truncate">{subtitle}</span>
-                      <span className="shrink-0">{p.time}</span>
-                    </div>
+                    <p className="font-medium leading-snug">{p.flag} {p.location || p.city}</p>
+                    {subtitle ? (
+                      <p className="mt-1 text-xs leading-snug text-muted-foreground">{subtitle}</p>
+                    ) : null}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-display font-semibold tabular-nums tracking-tight">
+                      {formatMoney(p.amount, p.currency)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">{p.time}</p>
                   </div>
                 </li>
               );
             })}
             {recent.length === 0 ? (
-              <li className="rounded-lg px-2.5 py-2 text-sm text-muted-foreground">No orders yet today</li>
+              <li className="px-3 py-2.5 text-sm text-muted-foreground">No orders yet today</li>
             ) : null}
           </ul>
         </aside>
