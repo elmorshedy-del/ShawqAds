@@ -18,7 +18,7 @@ export interface TopMoverCard {
   kind: Kind;
   label: string;
   today?: LeaderLike | null;
-  prevDay?: LeaderLike | null;
+  currentWeek?: LeaderLike | null;
   prevWeek?: LeaderLike | null;
 }
 
@@ -101,7 +101,7 @@ function MoverCard({ card }: { card: TopMoverCard }) {
       <p className="mt-0.5 truncate text-xs text-muted-foreground">{subOf(card.kind, card.today)}</p>
 
       <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
-        <CompareCell label="Prev day" kind={card.kind} entry={card.prevDay} />
+        <CompareCell label="This week" kind={card.kind} entry={card.currentWeek} />
         <CompareCell label="Prev week" kind={card.kind} entry={card.prevWeek} />
       </div>
     </div>
@@ -117,7 +117,7 @@ export function TopMovers({ cards }: { cards: TopMoverCard[] }) {
         </span>
         <div>
           <h2 className="font-display text-base font-semibold tracking-tight">Today&apos;s top movers</h2>
-          <p className="text-[0.7rem] text-muted-foreground">Leaders now, with yesterday &amp; last week for context</p>
+          <p className="text-[0.7rem] text-muted-foreground">Today&apos;s leaders with this week &amp; last week for context</p>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3">
