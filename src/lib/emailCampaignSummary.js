@@ -10,7 +10,17 @@ function campaignFromSource(source = '') {
   return text.startsWith(prefix) ? text.slice(prefix.length).trim() : text.replace(/^Email campaign\s*/i, '').trim();
 }
 
-export function buildEmailCampaignSummary(orderLines = [], { countryFlag } = {}) {
+function formatOrderTime(createdAt, timeZone) {
+  if (!createdAt) return '';
+  return new Date(createdAt).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: timeZone || 'UTC',
+  });
+}
+
+export function buildEmailCampaignSummary(orderLines = [], { countryFlag, timeZone } = {}) {
   const emailLines = (orderLines || []).filter(isEmailLine);
   const orderIds = new Set();
   const products = new Map();
@@ -36,7 +46,7 @@ export function buildEmailCampaignSummary(orderLines = [], { countryFlag } = {})
         amount: orderRevenue,
         currency: 'USD',
         items: 0,
-        time: line.created_at ? String(line.created_at).slice(11, 16) : line.date || '',
+        time: line.created_at ? formatOrderTime(line.created_at, timeZone) : line.date || '',
         source: emailSourceLabel(attribution),
         created_at: line.created_at || '',
         date: line.date || '',

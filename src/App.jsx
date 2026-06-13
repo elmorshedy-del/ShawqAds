@@ -2635,7 +2635,7 @@ function App() {
   const mapPurchases = mapIsDemo ? DEMO_PURCHASES : livePurchases;
   const emailCampaignData = useMemo(() => {
     if (mapIsDemo) return buildEmailCampaignFromPurchases(DEMO_PURCHASES, { countryFlag });
-    return buildEmailCampaignSummary(productData.order_lines || [], { countryFlag });
+    return buildEmailCampaignSummary(productData.order_lines || [], { countryFlag, timeZone: REPORTING_TIMEZONE });
   }, [mapIsDemo, productData.order_lines]);
   const monitorStatusText = saleMonitor.status === 'live'
     ? (livePurchases.length ? 'Live Shopify sales monitor' : 'Live Shopify sales monitor · no orders yet today')
