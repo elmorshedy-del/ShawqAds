@@ -134,7 +134,10 @@ export function HistoricalInsights({
 
         {!hasData ? (
           <div className="rounded-xl border border-dashed border-border px-4 py-8 text-sm text-muted-foreground">
-            No Shopify daily history from February yet. Set <span className="font-medium text-foreground">BACKFILL_START_DATE=2026-02-01</span> and refresh to load older orders.
+            No Shopify daily history from February yet. Production must set{" "}
+            <span className="font-medium text-foreground">SHOPIFY_BACKFILL_START_DATE=2026-02-01</span>{" "}
+            (Shopify fetch is independent of Meta{" "}
+            <span className="font-medium text-foreground">BACKFILL_START_DATE</span>) and refresh Shopify data.
           </div>
         ) : (
           <>

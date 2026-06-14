@@ -21,7 +21,11 @@ for (const envPath of envPaths) {
 const token = process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN;
 const store = process.env.SHAWQ_SHOPIFY_STORE || process.env.SHOPIFY_STORE || 'f3e7e9-2.myshopify.com';
 const apiVersion = process.env.SHOPIFY_API_VERSION || '2025-10';
-const requestedSince = process.env.SHOPIFY_SINCE || process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-02-01';
+const SHOPIFY_HISTORICAL_FLOOR = '2026-02-01';
+const requestedSince = process.env.SHOPIFY_SINCE
+  || process.env.SINCE
+  || process.env.SHOPIFY_BACKFILL_START_DATE
+  || SHOPIFY_HISTORICAL_FLOOR;
 const requestedUntil = process.env.SHOPIFY_UNTIL || process.env.UNTIL || '';
 if (!token || !store) {
   console.error('Missing SHAWQ_SHOPIFY_ACCESS_TOKEN or SHAWQ_SHOPIFY_STORE.');
@@ -542,6 +546,7 @@ const out = {
   period: {
     since,
     until,
+    backfill_since: requestedSince,
     completed_until: until < currentReportingDay ? until : latestCompletedDay,
     current_reporting_day: currentReportingDay,
     includes_developing_day: until >= currentReportingDay,

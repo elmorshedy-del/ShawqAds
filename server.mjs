@@ -30,6 +30,7 @@ const refreshKey = process.env.REFRESH_API_KEY || '';
 const sessionEventKey = process.env.SESSION_EVENT_INGEST_KEY || '';
 const sessionEventsPath = process.env.SESSION_EVENTS_PATH || path.join(__dirname, 'data', 'session-events.ndjson');
 const refreshOnStart = process.env.REFRESH_ON_START !== 'false';
+const SHOPIFY_HISTORICAL_SINCE = process.env.SHOPIFY_BACKFILL_START_DATE || '2026-02-01';
 const shopifyReportingTimezone = process.env.SHAWQ_SHOPIFY_REPORTING_TIMEZONE
   || process.env.SHOPIFY_REPORTING_TIMEZONE
   || 'Europe/Istanbul';
@@ -134,6 +135,29 @@ function isAuthorized(req) {
 function isSessionEventAuthorized(req, url) {
   if (!sessionEventKey) return true;
   return req.headers['x-session-event-key'] === sessionEventKey || url.searchParams.get('key') === sessionEventKey;
+}
+
+function shopifyBackfillEnv(extra = {}) {
+  return {
+    SHOPIFY_BACKFILL_START_DATE: SHOPIFY_HISTORICAL_SINCE,
+    ...extra,
+  };
+}
+
+function shopifyCacheNeedsHistoricalBackfill(filePath) {
+  if (!fs.existsSync(filePath)) return true;
+  try {
+    const since = JSON.parse(fs.readFileSync(filePath, 'utf8'))?.period?.since;
+    return !since || since > SHOPIFY_HISTORICAL_SINCE;
+  } catch {
+    return true;
+  }
+}
+
+async function ensureShopifyHistoricalCache(filePath, extraEnv = {}) {
+  if (!shopifyCacheNeedsHistoricalBackfill(filePath)) return null;
+  if (!process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN || !process.env.SHAWQ_SHOPIFY_STORE) return null;
+  return runScript('fetch:shopify', shopifyBackfillEnv(extraEnv));
 }
 
 function dateEnvFromUrl(url) {
@@ -1227,7 +1251,9 @@ async function warmData() {
   if (!refreshOnStart) return;
   const jobs = [];
   if (process.env.SHAWQ_META_ACCESS_TOKEN && process.env.SHAWQ_META_AD_ACCOUNT_ID) jobs.push(runScript('fetch:meta'));
-  if (process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN && process.env.SHAWQ_SHOPIFY_STORE) jobs.push(runScript('fetch:shopify'));
+  if (process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN && process.env.SHAWQ_SHOPIFY_STORE) {
+    jobs.push(runScript('fetch:shopify', shopifyBackfillEnv()));
+  }
   const results = jobs.length ? await Promise.all(jobs) : [];
   if (process.env.SHAWQ_META_ACCESS_TOKEN || process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN) results.push(await runScript('fetch:behavior'));
   results.forEach((r) => { if (r.code !== 0) console.warn(r.output); });
@@ -1257,6 +1283,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/data/shopify-products.json') {
+    const shopifyFile = publicDataPath('shopify-products.json');
+    const urlObj = new URL(req.url || '/', `http://${req.headers.host}`);
+    const backfill = await ensureShopifyHistoricalCache(shopifyFile, dateEnvFromUrl(urlObj));
+    if (backfill?.code !== 0) console.warn(backfill?.output || 'shopify historical backfill skipped');
     await serveData(req, res, 'shopify-products.json', 'fetch:shopify');
     return;
   }
@@ -1343,7 +1373,7 @@ const server = http.createServer(async (req, res) => {
       send(res, 401, JSON.stringify({ ok: false, error: 'unauthorized' }));
       return;
     }
-    const env = dateEnvFromUrl(url);
+    const env = { ...shopifyBackfillEnv(), ...dateEnvFromUrl(url) };
     const [meta, shopify] = await Promise.all([runScript('fetch:meta', env), runScript('fetch:shopify', env)]);
     const behavior = await runScript('fetch:behavior', env);
     send(res, meta.code || shopify.code || behavior.code ? 500 : 200, JSON.stringify({ ok: !(meta.code || shopify.code || behavior.code), meta, shopify, behavior }));

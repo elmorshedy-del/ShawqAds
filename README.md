@@ -15,13 +15,21 @@ Standalone ShawQ advertising dashboard for the June 3 campaign launch window. It
 
 ## Data Windows
 
-Default backfill starts on June 3, 2026:
+Meta backfill defaults to the June 3, 2026 CBO launch:
 
 ```bash
 BACKFILL_START_DATE=2026-06-03
 ```
 
-You can override with:
+The **Historical insights** tab uses Shopify orders from **February 2026** onward via a separate variable (so Meta's June window does not limit Shopify history):
+
+```bash
+SHOPIFY_BACKFILL_START_DATE=2026-02-01
+```
+
+On Railway, set both variables on the service. After deploy, the server auto-refreshes Shopify data when the cache still starts after February.
+
+You can override any fetch with:
 
 ```bash
 SINCE=2026-06-03 UNTIL=2026-06-04 npm run fetch:all

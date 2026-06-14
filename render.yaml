@@ -20,6 +20,8 @@ services:
       - key: SHOPIFY_API_VERSION
         value: "2025-10"
       - key: BACKFILL_START_DATE
+        value: "2026-06-03"
+      - key: SHOPIFY_BACKFILL_START_DATE
         value: "2026-02-01"
       - key: REFRESH_ON_START
         value: "true"
