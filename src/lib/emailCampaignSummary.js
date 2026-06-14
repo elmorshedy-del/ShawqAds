@@ -1,4 +1,4 @@
-import { emailCampaignName, emailSourceLabel } from './orderChannel.mjs';
+import { emailCampaignName, emailFlowLabel } from './orderChannel.mjs';
 
 function isEmailLine(line) {
   return String(line?.channel || '').toLowerCase() === 'email';
@@ -10,6 +10,13 @@ function campaignFromSource(source = '') {
   return text.startsWith(prefix) ? text.slice(prefix.length).trim() : text.replace(/^Email campaign\s*/i, '').trim();
 }
 
+function emailFlowFromDemoSource(source = '') {
+  const campaign = campaignFromSource(source);
+  if (/spring drop/i.test(campaign)) return 'Shopify Email';
+  if (/welcome flow/i.test(campaign)) return 'Klaviyo';
+  return 'Email';
+}
+
 function formatOrderTime(createdAt, timeZone) {
   if (!createdAt) return '';
   return new Date(createdAt).toLocaleTimeString('en-US', {
@@ -18,6 +25,32 @@ function formatOrderTime(createdAt, timeZone) {
     hour12: false,
     timeZone: timeZone || 'UTC',
   });
+}
+
+function formatOrderDate(date, createdAt, timeZone) {
+  if (date) {
+    const parsed = String(date).includes('T') ? new Date(date) : new Date(`${date}T12:00:00Z`);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC',
+      });
+    }
+  }
+  if (createdAt) {
+    const parsed = new Date(createdAt);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: timeZone || 'UTC',
+      });
+    }
+  }
+  return '';
 }
 
 export function buildEmailCampaignSummary(orderLines = [], { countryFlag, timeZone } = {}) {
@@ -37,6 +70,7 @@ export function buildEmailCampaignSummary(orderLines = [], { countryFlag, timeZo
     const campaignKey = emailCampaignName(attribution) || 'Email';
 
     if (!ordersById.has(orderId)) {
+      const campaign = emailCampaignName(attribution);
       ordersById.set(orderId, {
         id: line.order_name || orderId,
         flag: countryFlag?.(line.country_code) || '',
@@ -46,10 +80,12 @@ export function buildEmailCampaignSummary(orderLines = [], { countryFlag, timeZo
         amount: orderRevenue,
         currency: 'USD',
         items: 0,
-        time: line.created_at ? formatOrderTime(line.created_at, timeZone) : line.date || '',
-        source: emailSourceLabel(attribution),
-        created_at: line.created_at || '',
         date: line.date || '',
+        dateLabel: formatOrderDate(line.date, line.created_at, timeZone),
+        emailFlow: emailFlowLabel(attribution),
+        campaign,
+        time: line.created_at ? formatOrderTime(line.created_at, timeZone) : '',
+        created_at: line.created_at || '',
       });
       orderIds.add(orderId);
       revenue += orderRevenue;
@@ -102,6 +138,7 @@ export function buildEmailCampaignFromPurchases(purchases = [], { countryFlag } 
     const amount = Number(purchase.amount || 0);
     const items = Number(purchase.items || 0);
     const campaignKey = campaignFromSource(purchase.source) || 'Email';
+    const campaign = campaignFromSource(purchase.source);
     revenue += amount;
     units += items;
 
@@ -125,8 +162,11 @@ export function buildEmailCampaignFromPurchases(purchases = [], { countryFlag } 
       amount,
       currency: purchase.currency || 'USD',
       items,
+      date: '',
+      dateLabel: purchase.time || 'Today',
+      emailFlow: emailFlowFromDemoSource(purchase.source),
+      campaign,
       time: purchase.time || '',
-      source: purchase.source || 'Email campaign',
     };
   });
 
