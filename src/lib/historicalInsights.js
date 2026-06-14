@@ -96,6 +96,14 @@ function normalizeDailyRows(dailyRows = []) {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** Historical tab input — Shopify cache only, never Meta purchase metrics. */
+export function buildShopifyHistoricalDaily(shopify = {}) {
+  const source = String(shopify.source || '').trim().toLowerCase();
+  if (source === 'sample-shopify') return [];
+  if (source && source !== 'shopify') return [];
+  return normalizeDailyRows(shopify.daily || []);
+}
+
 function lastCompleteDay(rows, developingDay, excludeDevelopingDay) {
   if (!rows.length) return '';
   const last = rows[rows.length - 1].date;

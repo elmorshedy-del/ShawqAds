@@ -105,7 +105,7 @@ export function HistoricalInsights({
           <div>
             <h2 className="font-display text-base font-semibold tracking-tight">Historical insights</h2>
             <p className="text-[0.7rem] text-muted-foreground">
-              Shopify orders only · {insights.meta.scopeLabel}
+              Shopify paid orders only · not Meta purchase metrics · {insights.meta.scopeLabel}
             </p>
           </div>
         </div>

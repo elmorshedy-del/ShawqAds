@@ -9,6 +9,7 @@ import {
   buildKpiRecordMap,
   buildMonthProjection,
 } from './lib/businessKpiInsights.js';
+import { buildShopifyHistoricalDaily } from './lib/historicalInsights.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
 import { Sidebar, MobileFilters, datePresets } from './components/dashboard/Sidebar';
@@ -2647,7 +2648,7 @@ function App() {
   const kpiRecord = (key) => buildKpiRecordDisplay(kpiRecords, key);
   const trendDayRows = adapt.toDayRows(allBusinessRows).filter((r) => r.date && r.date !== reportingToday);
   const historicalDaily = useMemo(
-    () => (baseProductData?.daily || []).map((row) => ({ date: row.date, orders: Number(row.orders || 0) })),
+    () => buildShopifyHistoricalDaily(baseProductData),
     [baseProductData],
   );
   const campaignTree = adapt.toCampaignTree(campaignAttribution);
