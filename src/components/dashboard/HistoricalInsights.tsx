@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 const ACCENT = "var(--color-brand)";
 
-type Scope = "last_month" | "last_3_months" | "all_time";
+type Scope = "last_month" | "last_3_months" | "launch" | "all_time";
 
 export interface HistoricalDailyRow {
   date: string;
