@@ -117,4 +117,22 @@ if (tipsTaxonomy.family !== null) {
   throw new Error('Shopify Tips must be classified as non-merchandise before product demand aggregation.');
 }
 
+assertIncludes(
+  app,
+  "projection={kpiProjection('revenue_usd')}",
+  'KPI cards must show month projection transferred from production-2289.'
+);
+
+assertIncludes(
+  app,
+  "record={kpiRecord('revenue_usd')}",
+  'KPI cards must show record badges transferred from production-2289.'
+);
+
+assertIncludes(
+  fs.readFileSync(new URL('../src/lib/businessKpiInsights.js', import.meta.url), 'utf8'),
+  'buildMonthProjection',
+  'Month projection logic must live in businessKpiInsights.js from production-2289.'
+);
+
 console.log('dashboard regression checks passed');

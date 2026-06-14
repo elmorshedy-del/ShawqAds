@@ -3,6 +3,12 @@ import ReactECharts from 'echarts-for-react';
 import { Activity, BarChart3, BellRing, CalendarDays, GitBranch, LayoutDashboard, RefreshCw, Rocket, Search, ShoppingBag, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
 import { compact, money, pct, slug } from './lib/format.js';
 import { buildCampaignAttribution } from './lib/campaignAttribution.js';
+import {
+  buildKpiProjectionDisplay,
+  buildKpiRecordDisplay,
+  buildKpiRecordMap,
+  buildMonthProjection,
+} from './lib/businessKpiInsights.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
 import { Sidebar, MobileFilters, datePresets } from './components/dashboard/Sidebar';
@@ -2632,6 +2638,13 @@ function App() {
   // The current reporting day is omitted: it is still accumulating sales/spend, so its
   // partial totals would render as a misleading end-of-line droop on every metric.
   const reportingToday = loadedBounds.today || currentReportingDay();
+  const monthProjection = useMemo(
+    () => buildMonthProjection(allBusinessRows, { today: reportingToday, elapsedShare: elapsedReportingDayShare() }),
+    [allBusinessRows, reportingToday],
+  );
+  const kpiRecords = useMemo(() => buildKpiRecordMap(allBusinessRows, reportingToday), [allBusinessRows, reportingToday]);
+  const kpiProjection = (key) => buildKpiProjectionDisplay(monthProjection, key);
+  const kpiRecord = (key) => buildKpiRecordDisplay(kpiRecords, key);
   const trendDayRows = adapt.toDayRows(allBusinessRows).filter((r) => r.date && r.date !== reportingToday);
   const historicalDaily = useMemo(
     () => (baseProductData?.daily || []).map((row) => ({ date: row.date, orders: Number(row.orders || 0) })),
@@ -2761,12 +2774,12 @@ function App() {
     ),
     kpis: (
       <section className="grid grid-cols-2 gap-4 xl:grid-cols-6">
-        <KpiCard label="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} delta={businessDeltas.revenue.pct} series={adapt.sparkSeries(businessRows, 'revenue_usd', allBusinessRows)} accent="brand" />
-        <KpiCard label="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} delta={businessDeltas.sales.pct} series={adapt.sparkSeries(businessRows, 'orders', allBusinessRows)} accent="violet" />
-        <KpiCard label="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} sub="Shopify revenue / orders" delta={businessDeltas.aov.pct} series={adapt.sparkSeries(businessRows, 'aov', allBusinessRows)} accent="blue" />
-        <KpiCard label="Meta spend" value={money.format(business.spend_usd)} sub="Full-account spend, converted daily" delta={businessDeltas.spend.pct} series={adapt.sparkSeries(businessRows, 'spend_usd', allBusinessRows)} accent="gold" positiveWhenUp={false} />
-        <KpiCard label="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} sub="Full Meta spend / Shopify orders" delta={businessDeltas.cac.pct} series={adapt.sparkSeries(businessRows, 'cac', allBusinessRows)} accent="gold" positiveWhenUp={false} />
-        <KpiCard label="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} sub="Shopify revenue / full Meta spend" delta={businessDeltas.roas.pct} series={adapt.sparkSeries(businessRows, 'roas', allBusinessRows)} accent="positive" />
+        <KpiCard label="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} delta={businessDeltas.revenue.pct} series={adapt.sparkSeries(businessRows, 'revenue_usd', allBusinessRows)} accent="brand" projection={kpiProjection('revenue_usd')} record={kpiRecord('revenue_usd')} />
+        <KpiCard label="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} delta={businessDeltas.sales.pct} series={adapt.sparkSeries(businessRows, 'orders', allBusinessRows)} accent="violet" projection={kpiProjection('orders')} record={kpiRecord('orders')} />
+        <KpiCard label="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} delta={businessDeltas.aov.pct} series={adapt.sparkSeries(businessRows, 'aov', allBusinessRows)} accent="blue" projection={kpiProjection('aov')} record={kpiRecord('aov')} />
+        <KpiCard label="Meta spend" value={money.format(business.spend_usd)} delta={businessDeltas.spend.pct} series={adapt.sparkSeries(businessRows, 'spend_usd', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('spend_usd')} record={kpiRecord('spend_usd')} />
+        <KpiCard label="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} delta={businessDeltas.cac.pct} series={adapt.sparkSeries(businessRows, 'cac', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('cac')} record={kpiRecord('cac')} />
+        <KpiCard label="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} delta={businessDeltas.roas.pct} series={adapt.sparkSeries(businessRows, 'roas', allBusinessRows)} accent="positive" projection={kpiProjection('roas')} record={kpiRecord('roas')} />
       </section>
     ),
     orderDrop: orderDropRankings ? (
