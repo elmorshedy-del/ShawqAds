@@ -2368,7 +2368,7 @@ function App() {
   const [saleSoundEnabled, setSaleSoundEnabled] = useState(true);
   const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '', todaySummary: null, purchases: [] });
   const [metaMonitor, setMetaMonitor] = useState({ status: 'checking', live: null, checkedAt: null, error: '' });
-  const [mobileTab, setMobileTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('overview');
   const saleAudioRef = useRef(null);
   const saleSoundEnabledRef = useRef(true);
   const lastSaleIdRef = useRef('');
@@ -2853,7 +2853,7 @@ function App() {
     { key: 'historical', label: 'Historical insights', icon: BarChart3, ids: ['historicalInsights'] },
     { key: 'behavior', label: 'Behavior', icon: Activity, ids: ['behavior', 'data'] },
   ];
-  const activeGroup = dashboardGroups.find((g) => g.key === mobileTab) || dashboardGroups[0];
+  const activeGroup = dashboardGroups.find((g) => g.key === activeTab) || dashboardGroups[0];
 
   return (
     <div className="flex min-h-screen text-foreground">
@@ -2893,7 +2893,7 @@ function App() {
                   <button
                     key={g.key}
                     type="button"
-                    onClick={() => setMobileTab(g.key)}
+                    onClick={() => setActiveTab(g.key)}
                     aria-pressed={on}
                     className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${on ? 'bg-brand text-white shadow-sm' : 'bg-surface-2 text-muted-foreground hover:bg-surface-2/80'}`}
                   >

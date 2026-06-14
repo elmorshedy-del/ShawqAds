@@ -40,8 +40,15 @@ function lastDayOfMonth(monthKeyStr) {
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 
+const weekdayFormatters = new Map();
+
 function weekdayInTimezone(date, timeZone) {
-  const name = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone }).format(new Date(`${date}T12:00:00Z`));
+  let formatter = weekdayFormatters.get(timeZone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone });
+    weekdayFormatters.set(timeZone, formatter);
+  }
+  const name = formatter.format(new Date(`${date}T12:00:00Z`));
   const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
   return map[name] ?? 0;
 }
@@ -132,12 +139,6 @@ function filterToScope(rows, scope, opts, lastComplete) {
   return eligible.filter((row) => row.date >= opts.floorMonth && (!lastComplete || row.date <= lastComplete));
 }
 
-function bucketForDay(day) {
-  if (day <= 7) return 'W1';
-  if (day <= 14) return 'W2';
-  if (day <= 21) return 'W3';
-  return 'W4';
-}
 
 function buildWeekBucketStats(rows, monthKeyStr, opts) {
   const lastDay = lastDayOfMonth(monthKeyStr);

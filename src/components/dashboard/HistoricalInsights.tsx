@@ -183,7 +183,7 @@ export function HistoricalInsights({
                       <div className="px-3 py-2 text-xs">
                         <strong>{indexValue}</strong>
                         <div>Avg {Number(value).toFixed(1)} orders/day</div>
-                        <div className="text-muted-foreground">{data.data.totalOrders} total · {data.data.occurrences} days</div>
+                        <div className="text-muted-foreground">{data.totalOrders} total · {data.occurrences} days</div>
                       </div>
                     )}
                   />
