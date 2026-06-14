@@ -1,4 +1,13 @@
+import {
+  bonferroniAdjust,
+  formatPValue,
+  kruskalWallis,
+  mannWhitneyU,
+  significanceLabel,
+} from './statsTests.js';
+
 const FLOOR_MONTH = '2026-02-01';
+const ALPHA = 0.05;
 const WEEK_BUCKETS = [
   { key: 'W1', label: 'Days 1–7', dayRange: [1, 7] },
   { key: 'W2', label: 'Days 8–14', dayRange: [8, 14] },
@@ -164,8 +173,10 @@ function buildWeekBucketStats(rows, monthKeyStr, opts) {
       label: def.key === 'W4' ? `Days 22–${lastDay}` : def.label,
       dayRange: [start, end],
       ...stats,
+      dailyValues: bucketRows.map((r) => r.orders),
       hasSufficientData: stats.n >= opts.minDaysThreshold,
       wowVsPriorBucket: null,
+      wowPValue: null,
     };
   }
   const keys = ['W1', 'W2', 'W3', 'W4'];
@@ -175,6 +186,11 @@ function buildWeekBucketStats(rows, monthKeyStr, opts) {
     const cur = buckets[key];
     if (prev.mean && cur.mean != null && prev.mean !== 0) {
       cur.wowVsPriorBucket = (cur.mean - prev.mean) / prev.mean;
+      if (prev.dailyValues?.length && cur.dailyValues?.length) {
+        const wowTest = mannWhitneyU(prev.dailyValues, cur.dailyValues);
+        cur.wowPValue = wowTest.pValue;
+        cur.wowSignificant = wowTest.pValue != null && wowTest.pValue < ALPHA;
+      }
     }
   });
   return buckets;
@@ -201,6 +217,7 @@ function buildMonthlyTable(rows, opts, developingDay) {
         isCurrentMonth: key === currentMonth,
         isPartial,
         daysWithData: monthRows.length,
+        dailyValues: monthRows.map((r) => r.orders),
         totalOrders: dayStats.total,
         avgDailyOrders: dayStats.mean,
         medianDailyOrders: dayStats.median,
@@ -213,8 +230,18 @@ function buildMonthlyTable(rows, opts, developingDay) {
   table.forEach((row, index) => {
     if (index === 0) return;
     const prev = table[index - 1];
+    const prevRows = byMonth.get(prev.monthKey) || [];
+    const curRows = byMonth.get(row.monthKey) || [];
     if (prev.daysWithData >= 14 && row.daysWithData >= 14 && prev.avgDailyOrders) {
       row.momChangePercent = ((row.avgDailyOrders - prev.avgDailyOrders) / prev.avgDailyOrders) * 100;
+      const momTest = mannWhitneyU(
+        prevRows.map((r) => r.orders),
+        curRows.map((r) => r.orders),
+      );
+      row.momPValue = momTest.pValue;
+      row.momPValueLabel = formatPValue(momTest.pValue);
+      row.momTest = momTest.test;
+      row.momSignificant = momTest.pValue != null && momTest.pValue < ALPHA;
     }
   });
   return table;
@@ -226,8 +253,19 @@ function buildWeekdayTable(rows, opts) {
     const wd = weekdayInTimezone(row.date, opts.timeZone);
     groups[wd].push(row.orders);
   }
-  const table = WEEKDAY_ORDER.map(({ weekday, weekdayName, weekdayShort }) => {
+  const weekdayEffect = kruskalWallis(WEEKDAY_ORDER.map(({ weekday }) => groups[weekday] || []));
+  const rawPValues = WEEKDAY_ORDER.map(({ weekday }) => {
+    const sample = groups[weekday] || [];
+    const others = WEEKDAY_ORDER.flatMap(({ weekday: wd }) => (wd === weekday ? [] : groups[wd] || []));
+    if (sample.length < opts.minOccurrencesForInsight || others.length < opts.minOccurrencesForInsight) return null;
+    return mannWhitneyU(sample, others).pValue;
+  });
+  const adjustedPValues = bonferroniAdjust(rawPValues.map((p) => p ?? NaN)).map((p) => (Number.isFinite(p) ? p : null));
+
+  const table = WEEKDAY_ORDER.map(({ weekday, weekdayName, weekdayShort }, index) => {
     const stats = descriptiveStats(groups[weekday] || []);
+    const pValueRaw = rawPValues[index];
+    const pValueAdjusted = adjustedPValues[index];
     return {
       weekday,
       weekdayName,
@@ -235,6 +273,13 @@ function buildWeekdayTable(rows, opts) {
       ...stats,
       deviationFromWeeklyMean: null,
       hasSufficientData: stats.n >= opts.minOccurrencesForInsight,
+      pValueRaw,
+      pValueAdjusted,
+      pValue: pValueAdjusted,
+      pValueLabel: formatPValue(pValueAdjusted),
+      significant: pValueAdjusted != null && pValueAdjusted < ALPHA,
+      significanceLabel: significanceLabel(pValueAdjusted, ALPHA),
+      test: 'mann-whitney-u-vs-other-weekdays',
     };
   });
   const globalMean = table.reduce((s, row) => s + (row.mean || 0), 0) / Math.max(1, table.filter((r) => r.mean != null).length);
@@ -243,6 +288,12 @@ function buildWeekdayTable(rows, opts) {
       row.deviationFromWeeklyMean = ((row.mean - globalMean) / globalMean) * 100;
     }
   });
+  table.weekdayEffect = {
+    ...weekdayEffect,
+    pValueLabel: formatPValue(weekdayEffect.pValue),
+    significant: weekdayEffect.pValue != null && weekdayEffect.pValue < ALPHA,
+    significanceLabel: significanceLabel(weekdayEffect.pValue, ALPHA),
+  };
   return table;
 }
 
@@ -275,7 +326,30 @@ function confidenceFromPoints(n, min) {
   return 'high';
 }
 
-function buildInsights(weekdayTable, monthlyTable, summary, scope, opts) {
+function significanceNote(pValue, significant, significantText, notSignificantText) {
+  if (pValue == null || !Number.isFinite(pValue)) return '';
+  return significant ? significantText : notSignificantText;
+}
+
+function buildWeekBucketScopeStats(monthlyTable) {
+  const bucketValues = Object.fromEntries(WEEK_BUCKETS.map((def) => [def.key, []]));
+  for (const month of monthlyTable) {
+    if (month.isPartial || month.daysWithData < 14) continue;
+    for (const def of WEEK_BUCKETS) {
+      const bucket = month.weekBuckets[def.key];
+      if (bucket?.dailyValues?.length) bucketValues[def.key].push(...bucket.dailyValues);
+    }
+  }
+  const effect = kruskalWallis(WEEK_BUCKETS.map((def) => bucketValues[def.key] || []));
+  return {
+    ...effect,
+    pValueLabel: formatPValue(effect.pValue),
+    significant: effect.pValue != null && effect.pValue < ALPHA,
+    significanceLabel: significanceLabel(effect.pValue, ALPHA),
+  };
+}
+
+function buildInsights(weekdayTable, monthlyTable, summary, scope, opts, statistics = {}) {
   const cards = [];
   const eligibleWeekdays = weekdayTable.filter((row) => row.hasSufficientData && row.mean != null);
   if (eligibleWeekdays.length) {
@@ -283,27 +357,47 @@ function buildInsights(weekdayTable, monthlyTable, summary, scope, opts) {
     const best = [...eligibleWeekdays].sort((a, b) => b.mean - a.mean)[0];
     const worst = [...eligibleWeekdays].sort((a, b) => a.mean - b.mean)[0];
     if (best) {
+      const sigNote = significanceNote(
+        best.pValueAdjusted,
+        best.significant,
+        ` Bonferroni-adjusted p = ${best.pValueLabel} (Mann-Whitney vs other weekdays).`,
+        ` Not statistically significant after Bonferroni correction (p = ${best.pValueLabel}).`,
+      );
       cards.push({
         id: 'BEST_WEEKDAY',
         type: 'BEST_WEEKDAY',
         title: `${best.weekdayName} is your peak day`,
-        body: `Averaging ${best.mean.toFixed(1)} orders/day — ${Math.abs(best.deviationFromWeeklyMean || 0).toFixed(0)}% above the weekly mean of ${globalMean.toFixed(1)}. Schedule email and paid social ahead of this day.`,
+        body: `Averaging ${best.mean.toFixed(1)} orders/day — ${Math.abs(best.deviationFromWeeklyMean || 0).toFixed(0)}% above the weekly mean of ${globalMean.toFixed(1)}.${sigNote} Schedule email and paid social ahead of this day.`,
         primaryMetric: best.mean,
         primaryMetricLabel: 'avg orders/day',
-        confidence: confidenceFromPoints(best.n, opts.minOccurrencesForInsight),
+        confidence: best.significant ? confidenceFromPoints(best.n, opts.minOccurrencesForInsight) : 'low',
         dataPoints: best.n,
+        pValue: best.pValueAdjusted,
+        pValueLabel: best.pValueLabel,
+        test: best.test,
+        significant: best.significant,
       });
     }
     if (worst && worst.weekday !== best?.weekday) {
+      const sigNote = significanceNote(
+        worst.pValueAdjusted,
+        worst.significant,
+        ` Bonferroni-adjusted p = ${worst.pValueLabel} (Mann-Whitney vs other weekdays).`,
+        ` Not statistically significant after Bonferroni correction (p = ${worst.pValueLabel}).`,
+      );
       cards.push({
         id: 'WORST_WEEKDAY',
         type: 'WORST_WEEKDAY',
         title: `${worst.weekdayName} under-indexes`,
-        body: `${worst.weekdayName} averages ${worst.mean.toFixed(1)} orders/day (${Math.abs(worst.deviationFromWeeklyMean || 0).toFixed(0)}% below weekly mean). Good window for tests or retargeting pushes.`,
+        body: `${worst.weekdayName} averages ${worst.mean.toFixed(1)} orders/day (${Math.abs(worst.deviationFromWeeklyMean || 0).toFixed(0)}% below weekly mean).${sigNote} Good window for tests or retargeting pushes.`,
         primaryMetric: worst.mean,
         primaryMetricLabel: 'avg orders/day',
-        confidence: confidenceFromPoints(worst.n, opts.minOccurrencesForInsight),
+        confidence: worst.significant ? confidenceFromPoints(worst.n, opts.minOccurrencesForInsight) : 'low',
         dataPoints: worst.n,
+        pValue: worst.pValueAdjusted,
+        pValueLabel: worst.pValueLabel,
+        test: worst.test,
+        significant: worst.significant,
       });
     }
     const volatile = eligibleWeekdays.find((row) => row.cv != null && row.cv > 0.8);
@@ -333,16 +427,26 @@ function buildInsights(weekdayTable, monthlyTable, summary, scope, opts) {
   if (bucketScores.length) {
     const bestBucket = [...bucketScores].sort((a, b) => b.mean - a.mean)[0];
     const monthMean = monthlyTable.reduce((s, m) => s + (m.avgDailyOrders || 0), 0) / Math.max(1, monthlyTable.filter((m) => m.avgDailyOrders != null).length);
+    const bucketEffect = statistics.weekBucketEffect;
     if (bestBucket && monthMean) {
+      const sigNote = bucketEffect?.significant
+        ? ` Kruskal-Wallis p = ${bucketEffect.pValueLabel} across W1–W4 daily order distributions.`
+        : bucketEffect?.pValue != null
+          ? ` Week-of-month pattern not significant (Kruskal-Wallis p = ${bucketEffect.pValueLabel}).`
+          : '';
       cards.push({
         id: 'WEEK_OF_MONTH_PATTERN',
         type: 'WEEK_OF_MONTH_PATTERN',
         title: `${bestBucket.bucket} (${bestBucket.label}) leads within-month demand`,
-        body: `Average ${bestBucket.mean.toFixed(1)} orders/day vs overall ${monthMean.toFixed(1)} (+${(((bestBucket.mean - monthMean) / monthMean) * 100).toFixed(0)}%). Plan launches and inventory before this week slot.`,
+        body: `Average ${bestBucket.mean.toFixed(1)} orders/day vs overall ${monthMean.toFixed(1)} (+${(((bestBucket.mean - monthMean) / monthMean) * 100).toFixed(0)}%).${sigNote} Plan launches and inventory before this week slot.`,
         primaryMetric: bestBucket.mean,
         primaryMetricLabel: 'avg orders/day',
-        confidence: bucketScores.length >= 8 ? 'medium' : 'low',
+        confidence: bucketEffect?.significant ? 'medium' : 'low',
         dataPoints: bucketScores.length,
+        pValue: bucketEffect?.pValue ?? null,
+        pValueLabel: bucketEffect?.pValueLabel ?? '—',
+        test: bucketEffect?.test ?? 'kruskal-wallis',
+        significant: Boolean(bucketEffect?.significant),
       });
     }
   }
@@ -353,19 +457,35 @@ function buildInsights(weekdayTable, monthlyTable, summary, scope, opts) {
     const last = completeMonths[completeMonths.length - 1];
     const delta = ((last.avgDailyOrders - first.avgDailyOrders) / first.avgDailyOrders) * 100;
     const direction = delta > 5 ? 'Growing' : delta < -5 ? 'Declining' : 'Stable';
+    const firstRows = rowsForMonth(monthlyTable, first.monthKey);
+    const lastRows = rowsForMonth(monthlyTable, last.monthKey);
+    const trendTest = mannWhitneyU(firstRows, lastRows);
+    const sigNote = trendTest.pValue != null && trendTest.pValue < ALPHA
+      ? ` Mann-Whitney p = ${formatPValue(trendTest.pValue)} comparing daily orders in ${first.monthLabel} vs ${last.monthLabel}.`
+      : trendTest.pValue != null
+        ? ` Trend not significant (Mann-Whitney p = ${formatPValue(trendTest.pValue)}).`
+        : '';
     cards.push({
       id: 'MOM_TREND',
       type: 'MOM_TREND',
       title: `${direction} Shopify order volume`,
-      body: `${first.monthLabel} ${first.avgDailyOrders.toFixed(1)} → ${last.monthLabel} ${last.avgDailyOrders.toFixed(1)} avg daily orders (${delta > 0 ? '+' : ''}${delta.toFixed(0)}% across ${completeMonths.length} months).`,
+      body: `${first.monthLabel} ${first.avgDailyOrders.toFixed(1)} → ${last.monthLabel} ${last.avgDailyOrders.toFixed(1)} avg daily orders (${delta > 0 ? '+' : ''}${delta.toFixed(0)}% across ${completeMonths.length} months).${sigNote}`,
       primaryMetric: delta,
       primaryMetricLabel: '% change',
-      confidence: completeMonths.length >= 3 ? 'medium' : 'low',
+      confidence: trendTest.pValue != null && trendTest.pValue < ALPHA ? 'medium' : 'low',
       dataPoints: completeMonths.length,
+      pValue: trendTest.pValue,
+      pValueLabel: formatPValue(trendTest.pValue),
+      test: trendTest.test,
+      significant: trendTest.pValue != null && trendTest.pValue < ALPHA,
     });
   }
 
   return cards.filter((c) => c.confidence);
+}
+
+function rowsForMonth(monthlyTable, monthKey) {
+  return monthlyTable.find((row) => row.monthKey === monthKey)?.dailyValues || [];
 }
 
 function collectCaveats(rows, weekdayTable, monthlyTable, scope, opts, developingDay) {
@@ -381,9 +501,14 @@ function collectCaveats(rows, weekdayTable, monthlyTable, scope, opts, developin
     caveats.push({
       id: 'SMALL_SAMPLE_WEEKDAY',
       severity: 'warning',
-      message: 'Weekday averages use fewer than 8 occurrences — treat differences under ~15% as noise.',
+      message: 'Weekday averages use fewer than 8 occurrences — p-values may be underpowered; rely on adjusted p < 0.05 before acting.',
     });
   }
+  caveats.push({
+    id: 'STATISTICAL_METHOD',
+    severity: 'info',
+    message: 'Inferential tests use non-parametric methods on daily Shopify order counts (Kruskal-Wallis for multi-group effects, Mann-Whitney U for pairwise comparisons). Weekday post-hoc tests use Bonferroni correction (α = 0.05).',
+  });
   if ((rows.reduce((s, r) => s + r.orders, 0) / Math.max(1, rows.length)) < 2) {
     caveats.push({
       id: 'LOW_TOTAL_VOLUME',
@@ -430,8 +555,23 @@ export function buildHistoricalInsights(dailyRows = [], scope = 'all_time', opti
 
   const monthlyTable = buildMonthlyTable(rows, opts, developingDay);
   const weekdayTable = buildWeekdayTable(rows, opts);
+  const weekdayEffect = weekdayTable.weekdayEffect || null;
+  const weekBucketEffect = buildWeekBucketScopeStats(monthlyTable);
+  const statistics = {
+    alpha: ALPHA,
+    weekdayEffect,
+    weekBucketEffect,
+    multipleComparison: 'bonferroni',
+    tests: {
+      weekdayOverall: 'kruskal-wallis',
+      weekdayPostHoc: 'mann-whitney-u',
+      monthOverMonth: 'mann-whitney-u',
+      weekOfMonth: 'kruskal-wallis',
+      weekOverWeekBucket: 'mann-whitney-u',
+    },
+  };
   const summary = buildSummary(rows, normalized, lastComplete);
-  const insights = buildInsights(weekdayTable, monthlyTable, summary, scope, opts);
+  const insights = buildInsights(weekdayTable, monthlyTable, summary, scope, opts, statistics);
   const caveats = collectCaveats(rows, weekdayTable, monthlyTable, scope, opts, developingDay);
 
   return {
@@ -446,6 +586,7 @@ export function buildHistoricalInsights(dailyRows = [], scope = 'all_time', opti
     summary,
     monthlyTable,
     weekdayTable,
+    statistics,
     insights,
     caveats,
     meta: {
@@ -454,9 +595,10 @@ export function buildHistoricalInsights(dailyRows = [], scope = 'all_time', opti
       excludedDevelopingDay: opts.excludeDevelopingDay,
       minDaysThreshold: opts.minDaysThreshold,
       minOccurrencesForInsight: opts.minOccurrencesForInsight,
-      dataVersion: 'shopify_orders_v1',
+      dataVersion: 'shopify_orders_v2_stats',
       source: 'Shopify daily orders',
       floorMonth: opts.floorMonth,
+      alpha: ALPHA,
     },
   };
 }
