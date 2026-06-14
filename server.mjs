@@ -144,20 +144,48 @@ function shopifyBackfillEnv(extra = {}) {
   };
 }
 
-function shopifyCacheNeedsHistoricalBackfill(filePath) {
-  if (!fs.existsSync(filePath)) return true;
+function readShopifyPeriodSince(filePath) {
+  if (!fs.existsSync(filePath)) return null;
   try {
-    const since = JSON.parse(fs.readFileSync(filePath, 'utf8'))?.period?.since;
-    return !since || since > SHOPIFY_HISTORICAL_SINCE;
+    const fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(8192);
+    const bytes = fs.readSync(fd, buf, 0, buf.length, 0);
+    fs.closeSync(fd);
+    const chunk = buf.toString('utf8', 0, bytes);
+    const match = chunk.match(/"period"\s*:\s*\{[\s\S]*?"since"\s*:\s*"(\d{4}-\d{2}-\d{2})"/);
+    if (match?.[1]) return match[1];
+    return readJsonCached(filePath)?.period?.since || null;
   } catch {
-    return true;
+    return null;
   }
 }
 
-async function ensureShopifyHistoricalCache(filePath, extraEnv = {}) {
+function shopifyCacheNeedsHistoricalBackfill(filePath) {
+  if (!fs.existsSync(filePath)) return true;
+  const since = readShopifyPeriodSince(filePath);
+  return !since || since > SHOPIFY_HISTORICAL_SINCE;
+}
+
+let shopifyFetchPromise = null;
+
+function runShopifyFetch(extraEnv = {}) {
+  if (shopifyFetchPromise) return shopifyFetchPromise;
+  shopifyFetchPromise = runScript('fetch:shopify', shopifyBackfillEnv(extraEnv)).finally(() => {
+    shopifyFetchPromise = null;
+  });
+  return shopifyFetchPromise;
+}
+
+function scheduleShopifyHistoricalBackfill(filePath, extraEnv = {}) {
   if (!shopifyCacheNeedsHistoricalBackfill(filePath)) return null;
   if (!process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN || !process.env.SHAWQ_SHOPIFY_STORE) return null;
-  return runScript('fetch:shopify', shopifyBackfillEnv(extraEnv));
+  const promise = runShopifyFetch(extraEnv);
+  promise.then((result) => {
+    if (result.code !== 0) console.warn(result.output || 'shopify historical backfill failed');
+  }).catch((error) => {
+    console.warn(error?.message || 'shopify historical backfill failed');
+  });
+  return promise;
 }
 
 function dateEnvFromUrl(url) {
@@ -1252,7 +1280,7 @@ async function warmData() {
   const jobs = [];
   if (process.env.SHAWQ_META_ACCESS_TOKEN && process.env.SHAWQ_META_AD_ACCOUNT_ID) jobs.push(runScript('fetch:meta'));
   if (process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN && process.env.SHAWQ_SHOPIFY_STORE) {
-    jobs.push(runScript('fetch:shopify', shopifyBackfillEnv()));
+    jobs.push(runShopifyFetch());
   }
   const results = jobs.length ? await Promise.all(jobs) : [];
   if (process.env.SHAWQ_META_ACCESS_TOKEN || process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN) results.push(await runScript('fetch:behavior'));
@@ -1285,8 +1313,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/data/shopify-products.json') {
     const shopifyFile = publicDataPath('shopify-products.json');
     const urlObj = new URL(req.url || '/', `http://${req.headers.host}`);
-    const backfill = await ensureShopifyHistoricalCache(shopifyFile, dateEnvFromUrl(urlObj));
-    if (backfill?.code !== 0) console.warn(backfill?.output || 'shopify historical backfill skipped');
+    scheduleShopifyHistoricalBackfill(shopifyFile, dateEnvFromUrl(urlObj));
     await serveData(req, res, 'shopify-products.json', 'fetch:shopify');
     return;
   }
