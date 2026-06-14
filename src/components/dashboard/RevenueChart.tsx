@@ -46,6 +46,8 @@ function buildTrendOption(
 ) {
   const focusColor = resolveCssColor(def.color);
   const spendColor = resolveCssColor("var(--color-gold)");
+  const revenueColor = resolveCssColor("var(--color-brand)");
+  const contributionColor = resolveCssColor("var(--color-positive)");
   const muted = resolveCssColor("var(--color-muted-foreground)") || "#697386";
   const border = resolveCssColor("var(--color-border)") || "#e5e7eb";
 
@@ -65,9 +67,9 @@ function buildTrendOption(
           row.roas >= 2.5 ? "color:#0b766c" : row.roas >= 2 ? "color:#c68a00" : "color:#dc2626";
         return [
           `<b>${row.date}</b>`,
-          `<span style="color:${focusColor}">●</span> Revenue: <b>${fmtCurrency(row.revenue)}</b>`,
+          `<span style="color:${revenueColor}">●</span> Revenue: <b>${fmtCurrency(row.revenue)}</b>`,
           `<span style="color:${spendColor}">●</span> Meta spend: <b>${fmtCurrency(row.spend)}</b>`,
-          `<span style="color:${focusColor}">●</span> Contribution: <b>${fmtCurrency(row.profit)}</b>`,
+          `<span style="color:${contributionColor}">●</span> Contribution: <b>${fmtCurrency(row.profit)}</b>`,
           `ROAS: <b style="${roasClass}">${fmtX(row.roas)}</b>`,
         ].join("<br/>");
       },
