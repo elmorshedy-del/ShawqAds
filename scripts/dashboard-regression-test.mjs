@@ -135,4 +135,16 @@ assertIncludes(
   'Month projection logic must live in businessKpiInsights.js from production-2289.'
 );
 
+assertIncludes(
+  fs.readFileSync(new URL('../scripts/fetch-shopify-products.mjs', import.meta.url), 'utf8'),
+  'SHOPIFY_BACKFILL_START_DATE',
+  'Shopify fetch must use SHOPIFY_BACKFILL_START_DATE so Meta BACKFILL_START_DATE does not block historical insights.'
+);
+
+assertIncludes(
+  fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8'),
+  'ensureShopifyHistoricalCache',
+  'Server must auto-refresh stale Shopify cache when history starts after February.'
+);
+
 console.log('dashboard regression checks passed');

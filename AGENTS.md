@@ -48,6 +48,7 @@ Treat Gemini comments as a required pre-merge checklist, not optional feedback.
 
 - Reporting timezone: `Europe/Istanbul`
 - Production: https://shawq-ads-production.up.railway.app/
+- **Historical insights tab** needs Shopify data from Feb 2026: set `SHOPIFY_BACKFILL_START_DATE=2026-02-01` on Railway (separate from Meta `BACKFILL_START_DATE=2026-06-03`). Server auto-re-runs Shopify fetch when cache `period.since` is still after February.
 - Prefer minimal, focused diffs; match existing component patterns
 - UI text fixes: wrap with `break-words` + `leading-snug` instead of `truncate` (see live monitor / email campaign / top movers)
 
