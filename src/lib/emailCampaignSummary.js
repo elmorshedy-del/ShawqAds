@@ -29,9 +29,9 @@ function formatOrderTime(createdAt, timeZone) {
 
 function formatOrderDate(date, createdAt, timeZone) {
   if (date) {
-    const parsed = new Date(`${date}T12:00:00Z`);
+    const parsed = String(date).includes('T') ? new Date(date) : new Date(`${date}T12:00:00Z`);
     if (!Number.isNaN(parsed.getTime())) {
-      return parsed.toLocaleDateString(undefined, {
+      return parsed.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
@@ -42,7 +42,7 @@ function formatOrderDate(date, createdAt, timeZone) {
   if (createdAt) {
     const parsed = new Date(createdAt);
     if (!Number.isNaN(parsed.getTime())) {
-      return parsed.toLocaleDateString(undefined, {
+      return parsed.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
