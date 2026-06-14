@@ -5,7 +5,7 @@ import { compact, money, pct, slug } from './lib/format.js';
 import { buildCampaignAttribution } from './lib/campaignAttribution.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
-import { Sidebar, MobileFilters } from './components/dashboard/Sidebar';
+import { Sidebar, MobileFilters, datePresets } from './components/dashboard/Sidebar';
 import { OrdersMap } from './components/dashboard/OrdersMap';
 import { KpiCard } from './components/dashboard/KpiCard';
 import { RevenueChart } from './components/dashboard/RevenueChart';
@@ -856,7 +856,7 @@ function emailPanelRangeLabel(range, preset, isDemo) {
 }
 function dateRangeLabel(range, preset) {
   if (!range?.since || !range?.until) return 'Choose dates';
-  const prefix = preset === 'today' ? 'Today' : preset === 'yesterday' ? 'Yesterday' : preset === 'last7' ? 'Last week' : preset === 'launch' ? 'June 3 CBO campaign launch' : preset === 'all' ? 'Matched data' : 'Custom';
+  const prefix = datePresets.find((p) => p.value === preset)?.label || 'Custom';
   return `${prefix}: ${range.since} - ${range.until}`;
 }
 function presetSubLabel(preset, bounds) {
@@ -1579,14 +1579,7 @@ function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
 }
 
 function DateWindowControl({ range, bounds, preset, isOpen, customRange, onToggle, onPreset, onCustomChange, onApplyCustom }) {
-  const presets = [
-    ['today', 'Today', 'Current Istanbul day'],
-    ['yesterday', 'Yesterday', 'Previous Istanbul day'],
-    ['last7', 'Last week', 'Rolling 7-day view'],
-    ['launch', 'June 3 CBO campaign launch', 'New Meta CBO campaigns from launch day onward'],
-    ['all', 'Matched data', 'All days with Meta + Shopify'],
-    ['custom', 'Date range', 'Exact start and end'],
-  ];
+  const presets = datePresets.map((p) => [p.value, p.label, p.description]);
   return <div className={`date-control ${isOpen ? 'open' : ''}`}>
     <button type="button" className="date-trigger" onClick={onToggle} aria-expanded={isOpen}>
       <CalendarDays size={16} />
