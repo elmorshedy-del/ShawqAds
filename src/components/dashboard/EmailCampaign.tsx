@@ -24,8 +24,11 @@ export interface EmailOrder {
   amount: number;
   currency: string;
   items: number;
+  date?: string;
+  dateLabel?: string;
+  emailFlow?: string;
+  campaign?: string;
   time?: string;
-  source?: string;
 }
 
 export interface EmailCampaignProps {
@@ -134,6 +137,9 @@ export function EmailCampaign({ summary, orders = [], isLive = true, rangeLabel 
               </p>
               <ul className="mt-2 flex flex-col gap-1">
                 {list.map((order, index) => {
+                  const meta = [order.dateLabel, order.emailFlow, order.campaign]
+                    .filter(Boolean)
+                    .join(" · ");
                   const subtitle = [`${order.items} item${order.items === 1 ? "" : "s"}`, order.product]
                     .filter(Boolean)
                     .join(" · ");
@@ -152,8 +158,11 @@ export function EmailCampaign({ summary, orders = [], isLive = true, rangeLabel 
                       <div className="min-w-0 flex-1">
                         <p className="font-medium leading-snug break-words">
                           {order.flag ? `${order.flag} ` : ""}
-                          {order.location || order.city || "—"}
+                          {order.id || order.location || order.city || "—"}
                         </p>
+                        {meta ? (
+                          <p className="mt-1 break-words text-xs leading-snug text-muted-foreground">{meta}</p>
+                        ) : null}
                         {subtitle ? (
                           <p className="mt-1 break-words text-xs leading-snug text-muted-foreground">{subtitle}</p>
                         ) : null}

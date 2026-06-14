@@ -42,6 +42,33 @@ export function emailCampaignName(attribution = {}) {
   return String(attribution?.campaign_hint || attribution?.utm?.utm_campaign || '').trim();
 }
 
+export function attributionUtmSource(attribution = {}) {
+  return String(
+    lowerKeyLookup(attribution?.utm || {}, 'utm_source', 'utm_source_last', 'utm_source_first', 'source')
+      || lowerKeyLookup(attribution?.note_attributes || {}, 'utm_source', 'utm_source_last', 'utm_source_first', 'source'),
+  ).trim().toLowerCase();
+}
+
+// Klaviyo vs Shopify Email (and other ESPs) for the email campaign order list.
+export function emailFlowLabel(attribution = {}) {
+  const source = attributionUtmSource(attribution);
+  const sourceName = String(attribution?.source_name || '').trim().toLowerCase();
+  const referrer = String(attribution?.referrer_host || '').trim().toLowerCase();
+  const haystack = [source, sourceName, referrer].filter(Boolean).join(' ');
+
+  if (haystack.includes('klaviyo')) return 'Klaviyo';
+  if (haystack.includes('shopify_email') || haystack.includes('shopify email')) return 'Shopify Email';
+  if (source === 'email' || sourceName === 'email') return 'Email';
+  if (source) {
+    return source
+      .split(/[_\s-]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+  return 'Email';
+}
+
 // Human label shown in the live monitor / map for an email-driven order.
 export function emailSourceLabel(attribution = {}) {
   const campaign = emailCampaignName(attribution);
