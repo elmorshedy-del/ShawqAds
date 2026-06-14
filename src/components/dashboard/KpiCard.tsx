@@ -172,7 +172,7 @@ export function KpiCard({
                 </linearGradient>
               </defs>
               <Area
-                type="linear"
+                type="monotone"
                 dataKey="v"
                 stroke={color}
                 strokeWidth={2}

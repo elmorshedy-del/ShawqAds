@@ -1,15 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  Area,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import ReactECharts from "echarts-for-react";
 import { TrendingUp } from "lucide-react";
 import { fmtCurrency, fmtNumber, fmtX, type DayRow } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
@@ -26,44 +16,112 @@ const focusDefs: { key: FocusKey; label: string; color: string; fmt: (n: number)
   { key: "roas", label: "ROAS", color: "var(--color-positive)", fmt: fmtX },
 ];
 
-function ChartTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  const row = payload[0]?.payload;
-  if (!row) return null;
-  return (
-    <div className="panel min-w-[180px] px-3.5 py-3 text-xs shadow-[var(--shadow-elegant)]">
-      <p className="mb-2 font-semibold text-foreground">{label}</p>
-      <div className="space-y-1.5">
-        <Row dot="var(--color-brand)" name="Revenue" value={fmtCurrency(row.revenue)} />
-        <Row dot="var(--color-gold)" name="Meta spend" value={fmtCurrency(row.spend)} />
-        <div className="my-1.5 border-t border-border" />
-        <Row dot="var(--color-positive)" name="Contribution (rev − ad spend)" value={fmtCurrency(row.profit)} strong />
-        <div className="flex items-center justify-between gap-6 text-muted-foreground">
-          <span>ROAS</span>
-          <span
-            className={cn(
-              "font-semibold",
-              row.roas >= 2.5 ? "text-positive" : row.roas >= 2 ? "text-gold" : "text-destructive",
-            )}
-          >
-            {fmtX(row.roas)}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
+function resolveCssColor(value: string) {
+  if (typeof window === "undefined" || !value.startsWith("var(")) return value;
+  const match = value.match(/var\((--[^)]+)\)/);
+  if (!match) return value;
+  const resolved = getComputedStyle(document.documentElement).getPropertyValue(match[1]).trim();
+  return resolved || value;
 }
 
-function Row({ dot, name, value, strong }: { dot: string; name: string; value: string; strong?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-6">
-      <span className="flex items-center gap-2 text-muted-foreground">
-        <span className="h-2 w-2 rounded-full" style={{ background: dot }} />
-        {name}
-      </span>
-      <span className={cn("font-semibold text-foreground", strong && "text-positive")}>{value}</span>
-    </div>
-  );
+function yAxisLabel(value: number, focus: FocusKey) {
+  if (focus === "roas") return `${value}x`;
+  if (focus === "orders") return `${value}`;
+  return `$${(value / 1000).toFixed(1)}k`;
+}
+
+function buildTrendOption(
+  data: Array<{
+    date: string;
+    revenue: number;
+    spend: number;
+    profit: number;
+    orders: number;
+    roas: number;
+  }>,
+  focus: FocusKey,
+  def: (typeof focusDefs)[number],
+  showSpend: boolean,
+  avg: number,
+) {
+  const focusColor = resolveCssColor(def.color);
+  const spendColor = resolveCssColor("var(--color-gold)");
+  const muted = resolveCssColor("var(--color-muted-foreground)") || "#697386";
+  const border = resolveCssColor("var(--color-border)") || "#e5e7eb";
+
+  return {
+    animationDuration: 900,
+    animationEasing: "cubicOut",
+    color: [focusColor, spendColor],
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: resolveCssColor("var(--color-card)") || "#fff",
+      borderColor: border,
+      textStyle: { color: resolveCssColor("var(--color-foreground)") || "#111", fontSize: 12 },
+      formatter: (params: Array<{ dataIndex: number; seriesName: string; color: string; value: number }>) => {
+        const row = data[params?.[0]?.dataIndex];
+        if (!row) return "";
+        const roasClass =
+          row.roas >= 2.5 ? "color:#0b766c" : row.roas >= 2 ? "color:#c68a00" : "color:#dc2626";
+        return [
+          `<b>${row.date}</b>`,
+          `<span style="color:${focusColor}">●</span> Revenue: <b>${fmtCurrency(row.revenue)}</b>`,
+          `<span style="color:${spendColor}">●</span> Meta spend: <b>${fmtCurrency(row.spend)}</b>`,
+          `<span style="color:${focusColor}">●</span> Contribution: <b>${fmtCurrency(row.profit)}</b>`,
+          `ROAS: <b style="${roasClass}">${fmtX(row.roas)}</b>`,
+        ].join("<br/>");
+      },
+    },
+    grid: { left: 52, right: 8, top: 8, bottom: 24 },
+    xAxis: {
+      type: "category",
+      data: data.map((row) => row.date),
+      axisTick: { show: false },
+      axisLine: { show: false },
+      axisLabel: { color: muted, fontSize: 11, margin: 6 },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      axisTick: { show: false },
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: border, type: [3, 6] } },
+      axisLabel: {
+        color: muted,
+        fontSize: 11,
+        formatter: (value: number) => yAxisLabel(value, focus),
+      },
+    },
+    series: [
+      {
+        name: def.label,
+        type: "line",
+        smooth: true,
+        symbolSize: 6,
+        data: data.map((row) => row[focus]),
+        lineStyle: { width: 2.5, color: focusColor },
+        itemStyle: { color: focusColor },
+        areaStyle: { color: focusColor, opacity: 0.14 },
+        emphasis: { focus: "series" },
+        markLine: {
+          silent: true,
+          symbol: "none",
+          lineStyle: { type: "dashed", color: focusColor, opacity: 0.5, width: 1 },
+          data: [{ yAxis: Number(avg.toFixed(2)) }],
+        },
+      },
+      showSpend
+        ? {
+            name: "Meta spend",
+            type: "line",
+            smooth: true,
+            showSymbol: false,
+            data: data.map((row) => row.spend),
+            lineStyle: { width: 2, type: "dashed", color: spendColor },
+          }
+        : null,
+    ].filter(Boolean),
+  };
 }
 
 export function RevenueChart({ rows }: { rows: DayRow[] }) {
@@ -95,8 +153,6 @@ export function RevenueChart({ rows }: { rows: DayRow[] }) {
   );
 
   const showSpend = focus === "revenue" || focus === "profit";
-  // ROAS is a ratio, so its period figure is spend-weighted (Σrevenue / Σspend) — the
-  // same identity as the headline ROAS KPI — not an unweighted mean of daily ratios.
   const avg = useMemo(() => {
     if (!data.length) return 0;
     if (focus === "roas") {
@@ -106,6 +162,11 @@ export function RevenueChart({ rows }: { rows: DayRow[] }) {
     }
     return data.reduce((a, d) => a + (d[focus] as number), 0) / data.length;
   }, [data, focus]);
+
+  const chartOption = useMemo(
+    () => buildTrendOption(data, focus, def, showSpend, avg),
+    [data, focus, def, showSpend, avg],
+  );
 
   return (
     <div className="panel p-6">
@@ -143,7 +204,6 @@ export function RevenueChart({ rows }: { rows: DayRow[] }) {
         </div>
       </div>
 
-      {/* In-context metric switcher */}
       <div className="mt-4 flex flex-wrap gap-2">
         {focusDefs.map((f) => {
           const on = focus === f.key;
@@ -167,66 +227,7 @@ export function RevenueChart({ rows }: { rows: DayRow[] }) {
       </div>
 
       <div className="mt-5 h-[340px] w-full sm:h-[300px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ left: -8, right: 8, top: 8 }}>
-            <defs>
-              <linearGradient id="focusFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={def.color} stopOpacity={0.32} />
-                <stop offset="100%" stopColor={def.color} stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 6" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tickLine={false}
-              axisLine={false}
-              tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }}
-              dy={6}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              width={52}
-              tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }}
-              tickFormatter={(v) =>
-                focus === "roas" ? `${v}x` : focus === "orders" ? `${v}` : `$${(v / 1000).toFixed(1)}k`
-              }
-            />
-            <Tooltip content={<ChartTooltip />} cursor={{ stroke: "var(--color-border)", strokeWidth: 1 }} />
-            <ReferenceLine
-              y={Number(avg.toFixed(2))}
-              stroke={def.color}
-              strokeDasharray="4 5"
-              strokeOpacity={0.5}
-            />
-            <Area
-              type="monotone"
-              dataKey={focus}
-              name={def.label}
-              stroke={def.color}
-              strokeWidth={2.5}
-              fill="url(#focusFill)"
-              dot={{ r: 3, fill: def.color, strokeWidth: 0 }}
-              activeDot={{ r: 5, stroke: "var(--color-card)", strokeWidth: 2 }}
-              isAnimationActive
-              animationDuration={900}
-              animationEasing="ease-out"
-            />
-            {showSpend && (
-              <Line
-                type="monotone"
-                dataKey="spend"
-                name="Meta spend"
-                stroke="var(--color-gold)"
-                strokeWidth={2}
-                strokeDasharray="5 4"
-                dot={false}
-                isAnimationActive
-                animationDuration={1100}
-              />
-            )}
-          </ComposedChart>
-        </ResponsiveContainer>
+        <ReactECharts option={chartOption} style={{ width: "100%", height: "100%" }} notMerge lazyUpdate />
       </div>
     </div>
   );
