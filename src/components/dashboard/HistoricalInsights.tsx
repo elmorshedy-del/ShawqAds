@@ -56,6 +56,10 @@ function confidenceTone(confidence: string) {
   return "border-border bg-surface-2/60 text-muted-foreground";
 }
 
+function pValueTone(significant?: boolean) {
+  return significant ? "text-positive font-semibold" : "text-muted-foreground";
+}
+
 export function HistoricalInsights({
   daily = [],
   developingDay = null,
@@ -141,11 +145,17 @@ export function HistoricalInsights({
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
               <StatTile label="Total orders" value={fmtNumber(insights.summary.totalOrders)} sub={`${insights.dateRange.daysWithData} days`} />
               <StatTile label="Avg daily orders" value={fmtAvg(insights.summary.avgDailyOrders)} sub={`Median ${fmtAvg(insights.summary.medianDailyOrders)}`} />
               <StatTile label="28-day rolling avg" value={fmtAvg(insights.summary.rolling28DayAvg)} sub="Last 28 complete days" />
               <StatTile label="Peak day" value={insights.summary.peakDay ? fmtNumber(insights.summary.peakDay.orders) : "—"} sub={insights.summary.peakDay?.date || "No peak"} />
+              <StatTile
+                label="Weekday effect p"
+                value={insights.statistics?.weekdayEffect?.pValueLabel ?? "—"}
+                sub={insights.statistics?.weekdayEffect?.significant ? "Kruskal-Wallis · significant" : "Kruskal-Wallis · α = 0.05"}
+                valueClassName={pValueTone(insights.statistics?.weekdayEffect?.significant)}
+              />
             </div>
 
             {insights.insights.length ? (
@@ -156,9 +166,16 @@ export function HistoricalInsights({
                       <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                         <Lightbulb className="h-3.5 w-3.5" style={{ color: ACCENT }} /> Insight
                       </p>
-                      <span className={cn("rounded-full border px-2 py-0.5 text-[0.55rem] font-semibold uppercase tracking-[0.08em]", confidenceTone(card.confidence))}>
-                        {card.confidence}
-                      </span>
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        {"pValueLabel" in card && card.pValueLabel ? (
+                          <span className={cn("rounded-full border px-2 py-0.5 text-[0.55rem] font-semibold tabular-nums tracking-[0.04em]", card.significant ? "border-positive/30 bg-positive/5 text-positive" : "border-border bg-surface-2/60 text-muted-foreground")}>
+                            p = {card.pValueLabel}
+                          </span>
+                        ) : null}
+                        <span className={cn("rounded-full border px-2 py-0.5 text-[0.55rem] font-semibold uppercase tracking-[0.08em]", confidenceTone(card.confidence))}>
+                          {card.confidence}
+                        </span>
+                      </div>
                     </div>
                     <p className="mt-2 font-display text-sm font-semibold leading-snug">{card.title}</p>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{card.body}</p>
@@ -168,7 +185,10 @@ export function HistoricalInsights({
             ) : null}
 
             <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
-              <ChartPanel title="Orders by weekday" subtitle="Average orders per calendar day (Mon–Sun)">
+              <ChartPanel
+                title="Orders by weekday"
+                subtitle={`Average orders per calendar day · Kruskal-Wallis p = ${insights.statistics?.weekdayEffect?.pValueLabel ?? "—"}`}
+              >
                 <div className="h-[260px]">
                   <ResponsiveBar
                     data={weekdayChart}
@@ -269,6 +289,7 @@ export function HistoricalInsights({
                           <th key={bucket.key} className="px-3 py-2.5 font-semibold">{bucket.key}</th>
                         ))}
                         <th className="px-3 py-2.5 font-semibold">MoM</th>
+                        <th className="px-3 py-2.5 font-semibold">p</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -289,6 +310,9 @@ export function HistoricalInsights({
                           <td className={cn("px-3 py-2.5 tabular-nums font-medium", (month.momChangePercent ?? 0) >= 0 ? "text-positive" : "text-destructive")}>
                             {month.momChangePercent != null ? `${month.momChangePercent > 0 ? "+" : ""}${month.momChangePercent.toFixed(0)}%` : "—"}
                           </td>
+                          <td className={cn("px-3 py-2.5 tabular-nums text-xs", pValueTone(month.momSignificant))}>
+                            {month.momPValueLabel ?? "—"}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -306,6 +330,7 @@ export function HistoricalInsights({
                         <th className="px-3 py-2.5 font-semibold">Total</th>
                         <th className="px-3 py-2.5 font-semibold">Avg/day</th>
                         <th className="px-3 py-2.5 font-semibold">vs mean</th>
+                        <th className="px-3 py-2.5 font-semibold">p (adj.)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -316,6 +341,9 @@ export function HistoricalInsights({
                           <td className="px-3 py-2.5 tabular-nums">{fmtAvg(row.mean)}</td>
                           <td className={cn("px-3 py-2.5 tabular-nums", (row.deviationFromWeeklyMean ?? 0) >= 0 ? "text-positive" : "text-destructive")}>
                             {row.deviationFromWeeklyMean != null ? `${row.deviationFromWeeklyMean > 0 ? "+" : ""}${row.deviationFromWeeklyMean.toFixed(0)}%` : "—"}
+                          </td>
+                          <td className={cn("px-3 py-2.5 tabular-nums text-xs", pValueTone(row.significant))}>
+                            {row.pValueLabel ?? "—"}
                           </td>
                         </tr>
                       ))}
@@ -341,11 +369,11 @@ export function HistoricalInsights({
   );
 }
 
-function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function StatTile({ label, value, sub, valueClassName }: { label: string; value: string; sub?: string; valueClassName?: string }) {
   return (
     <div className="rounded-xl border border-border bg-surface-2/40 px-3.5 py-3">
       <p className="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-      <p className="mt-1 font-display text-lg font-semibold tabular-nums tracking-tight">{value}</p>
+      <p className={cn("mt-1 font-display text-lg font-semibold tabular-nums tracking-tight", valueClassName)}>{value}</p>
       {sub ? <p className="mt-0.5 text-[0.65rem] leading-snug text-muted-foreground">{sub}</p> : null}
     </div>
   );
