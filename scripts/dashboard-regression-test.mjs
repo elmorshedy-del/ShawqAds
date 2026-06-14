@@ -143,8 +143,14 @@ assertIncludes(
 
 assertIncludes(
   fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8'),
-  'ensureShopifyHistoricalCache',
-  'Server must auto-refresh stale Shopify cache when history starts after February.'
+  'scheduleShopifyHistoricalBackfill',
+  'Server must schedule Shopify historical backfill without blocking data responses.'
+);
+
+assertIncludes(
+  fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8'),
+  'readShopifyPeriodSince',
+  'Server must read Shopify period.since without parsing the full cache file on every request.'
 );
 
 console.log('dashboard regression checks passed');
