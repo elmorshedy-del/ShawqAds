@@ -22,12 +22,14 @@ After pushing a PR:
    gh api repos/elmorshedy-del/ShawqAds/pulls/<number>/comments
    ```
    Use `/reviews` for review summaries; use `/comments` for inline diff comments.
-2. If no Gemini review yet, poll again before merging (do not skip this step).
+2. If no Gemini review yet, **keep polling autonomously** — do not ask the user to prompt again. Poll several times in the same session (e.g. 30–60s apart) before ending the turn. On the next session, poll again first if the PR is still open.
 3. Read inline comments and the review summary; fix real bugs and worthwhile suggestions.
 4. Push follow-up commits addressing feedback, then re-check that nothing new is blocking.
 5. Only then: mark the PR ready (if draft) and merge.
 
 **Never merge a PR without a Gemini review pass**, even for small UI-only changes.
+
+When waiting for Gemini, report status briefly (e.g. “PR #22 open — polling for Gemini”) and continue polling yourself rather than asking the user to check back.
 
 ### What Gemini caught before (PR #18)
 
