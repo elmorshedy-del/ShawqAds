@@ -20,7 +20,6 @@ import {
   normalizeRegion,
   normalize,
   US_STATE_CODE_TO_NAME,
-  NYC_BOROUGHS,
 } from './orderLocations.mjs';
 
 function isValidCoord(value) {
@@ -190,17 +189,15 @@ function cityLabel(rawCity) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-// Builds the full display location:
-//   non-US           -> "City, Country"            (e.g. "Paris, France")
-//   US               -> "City, State, USA"         (e.g. "Los Angeles, California, USA")
-//   New York City    -> "Borough, New York, New York, USA"  (e.g. "Brooklyn, New York, New York, USA")
-function locationLabel(country, region, normCity, cityTitle) {
+// Builds the full display location from Shopify address fields:
+//   non-US -> "City, Country"     (e.g. "Paris, France")
+//   US     -> "City, State, USA"  (e.g. "Brooklyn, New York, USA" or "New York, New York, USA")
+function locationLabel(country, region, cityTitle) {
   const countryName = countryDisplayName(country);
   if (country === 'US') {
     const stateName = US_STATE_CODE_TO_NAME[region] || region || '';
     const parts = [];
     if (cityTitle) parts.push(cityTitle);
-    if (cityTitle && region === 'NY' && NYC_BOROUGHS.has(normCity)) parts.push('New York');
     if (stateName) parts.push(stateName);
     parts.push('USA');
     return parts.join(', ');
@@ -245,7 +242,7 @@ export async function buildPurchase(order, store, opts = {}) {
   const region = norm.region || '';
   const cityTitle = cityLabel(address.city);
   const city = cityTitle || regionLabel(norm.country, region) || countryDisplayName(norm.country);
-  const location = locationLabel(norm.country, region, norm.city, cityTitle);
+  const location = locationLabel(norm.country, region, cityTitle);
   const amount = Number(order.current_total_price || order.total_price || 0) || 0;
   const currency = order.currency || order.presentment_currency || 'USD';
   const items = (order.line_items || []).reduce((total, item) => total + (Number(item.quantity || 0) || 0), 0);
@@ -273,4 +270,4 @@ export async function buildPurchase(order, store, opts = {}) {
   };
 }
 
-export { normalizeAddress, normalizeCountry, normalizeRegion, normalize };
+export { normalizeAddress, normalizeCountry, normalizeRegion, normalize, locationLabel };
