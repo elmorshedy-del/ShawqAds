@@ -7,6 +7,7 @@ import {
 } from './statsTests.js';
 
 const FLOOR_MONTH = '2026-02-01';
+const CAMPAIGN_LAUNCH_DATE = '2026-06-03';
 const ALPHA = 0.05;
 const WEEK_BUCKETS = [
   { key: 'W1', label: 'Days 1–7', dayRange: [1, 7] },
@@ -152,6 +153,9 @@ function filterToScope(rows, scope, opts, lastComplete) {
   if (scope === 'last_3_months') {
     const targets = new Set(completeMonthsBefore(anchorMonth, 3));
     return eligible.filter((row) => targets.has(monthKey(row.date)));
+  }
+  if (scope === 'launch') {
+    return eligible.filter((row) => row.date >= CAMPAIGN_LAUNCH_DATE);
   }
   return eligible.filter((row) => row.date >= opts.floorMonth && (!lastComplete || row.date <= lastComplete));
 }
@@ -531,6 +535,13 @@ function collectCaveats(rows, weekdayTable, monthlyTable, scope, opts, developin
       message: 'Last month scope shows one calendar month only — switch to Last 3 or All time for trend patterns.',
     });
   }
+  if (scope === 'launch') {
+    caveats.push({
+      id: 'LAUNCH_WINDOW_SCOPE',
+      severity: 'info',
+      message: `Launch scope includes Shopify orders from ${CAMPAIGN_LAUNCH_DATE} onward only (June 3 CBO campaign launch).`,
+    });
+  }
   return caveats;
 }
 
@@ -540,6 +551,9 @@ function scopeLabel(scope, rows) {
   const to = rows[rows.length - 1].date.slice(0, 7);
   if (scope === 'last_month') return `Last month (${monthLabel(from)})`;
   if (scope === 'last_3_months') return `Last 3 months (${monthLabel(from)} – ${monthLabel(to)})`;
+  if (scope === 'launch') {
+    return `June 3 CBO campaign launch (${CAMPAIGN_LAUNCH_DATE} – ${rows[rows.length - 1].date})`;
+  }
   return `All time (${monthLabel(from)} – ${monthLabel(to)})`;
 }
 
@@ -606,7 +620,8 @@ export function buildHistoricalInsights(dailyRows = [], scope = 'all_time', opti
 export const HISTORICAL_SCOPES = [
   { key: 'last_month', label: 'Last month' },
   { key: 'last_3_months', label: 'Last 3' },
+  { key: 'launch', label: 'June 3 launch' },
   { key: 'all_time', label: 'All time' },
 ];
 
-export { WEEK_BUCKETS, WEEKDAY_ORDER, FLOOR_MONTH };
+export { WEEK_BUCKETS, WEEKDAY_ORDER, FLOOR_MONTH, CAMPAIGN_LAUNCH_DATE };

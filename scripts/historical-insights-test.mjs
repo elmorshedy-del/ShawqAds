@@ -45,4 +45,17 @@ assert(weekdayInsights.weekdayTable.some((row) => row.pValueLabel), 'Weekday row
 assert(weekdayInsights.insights.some((card) => card.pValueLabel), 'Insight cards must expose p-values');
 assert(weekdayInsights.monthlyTable.some((row) => row.momPValueLabel), 'Monthly table must expose MoM p-values');
 
+const launchDaily = [
+  { date: '2026-05-30', orders: 10 },
+  { date: '2026-06-02', orders: 8 },
+  { date: '2026-06-03', orders: 15 },
+  { date: '2026-06-04', orders: 12 },
+  { date: '2026-06-10', orders: 9 },
+];
+const launchInsights = buildHistoricalInsights(launchDaily, 'launch', { developingDay: null, excludeDevelopingDay: false });
+assert(launchInsights.summary.totalOrders === 36, 'Launch scope must include June 3 onward only');
+assert(launchInsights.dateRange.from === '2026-06-03', 'Launch scope must start on campaign launch date');
+assert(launchInsights.meta.scopeLabel.includes('June 3 CBO campaign launch'), 'Launch scope label must name the CBO campaign launch');
+assert(buildHistoricalInsights(launchDaily, 'all_time', { developingDay: null, excludeDevelopingDay: false }).summary.totalOrders === 54, 'All time must still include pre-launch days');
+
 console.log(`historical insights checks passed (${FLOOR_MONTH}+ Shopify only, with p-values)`);
