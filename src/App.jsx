@@ -838,6 +838,7 @@ function presetDateRange(preset, bounds) {
     return clampDateRange({ since: day, until: day }, bounds);
   }
   if (preset === 'last7') return clampDateRange({ since: shiftDate(end, -6), until: end }, bounds);
+  if (preset === 'launch') return launchAnalysisDateRange(bounds);
   if (preset === 'all' && bounds?.common_since && bounds?.common_until) {
     return clampDateRange({ since: bounds.common_since, until: bounds.common_until }, bounds);
   }
@@ -855,7 +856,7 @@ function emailPanelRangeLabel(range, preset, isDemo) {
 }
 function dateRangeLabel(range, preset) {
   if (!range?.since || !range?.until) return 'Choose dates';
-  const prefix = preset === 'today' ? 'Today' : preset === 'yesterday' ? 'Yesterday' : preset === 'last7' ? 'Last week' : preset === 'all' ? 'Matched data' : 'Custom';
+  const prefix = preset === 'today' ? 'Today' : preset === 'yesterday' ? 'Yesterday' : preset === 'last7' ? 'Last week' : preset === 'launch' ? 'June 3 CBO campaign launch' : preset === 'all' ? 'Matched data' : 'Custom';
   return `${prefix}: ${range.since} - ${range.until}`;
 }
 function presetSubLabel(preset, bounds) {
@@ -1582,6 +1583,7 @@ function DateWindowControl({ range, bounds, preset, isOpen, customRange, onToggl
     ['today', 'Today', 'Current Istanbul day'],
     ['yesterday', 'Yesterday', 'Previous Istanbul day'],
     ['last7', 'Last week', 'Rolling 7-day view'],
+    ['launch', 'June 3 CBO campaign launch', 'New Meta CBO campaigns from launch day onward'],
     ['all', 'Matched data', 'All days with Meta + Shopify'],
     ['custom', 'Date range', 'Exact start and end'],
   ];

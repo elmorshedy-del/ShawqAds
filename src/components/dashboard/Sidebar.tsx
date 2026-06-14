@@ -29,6 +29,7 @@ export const datePresets: { value: string; label: string; description: string }[
   { value: "today", label: "Today", description: "Current Istanbul day" },
   { value: "yesterday", label: "Yesterday", description: "Previous Istanbul day" },
   { value: "last7", label: "Last week", description: "Rolling 7-day view" },
+  { value: "launch", label: "June 3 CBO campaign launch", description: "New Meta CBO campaigns from launch day onward" },
   { value: "all", label: "Matched data", description: "All days with Meta + Shopify" },
   { value: "custom", label: "Date range", description: "Exact start and end" },
 ];
