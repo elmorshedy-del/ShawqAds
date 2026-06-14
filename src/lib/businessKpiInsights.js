@@ -1,4 +1,4 @@
-/* Transferred verbatim from shawq-ads-production-2289 production bundle (index-jHUXc5GO.js). */
+/* Month projection + KPI record logic for business cards. */
 
 import { compact, money } from './format.js';
 
@@ -16,7 +16,6 @@ const FAVORABLE_WHEN_UP = {
 
 const isFiniteNumber = (value) => typeof value === 'number' && Number.isFinite(value);
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-const lerp = (from, to, t) => from + (to - from) * t;
 
 function monthKeyFromDate(date) {
   if (typeof date === 'string' && date.length >= 7) return date.slice(0, 7);
@@ -103,7 +102,10 @@ export function buildMonthProjection(rows, { today, elapsedShare } = {}) {
   const monthRows = allRows.filter((row) => monthKeyFromDate(row.date) === monthKey);
   const completedMonthRows = monthRows.filter((row) => row.date < today);
   const todayRow = monthRows.find((row) => row.date === today) || null;
-  const recentRows = allRows.filter((row) => row.date < today).slice(-21);
+  const recentRows = allRows
+    .filter((row) => row.date < today)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-21);
   if (!completedMonthRows.length && !todayRow && !recentRows.length) return null;
 
   const share = clamp(Number(elapsedShare) || 0, 1 / 86400, 1);
@@ -115,7 +117,7 @@ export function buildMonthProjection(rows, { today, elapsedShare } = {}) {
     if (todayRow) {
       const todayValue = Number(todayRow[key]) || 0;
       const intradayPace = todayValue / share;
-      const blendedRemainder = baseline == null ? todayValue : todayValue + (1 - share) * baseline;
+      const blendedRemainder = baseline == null ? intradayPace : todayValue + (1 - share) * baseline;
       todayProjection = share * intradayPace + (1 - share) * blendedRemainder;
     } else if (baseline != null) {
       todayProjection = baseline;
@@ -155,13 +157,8 @@ export function detectKpiRecord(rows, key, { today, intraday = false } = {}) {
   const allRows = rows || [];
   const epsilon = 1e-9;
   const favorableWhenUp = FAVORABLE_WHEN_UP[key] !== false;
-  const latestPriorDate = allRows.reduce(
-    (latest, row) => (row && typeof row.date === 'string' && row.date > latest ? row.date : latest),
-    '',
-  );
-  const excludeLatestPrior = latestPriorDate !== '' && latestPriorDate < today;
   const history = allRows
-    .filter((row) => row && typeof row.date === 'string' && row.date < today && (!excludeLatestPrior || row.date !== latestPriorDate))
+    .filter((row) => row && typeof row.date === 'string' && row.date < today)
     .map((row) => ({ date: row.date, v: metricValue(row, key) }))
     .filter((row) => row.v != null);
 
