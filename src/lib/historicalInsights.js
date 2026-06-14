@@ -326,6 +326,11 @@ function confidenceFromPoints(n, min) {
   return 'high';
 }
 
+function significanceNote(pValue, significant, significantText, notSignificantText) {
+  if (pValue == null || !Number.isFinite(pValue)) return '';
+  return significant ? significantText : notSignificantText;
+}
+
 function buildWeekBucketScopeStats(monthlyTable) {
   const bucketValues = Object.fromEntries(WEEK_BUCKETS.map((def) => [def.key, []]));
   for (const month of monthlyTable) {
@@ -352,9 +357,12 @@ function buildInsights(weekdayTable, monthlyTable, summary, scope, opts, statist
     const best = [...eligibleWeekdays].sort((a, b) => b.mean - a.mean)[0];
     const worst = [...eligibleWeekdays].sort((a, b) => a.mean - b.mean)[0];
     if (best) {
-      const sigNote = best.significant
-        ? ` Bonferroni-adjusted p = ${best.pValueLabel} (Mann-Whitney vs other weekdays).`
-        : ` Not statistically significant after Bonferroni correction (p = ${best.pValueLabel}).`;
+      const sigNote = significanceNote(
+        best.pValueAdjusted,
+        best.significant,
+        ` Bonferroni-adjusted p = ${best.pValueLabel} (Mann-Whitney vs other weekdays).`,
+        ` Not statistically significant after Bonferroni correction (p = ${best.pValueLabel}).`,
+      );
       cards.push({
         id: 'BEST_WEEKDAY',
         type: 'BEST_WEEKDAY',
@@ -371,9 +379,12 @@ function buildInsights(weekdayTable, monthlyTable, summary, scope, opts, statist
       });
     }
     if (worst && worst.weekday !== best?.weekday) {
-      const sigNote = worst.significant
-        ? ` Bonferroni-adjusted p = ${worst.pValueLabel} (Mann-Whitney vs other weekdays).`
-        : ` Not statistically significant after Bonferroni correction (p = ${worst.pValueLabel}).`;
+      const sigNote = significanceNote(
+        worst.pValueAdjusted,
+        worst.significant,
+        ` Bonferroni-adjusted p = ${worst.pValueLabel} (Mann-Whitney vs other weekdays).`,
+        ` Not statistically significant after Bonferroni correction (p = ${worst.pValueLabel}).`,
+      );
       cards.push({
         id: 'WORST_WEEKDAY',
         type: 'WORST_WEEKDAY',
@@ -420,7 +431,7 @@ function buildInsights(weekdayTable, monthlyTable, summary, scope, opts, statist
     if (bestBucket && monthMean) {
       const sigNote = bucketEffect?.significant
         ? ` Kruskal-Wallis p = ${bucketEffect.pValueLabel} across W1–W4 daily order distributions.`
-        : bucketEffect?.pValueLabel
+        : bucketEffect?.pValue != null
           ? ` Week-of-month pattern not significant (Kruskal-Wallis p = ${bucketEffect.pValueLabel}).`
           : '';
       cards.push({

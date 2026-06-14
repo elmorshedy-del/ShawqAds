@@ -20,6 +20,9 @@ assert(separated.pValue != null && separated.pValue < 0.05, 'Mann-Whitney should
 const similar = mannWhitneyU([4, 5, 6, 5, 4], [5, 4, 6, 5, 5]);
 assert(similar.pValue != null && similar.pValue > 0.05, 'Mann-Whitney should not reject similar samples');
 
+const identical = mannWhitneyU([5, 5, 5, 5], [5, 5, 5, 5]);
+assert(identical.pValue != null && identical.pValue > 0.9, 'Mann-Whitney should not reject identical samples');
+
 const kw = kruskalWallis([[10, 11, 12], [1, 2, 2], [9, 10, 11]]);
 assert(kw.pValue != null && kw.pValue < 0.05, 'Kruskal-Wallis should detect group differences');
 

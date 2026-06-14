@@ -22,6 +22,7 @@ export function normalCdf(z) {
 function lowerRegularizedGamma(s, x) {
   if (x <= 0) return 0;
   if (s <= 0) return NaN;
+  if (x > 300) return 1;
   let sum = 1 / s;
   let term = 1 / s;
   for (let k = 1; k < 200; k += 1) {
@@ -29,7 +30,8 @@ function lowerRegularizedGamma(s, x) {
     sum += term;
     if (Math.abs(term) < 1e-12 * Math.abs(sum)) break;
   }
-  return sum * Math.exp(-x + s * Math.log(x) - logGamma(s));
+  const value = sum * Math.exp(-x + s * Math.log(x) - logGamma(s));
+  return Number.isFinite(value) ? value : 1;
 }
 
 function logGamma(z) {
@@ -106,7 +108,7 @@ export function mannWhitneyU(sampleA, sampleB) {
   const n = nA + nB;
   const meanU = (nA * nB) / 2;
   const sdU = Math.sqrt((nA * nB / 12) * ((n + 1) - tieSum / (n * (n - 1 || 1))));
-  const z = sdU > 0 ? (u - meanU + 0.5) / sdU : 0;
+  const z = sdU > 0 ? Math.min(0, u - meanU + 0.5) / sdU : 0;
   const pValue = 2 * (1 - normalCdf(Math.abs(z)));
 
   return { u, z, pValue, nA, nB, test: 'mann-whitney-u' };
