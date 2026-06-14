@@ -166,16 +166,16 @@ export function detectKpiRecord(rows, key, { today, intraday = false } = {}) {
     const todayRow = allRows.find((row) => row && row.date === today);
     const todayValue = todayRow ? metricValue(todayRow, key) : null;
     const priorMax = Math.max(...history.map((row) => row.v));
-    if (todayValue != null && Number.isFinite(priorMax) && todayValue > priorMax + epsilon) {
+    if (todayValue != null && Number.isFinite(priorMax) && todayValue >= priorMax - epsilon) {
       return {
-        key,
-        kind: 'all-high',
-        scope: 'all',
-        intraday: true,
-        favorable: favorableWhenUp,
-        value: todayValue,
-        date: today,
-        recordKey: `${key}:all-high-intraday:${today}`,
+          key,
+          kind: 'all-high',
+          scope: 'all',
+          intraday: true,
+          favorable: favorableWhenUp,
+          value: todayValue,
+          date: today,
+          recordKey: `${key}:all-high-intraday:${today}`,
       };
     }
   }
@@ -190,11 +190,12 @@ export function detectKpiRecord(rows, key, { today, intraday = false } = {}) {
   let favorable = false;
   let scope = null;
 
-  if (latest.v > priorMax + epsilon) {
+  // All-time records (including ties) outrank week records on the business cards.
+  if (latest.v > priorMax + epsilon || Math.abs(latest.v - priorMax) <= epsilon) {
     kind = 'all-high';
     favorable = true;
     scope = 'all';
-  } else if (latest.v < priorMin - epsilon) {
+  } else if (latest.v < priorMin - epsilon || Math.abs(latest.v - priorMin) <= epsilon) {
     kind = 'all-low';
     favorable = false;
     scope = 'all';
