@@ -166,8 +166,7 @@ export function detectKpiRecord(rows, key, { today, intraday = false } = {}) {
     const todayRow = allRows.find((row) => row && row.date === today);
     const todayValue = todayRow ? metricValue(todayRow, key) : null;
     const priorMax = Math.max(...history.map((row) => row.v));
-    if (todayValue != null && Number.isFinite(priorMax)
-      && (todayValue > priorMax + epsilon || Math.abs(todayValue - priorMax) <= epsilon)) {
+    if (todayValue != null && Number.isFinite(priorMax) && todayValue >= priorMax - epsilon) {
       return {
           key,
           kind: 'all-high',
