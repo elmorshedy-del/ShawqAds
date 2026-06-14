@@ -1,6 +1,6 @@
 import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { Activity, BellRing, CalendarDays, GitBranch, LayoutDashboard, RefreshCw, Rocket, Search, ShoppingBag, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
+import { Activity, BarChart3, BellRing, CalendarDays, GitBranch, LayoutDashboard, RefreshCw, Rocket, Search, ShoppingBag, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
 import { compact, money, pct, slug } from './lib/format.js';
 import { buildCampaignAttribution } from './lib/campaignAttribution.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
@@ -27,6 +27,7 @@ import * as adapt from './lib/adapt.js';
 import { OrderDropRankings } from './components/dashboard/OrderDropRankings';
 import { buildOrderDropRankings } from './lib/orderDropRankings.js';
 import { buildEmailCampaignSummary, buildEmailCampaignFromPurchases } from './lib/emailCampaignSummary.js';
+import { HistoricalInsights } from './components/dashboard/HistoricalInsights';
 
 const SALE_POLL_MS = 30000;
 const META_POLL_MS = 120000;
@@ -47,22 +48,6 @@ const DEMO_PURCHASES = [
   { id: 'demo-9', name: '#3932', country: 'Australia', location: 'Sydney, Australia', city: 'Sydney', region: undefined, countryCode: 'AU', flag: '🇦🇺', amount: 130, currency: 'AUD', items: 2, product: 'ShawQ Hoodie', source: 'Email campaign · Spring drop', channel: 'email', coordinates: [151.2093, -33.8688], time: '1h ago' },
 ];
 
-// Below Tailwind's `lg` breakpoint we swap the long scroll for a tabbed layout.
-function useIsMobile(maxWidth = 1023) {
-  const query = `(max-width:${maxWidth}px)`;
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' && window.matchMedia(query).matches,
-  );
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    const mq = window.matchMedia(query);
-    const onChange = () => setIsMobile(mq.matches);
-    onChange();
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, [query]);
-  return isMobile;
-}
 
 function dateInTimezone(date = new Date(), timeZone = REPORTING_TIMEZONE) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -2383,7 +2368,6 @@ function App() {
   const [saleSoundEnabled, setSaleSoundEnabled] = useState(true);
   const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '', todaySummary: null, purchases: [] });
   const [metaMonitor, setMetaMonitor] = useState({ status: 'checking', live: null, checkedAt: null, error: '' });
-  const isMobile = useIsMobile();
   const [mobileTab, setMobileTab] = useState('overview');
   const saleAudioRef = useRef(null);
   const saleSoundEnabledRef = useRef(true);
@@ -2654,6 +2638,10 @@ function App() {
   // partial totals would render as a misleading end-of-line droop on every metric.
   const reportingToday = loadedBounds.today || currentReportingDay();
   const trendDayRows = adapt.toDayRows(allBusinessRows).filter((r) => r.date && r.date !== reportingToday);
+  const historicalDaily = useMemo(
+    () => (baseProductData?.daily || []).map((row) => ({ date: row.date, orders: Number(row.orders || 0) })),
+    [baseProductData],
+  );
   const campaignTree = adapt.toCampaignTree(campaignAttribution);
   const salesLeader = adapt.toSalesLeader(dailySalesHighlights(productData.order_lines || [], activeDateRange));
   const benchmarks = adapt.toBenchmarks(overall, march, marchDelta, overallDelta);
@@ -2849,16 +2837,23 @@ function App() {
     mobileTops: <TopMovers cards={topMoverCards} />,
     behavior: <BehaviorAnalytics behavior={behaviorData} />,
     data: <DataTable rows={dayRows} />,
+    historicalInsights: (
+      <HistoricalInsights
+        daily={historicalDaily}
+        developingDay={reportingToday}
+        timezone={REPORTING_TIMEZONE}
+      />
+    ),
   };
-  const desktopOrder = ['ordersMap', 'kpis', 'orderDrop', 'revenue', 'tree', 'emailCampaign', 'leaders', 'edits', 'decision', 'usa', 'delivery', 'salesBench', 'product', 'country', 'behavior', 'data'];
-  const mobileGroups = [
+  const dashboardGroups = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'orderDrop', 'revenue', 'mobileTops'] },
     { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'emailCampaign', 'leaders', 'edits', 'decision'] },
     { key: 'launch', label: 'Launch', icon: Rocket, ids: ['usa', 'delivery'] },
     { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['salesBench', 'product', 'country'] },
+    { key: 'historical', label: 'Historical insights', icon: BarChart3, ids: ['historicalInsights'] },
     { key: 'behavior', label: 'Behavior', icon: Activity, ids: ['behavior', 'data'] },
   ];
-  const activeGroup = mobileGroups.find((g) => g.key === mobileTab) || mobileGroups[0];
+  const activeGroup = dashboardGroups.find((g) => g.key === mobileTab) || dashboardGroups[0];
 
   return (
     <div className="flex min-h-screen text-foreground">
@@ -2889,37 +2884,31 @@ function App() {
             </div>
           </header>
 
-          {isMobile ? (
-            <>
-              <nav className="sticky top-0 z-30 -mx-5 border-b border-border bg-background/85 px-5 py-2.5 backdrop-blur-md sm:-mx-8 sm:px-8">
-                <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {mobileGroups.map((g) => {
-                    const Icon = g.icon;
-                    const on = g.key === activeGroup.key;
-                    return (
-                      <button
-                        key={g.key}
-                        type="button"
-                        onClick={() => setMobileTab(g.key)}
-                        aria-pressed={on}
-                        className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${on ? 'bg-brand text-white shadow-sm' : 'bg-surface-2 text-muted-foreground'}`}
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                        {g.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </nav>
-              <div className="space-y-7">
-                {activeGroup.ids.map((id) => (
-                  <Fragment key={id}>{sectionEls[id]}</Fragment>
-                ))}
-              </div>
-            </>
-          ) : (
-            desktopOrder.map((id) => <Fragment key={id}>{sectionEls[id]}</Fragment>)
-          )}
+          <nav className="sticky top-0 z-30 -mx-5 border-b border-border bg-background/85 px-5 py-2.5 backdrop-blur-md sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10">
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {dashboardGroups.map((g) => {
+                const Icon = g.icon;
+                const on = g.key === activeGroup.key;
+                return (
+                  <button
+                    key={g.key}
+                    type="button"
+                    onClick={() => setMobileTab(g.key)}
+                    aria-pressed={on}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${on ? 'bg-brand text-white shadow-sm' : 'bg-surface-2 text-muted-foreground hover:bg-surface-2/80'}`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {g.label}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+          <div className="space-y-7">
+            {activeGroup.ids.map((id) => (
+              <Fragment key={id}>{sectionEls[id]}</Fragment>
+            ))}
+          </div>
 
           <footer className="pb-6 pt-2 text-center text-xs text-muted-foreground">
             ShawQ Business Monitoring · Shopify revenue and Meta spend in {REPORTING_TIMEZONE}
