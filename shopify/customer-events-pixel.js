@@ -1,12 +1,11 @@
 /*
-  ShawQ Customer Events Pixel
+  ShawQ Session Intelligence Pixel
 
   Paste this into Shopify Admin > Settings > Customer events > Custom pixel.
-  Replace the endpoint with the deployed dashboard URL, for example:
-  https://YOUR-APP.onrender.com/api/session-events
+  Connected dashboard: https://shawq-ads-production.up.railway.app/
 */
 
-const SHAWQ_SESSION_ENDPOINT = 'https://YOUR_DASHBOARD_DOMAIN/api/session-events';
+const SHAWQ_SESSION_ENDPOINT = 'https://shawq-ads-production.up.railway.app/api/session-events';
 const SHAWQ_SESSION_KEY = '';
 
 const SHAWQ_EVENTS = [
@@ -19,6 +18,7 @@ const SHAWQ_EVENTS = [
   'checkout_shipping_info_submitted',
   'payment_info_submitted',
   'checkout_completed',
+  'visibility_hidden',
 ];
 
 let shawqCurrentPath = '';
@@ -109,12 +109,17 @@ function shawqSend(payload) {
   }).catch(() => {});
 }
 
+function shawqStopHeartbeat() {
+  if (shawqHeartbeatTimer) clearInterval(shawqHeartbeatTimer);
+  shawqHeartbeatTimer = null;
+}
+
 function shawqStartHeartbeat(event) {
   const path = shawqPath(event);
   if (!path || path === shawqCurrentPath) return;
   shawqCurrentPath = path;
   shawqHeartbeatCount = 0;
-  if (shawqHeartbeatTimer) clearInterval(shawqHeartbeatTimer);
+  shawqStopHeartbeat();
   shawqHeartbeatTimer = setInterval(() => {
     shawqHeartbeatCount += 1;
     shawqSend(shawqPayload(event, {
@@ -123,7 +128,7 @@ function shawqStartHeartbeat(event) {
       path: shawqCurrentPath,
       line_items: [],
     }));
-    if (shawqHeartbeatCount >= 24) clearInterval(shawqHeartbeatTimer);
+    if (shawqHeartbeatCount >= 24) shawqStopHeartbeat();
   }, 15000);
 }
 
@@ -132,5 +137,6 @@ SHAWQ_EVENTS.forEach((eventName) => {
     const payload = shawqPayload(event);
     shawqSend(payload);
     if (eventName === 'page_viewed') shawqStartHeartbeat(event);
+    if (eventName === 'visibility_hidden') shawqStopHeartbeat();
   });
 });

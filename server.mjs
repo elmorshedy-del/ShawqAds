@@ -49,6 +49,27 @@ let metaLiveInFlight = { key: '', promise: null };
 let metaAccountCache = { fetchedAt: 0, payload: null };
 const fxCache = new Map();
 
+const SESSION_BEHAVIOR_REFRESH_MS = Number(process.env.SESSION_BEHAVIOR_REFRESH_MS || 15000);
+let sessionBehaviorRefreshTimer = null;
+let sessionBehaviorRefreshInFlight = false;
+
+function scheduleBehaviorRefreshFromSessionEvents() {
+  if (sessionBehaviorRefreshTimer) clearTimeout(sessionBehaviorRefreshTimer);
+  sessionBehaviorRefreshTimer = setTimeout(async () => {
+    if (sessionBehaviorRefreshInFlight) return;
+    sessionBehaviorRefreshInFlight = true;
+    try {
+      const result = await runScript('fetch:behavior');
+      if (result.code !== 0) console.warn(result.output || 'fetch:behavior failed after session event');
+    } catch (error) {
+      console.warn('behavior refresh after session event failed:', error.message);
+    } finally {
+      sessionBehaviorRefreshInFlight = false;
+    }
+  }, SESSION_BEHAVIOR_REFRESH_MS);
+  sessionBehaviorRefreshTimer.unref?.();
+}
+
 // Live orders map: location resolver + webhook-sourced purchase store.
 const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET || '';
 const locationCachePath = process.env.LOCATION_CACHE_PATH || path.join(__dirname, 'data', 'location-cache.json');
@@ -429,6 +450,7 @@ async function recordSessionEvent(req, res, url) {
     }
     fs.mkdirSync(path.dirname(sessionEventsPath), { recursive: true });
     fs.appendFileSync(sessionEventsPath, `${JSON.stringify(event)}\n`);
+    scheduleBehaviorRefreshFromSessionEvents();
     send(res, 200, JSON.stringify({ ok: true }));
   } catch (error) {
     send(res, 400, JSON.stringify({ ok: false, error: error.message }));
