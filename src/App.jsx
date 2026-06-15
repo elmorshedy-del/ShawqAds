@@ -2636,8 +2636,10 @@ function App() {
   // Performance trend is a multi-day view with its own 3D/7D/14D/All control, so it draws
   // from the full loaded history rather than the active date filter (which can be a
   // single day under the "Today" preset and would leave nothing to connect into a line).
-  // The current reporting day is omitted: it is still accumulating sales/spend, so its
-  // partial totals would render as a misleading end-of-line droop on every metric.
+  // Scope to the June 3 CBO launch onward — pre-launch Shopify-only days have no Meta
+  // spend and make the revenue-vs-spend line unreadably spiky. Historical insights covers
+  // the earlier Shopify-only period separately.
+  // The current reporting day is omitted: it is still accumulating sales/spend.
   const reportingToday = loadedBounds.today || currentReportingDay();
   const monthProjection = useMemo(
     () => buildMonthProjection(allBusinessRows, { today: reportingToday, elapsedShare: elapsedReportingDayShare() }),
@@ -2646,7 +2648,9 @@ function App() {
   const kpiRecords = useMemo(() => buildKpiRecordMap(allBusinessRows, reportingToday), [allBusinessRows, reportingToday]);
   const kpiProjection = (key) => buildKpiProjectionDisplay(monthProjection, key);
   const kpiRecord = (key) => buildKpiRecordDisplay(kpiRecords, key);
-  const trendDayRows = adapt.toDayRows(allBusinessRows).filter((r) => r.date && r.date !== reportingToday);
+  const trendDayRows = adapt.toDayRows(allBusinessRows).filter(
+    (r) => r.date && r.date !== reportingToday && r.date >= CAMPAIGN_LAUNCH_DATE,
+  );
   const historicalDaily = useMemo(
     () => buildShopifyHistoricalDaily(baseProductData),
     [baseProductData],
