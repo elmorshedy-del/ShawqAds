@@ -22,6 +22,7 @@ import {
   US_STATE_CODE_TO_NAME,
 } from './orderLocations.mjs';
 import { merchandiseItemCount } from './orderMerchandise.js';
+import { buildPublicLocation, pickPublicLocality, titleCaseLocality } from './orderLocality.js';
 
 function isValidCoord(value) {
   return Array.isArray(value)
@@ -176,18 +177,19 @@ function pickAddress(order = {}) {
   return hasShipping ? shipping : (billing || shipping || {});
 }
 
-function regionLabel(country, region) {
-  if (!region) return '';
-  if (country === 'US') return US_STATE_CODE_TO_NAME[region] || region;
-  return region;
+function isSubdivisionCode(value = '') {
+  return /^[A-Z]{2,3}$/i.test(String(value || '').trim());
 }
 
-function cityLabel(rawCity) {
-  const trimmed = String(rawCity || '').trim();
-  if (!trimmed) return '';
-  return trimmed
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+function regionLabel(country, region, rawProvince = '') {
+  const named = String(rawProvince || '').trim();
+  if (named && (named.length > 3 || /\s/.test(named)) && !isSubdivisionCode(named)) {
+    return titleCaseLocality(named);
+  }
+  if (!region) return titleCaseLocality(named);
+  if (country === 'US') return US_STATE_CODE_TO_NAME[region] || region;
+  if (named && !isSubdivisionCode(named)) return titleCaseLocality(named);
+  return region;
 }
 
 // Builds the full display location from Shopify address fields:
@@ -241,9 +243,10 @@ export async function buildPurchase(order, store, opts = {}) {
   if (!Array.isArray(coordinates)) return null;
 
   const region = norm.region || '';
-  const cityTitle = cityLabel(address.city);
-  const city = cityTitle || regionLabel(norm.country, region) || countryDisplayName(norm.country);
-  const location = locationLabel(norm.country, region, cityTitle);
+  const city = pickPublicLocality(address, norm.country)
+    || regionLabel(norm.country, region, address.province)
+    || countryDisplayName(norm.country);
+  const location = buildPublicLocation(address, norm.country, norm.region);
   const amount = Number(order.current_total_price || order.total_price || 0) || 0;
   const currency = order.currency || order.presentment_currency || 'USD';
   const items = merchandiseItemCount(order.line_items);
