@@ -1,64 +1,63 @@
 # Deploy agentmemory on Railway (separate service)
 
-ShawQ Ads runs on Railway at https://shawq-ads-production.up.railway.app/. **agentmemory is a second service** — do not run it inside the main ShawQ container.
+ShawQ Ads runs on Railway at https://shawq-ads-production.up.railway.app/. **agentmemory is a second service** in the same project — do not run it inside the main ShawQ container.
 
-Upstream template: [rohitg00/agentmemory deploy/railway](https://github.com/rohitg00/agentmemory/tree/main/deploy/railway)
+## Live service (deployed)
 
-## One-time setup
+| Item | Value |
+|------|--------|
+| **URL** | https://agentmemory-production-dcdc.up.railway.app |
+| **Health** | `GET /agentmemory/livez` → `{"service":"agentmemory","status":"ok"}` |
+| **Railway project** | `faithful-compassion` |
+| **Service name** | `agentmemory` |
+| **Repo / path** | `elmorshedy-del/ShawqAds` → `deploy/agentmemory/` |
+| **Config file** | `deploy/agentmemory/railway.json` (must **not** use repo root `railway.json`) |
+| **Volume** | `/data` (required) |
+| **PORT** | `3111` (service variable) |
 
-1. In [Railway dashboard](https://railway.app), create a **new service** in the same project (or a dedicated project).
-2. **Deploy from GitHub** → repository: `rohitg00/agentmemory`
-3. Service **Settings → Config-as-Code Path:** `deploy/railway/railway.json`
-4. **Volumes** → add volume mounted at `/data` (required — deploy fails without it).
-5. Deploy. Wait for healthcheck on `/agentmemory/livez`.
+## Critical config (learned from deploy)
 
-## Capture credentials
+1. **`railwayConfigFile`** must be `deploy/agentmemory/railway.json` — the repo root `railway.json` is for `shawq-ads` and will override startCommand/healthcheck if used.
+2. **Do not set `rootDirectory`** on the agentmemory service — it breaks Docker COPY paths. Build context is repo root; Dockerfile uses `deploy/agentmemory/entrypoint.sh`.
+3. **`PORT=3111`** service variable — agentmemory listens on Railway's `PORT`; healthcheck and public routing must match.
 
-From deploy logs (once only):
+## Capture the HMAC secret (one time)
+
+After first successful boot, read deploy logs:
 
 ```bash
 railway logs --service agentmemory | grep AGENTMEMORY_SECRET=
 ```
 
-Save the secret securely.
-
-Verify:
-
-```bash
-curl https://<your-agentmemory-service>.up.railway.app/agentmemory/livez
-```
+The secret is persisted in the volume at `/data/.hmac` and is **not** printed again on later boots.
 
 ## Wire Cursor / Cloud Agents
 
-In Cursor **Project MCP settings** (or user env), set:
+In Cursor **Project MCP settings**:
 
 | Variable | Value |
 |----------|--------|
-| `AGENTMEMORY_URL` | `https://<your-agentmemory-service>.up.railway.app` |
-| `AGENTMEMORY_SECRET` | (from deploy logs) |
+| `AGENTMEMORY_URL` | `https://agentmemory-production-dcdc.up.railway.app` |
+| `AGENTMEMORY_SECRET` | (from deploy logs, once) |
 
-The repo `.cursor/mcp.json` already points at `@agentmemory/mcp`; it inherits these env vars when set.
+`.cursor/mcp.json` uses `${env:AGENTMEMORY_URL}` and `${env:AGENTMEMORY_SECRET}`.
 
-Cloud Agents on phone cannot use `localhost:3111` — they **must** use the Railway URL above.
-
-## Connect ShawQ repo to memory
-
-After the server is live, agents should:
-
-1. Read `memory/` (repo map, domain map, handoff) — always in git.
-2. Use agentmemory MCP `memory_smart_search` / `recall` for past sessions and mistakes.
-
-Optional: run locally against Railway:
+## Verify
 
 ```bash
-export AGENTMEMORY_URL=https://<service>.up.railway.app
-export AGENTMEMORY_SECRET=<secret>
-npx @agentmemory/mcp
+curl https://agentmemory-production-dcdc.up.railway.app/agentmemory/livez
 ```
 
-## Cost
+## Redeploy via GraphQL (project token)
 
-Railway Hobby ~$5/mo flat; agentmemory + 1GB volume typically stays near that floor. See upstream README for current rates.
+```bash
+export RAILWAY_TOKEN=<project-token>
+# serviceId agentmemory: d5ad39b3-2ee4-40ea-aa02-d79cc486b8db
+# environmentId production: 34983be2-13d3-444c-9386-fa5123eb45aa
+curl -sS -H "Authorization: Bearer $RAILWAY_TOKEN" -H "Content-Type: application/json" \
+  -d '{"query":"mutation { serviceInstanceDeployV2(environmentId: \"34983be2-13d3-444c-9386-fa5123eb45aa\", serviceId: \"d5ad39b3-2ee4-40ea-aa02-d79cc486b8db\") }"}' \
+  https://backboard.railway.com/graphql/v2
+```
 
 ## Backup
 
