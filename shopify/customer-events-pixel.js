@@ -18,12 +18,12 @@ const SHAWQ_EVENTS = [
   'checkout_shipping_info_submitted',
   'payment_info_submitted',
   'checkout_completed',
-  'visibility_hidden',
 ];
 
 let shawqCurrentPath = '';
 let shawqHeartbeatTimer = null;
 let shawqHeartbeatCount = 0;
+let shawqLastEvent = null;
 
 function shawqCleanId(value) {
   return String(value || '').replace(/^gid:\/\/shopify\//, '').slice(0, 90);
@@ -134,9 +134,22 @@ function shawqStartHeartbeat(event) {
 
 SHAWQ_EVENTS.forEach((eventName) => {
   analytics.subscribe(eventName, (event) => {
-    const payload = shawqPayload(event);
-    shawqSend(payload);
+    shawqLastEvent = event;
+    shawqSend(shawqPayload(event));
     if (eventName === 'page_viewed') shawqStartHeartbeat(event);
-    if (eventName === 'visibility_hidden') shawqStopHeartbeat();
   });
 });
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return;
+    shawqStopHeartbeat();
+    if (!shawqLastEvent) return;
+    shawqSend(shawqPayload(shawqLastEvent, {
+      event_name: 'visibility_hidden',
+      timestamp: new Date().toISOString(),
+      path: shawqCurrentPath || shawqPath(shawqLastEvent),
+      line_items: [],
+    }));
+  });
+}

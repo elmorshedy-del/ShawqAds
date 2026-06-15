@@ -2390,11 +2390,16 @@ function App() {
   useEffect(() => {
     let cancelled = false;
     async function pollBehavior() {
-      try {
-        const payload = await fetchJsonWithFallback('/api/data/behavior-intelligence.json', '/data/behavior-intelligence.json', fallbackBehavior);
-        if (!cancelled) setBehaviorRaw(payload);
-      } catch {
-        // Keep the last loaded behavior snapshot on transient poll failures.
+      for (const target of ['/api/data/behavior-intelligence.json', '/data/behavior-intelligence.json']) {
+        try {
+          const res = await fetch(target, { cache: 'no-store' });
+          if (!res.ok) continue;
+          const payload = await res.json();
+          if (!cancelled && payload && typeof payload === 'object') setBehaviorRaw(payload);
+          return;
+        } catch {
+          // Try the next source; keep the last loaded snapshot on failure.
+        }
       }
     }
     const timer = window.setInterval(pollBehavior, BEHAVIOR_POLL_MS);

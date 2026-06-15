@@ -52,20 +52,31 @@ const fxCache = new Map();
 const SESSION_BEHAVIOR_REFRESH_MS = Number(process.env.SESSION_BEHAVIOR_REFRESH_MS || 15000);
 let sessionBehaviorRefreshTimer = null;
 let sessionBehaviorRefreshInFlight = false;
+let sessionBehaviorRefreshPending = false;
+
+async function runBehaviorRefreshFromSessionEvents() {
+  if (sessionBehaviorRefreshInFlight) {
+    sessionBehaviorRefreshPending = true;
+    return;
+  }
+  sessionBehaviorRefreshInFlight = true;
+  try {
+    do {
+      sessionBehaviorRefreshPending = false;
+      const result = await runScript('fetch:behavior');
+      if (result.code !== 0) console.warn(result.output || 'fetch:behavior failed after session event');
+    } while (sessionBehaviorRefreshPending);
+  } catch (error) {
+    console.warn('behavior refresh after session event failed:', error.message);
+  } finally {
+    sessionBehaviorRefreshInFlight = false;
+  }
+}
 
 function scheduleBehaviorRefreshFromSessionEvents() {
   if (sessionBehaviorRefreshTimer) clearTimeout(sessionBehaviorRefreshTimer);
-  sessionBehaviorRefreshTimer = setTimeout(async () => {
-    if (sessionBehaviorRefreshInFlight) return;
-    sessionBehaviorRefreshInFlight = true;
-    try {
-      const result = await runScript('fetch:behavior');
-      if (result.code !== 0) console.warn(result.output || 'fetch:behavior failed after session event');
-    } catch (error) {
-      console.warn('behavior refresh after session event failed:', error.message);
-    } finally {
-      sessionBehaviorRefreshInFlight = false;
-    }
+  sessionBehaviorRefreshTimer = setTimeout(() => {
+    void runBehaviorRefreshFromSessionEvents();
   }, SESSION_BEHAVIOR_REFRESH_MS);
   sessionBehaviorRefreshTimer.unref?.();
 }

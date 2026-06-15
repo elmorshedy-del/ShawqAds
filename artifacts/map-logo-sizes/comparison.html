@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ShawQ map logo size comparison</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e8eaef; margin: 0; padding: 24px; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    p { color: #9aa3b2; margin: 0 0 24px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    figure { margin: 0; background: #171a22; border: 1px solid #2a3140; border-radius: 12px; overflow: hidden; }
+    img { display: block; width: 100%; height: auto; background: #11141b; }
+    figcaption { padding: 10px 12px; font-size: 13px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>ShawQ HQ logo — size comparison</h1>
+  <p>Zoomed crops around the HQ marker on the live orders map (demo data).</p>
+  <div class="grid"><figure><img src="hq-zoom-h24.png" alt="24 (original)" /><figcaption>24 (original)</figcaption></figure>
+<figure><img src="hq-zoom-h16.png" alt="16 (~33% smaller)" /><figcaption>16 (~33% smaller)</figcaption></figure>
+<figure><img src="hq-zoom-h12.png" alt="12 (50% smaller)" /><figcaption>12 (50% smaller)</figcaption></figure>
+<figure><img src="hq-zoom-h10.png" alt="10 (~58% smaller · current PR)" /><figcaption>10 (~58% smaller · current PR)</figcaption></figure>
+<figure><img src="hq-zoom-h8.png" alt="8 (~67% smaller)" /><figcaption>8 (~67% smaller)</figcaption></figure></div>
+</body>
+</html>
