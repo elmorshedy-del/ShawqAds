@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { productTaxonomyForName } from '../src/lib/productMapping.js';
 import { normalizePagePath } from '../src/lib/pagePath.js';
+import { dwellAnalysisMeta, rollupDwellPages } from '../src/lib/dwellStats.js';
 
 const envPaths = [process.env.ENV_FILE, path.resolve('.env')].filter(Boolean);
 for (const envPath of envPaths) {
@@ -701,7 +702,9 @@ try {
 }
 
 const rawSessionEvents = parseNdjson(sessionEventsPath);
-const sessionEvents = normalizeSessionEvents(rawSessionEvents, shopifyTimezone).filter((event) => event.date >= since && event.date <= until);
+const allSessionEvents = normalizeSessionEvents(rawSessionEvents, shopifyTimezone);
+const sessionEvents = allSessionEvents.filter((event) => event.date >= since && event.date <= until);
+const fullSessionAgg = aggregateSessionFacts(allSessionEvents);
 const sessionAgg = aggregateSessionFacts(sessionEvents);
 const facts = [
   ...paidOrderFacts(shopifyProducts).filter((fact) => fact.date >= since && fact.date <= until),
@@ -715,8 +718,9 @@ const checkoutCountries = rollupFacts(facts, 'checkout', 'country');
 const paymentProducts = rollupFacts(facts, 'submit_payment', 'product');
 const paymentCountries = rollupFacts(facts, 'submit_payment', 'country');
 const demographics = demographicsRollup(metaDemographics.rows || []);
-const dwellPages = dwellRollup(sessionAgg.pageFacts);
-const journeys = journeyRollup(sessionAgg.journeyRows);
+const dwellPages = rollupDwellPages(fullSessionAgg.pageFacts);
+const dwellMeta = dwellAnalysisMeta(fullSessionAgg.pageFacts);
+const journeys = journeyRollup(fullSessionAgg.journeyRows);
 
 const out = {
   source: 'Shopify abandoned checkouts + Meta demographics + first-party session events',
@@ -758,9 +762,11 @@ const out = {
     session_events: {
       source: 'First-party Shopify customer-events pixel',
       configured: fs.existsSync(sessionEventsPath),
-      ok: sessionEvents.length > 0,
-      count: sessionEvents.length,
-      sessions: sessionAgg.sessions,
+      ok: allSessionEvents.length > 0,
+      count: allSessionEvents.length,
+      count_in_window: sessionEvents.length,
+      sessions: fullSessionAgg.sessions,
+      sessions_in_window: sessionAgg.sessions,
       path: sessionEventsPath,
       note: 'Payment-submit, dwell, and non-purchaser journeys become real after the pixel posts events to /api/session-events.',
     },
@@ -774,8 +780,9 @@ const out = {
   facts,
   meta_demographics_rows: metaDemographics.rows || [],
   meta_payment_rows: metaPayment.rows || [],
-  page_facts: sessionAgg.pageFacts,
-  journey_rows: sessionAgg.journeyRows,
+  page_facts: fullSessionAgg.pageFacts,
+  journey_rows: fullSessionAgg.journeyRows,
+  dwell_analysis: dwellMeta,
   matrix: {
     checkout: { global: checkoutProducts.global, products: checkoutProducts.rows, countries: checkoutCountries.rows, gender: demographics.checkout },
     submit_payment: { global: paymentProducts.global, products: paymentProducts.rows, countries: paymentCountries.rows, gender: demographics.submit_payment },
@@ -790,7 +797,16 @@ const out = {
 };
 
 const outPath = path.resolve('public/data/behavior-intelligence.json');
+const previous = readJson(outPath, null);
+if (previous?.page_facts?.length > out.page_facts.length && rawSessionEvents.length >= previous.page_facts.length) {
+  console.warn(`Preserving ${previous.page_facts.length} cached page_facts (rebuilt ${out.page_facts.length} from ingest)`);
+  out.page_facts = previous.page_facts;
+  out.journey_rows = previous.journey_rows || out.journey_rows;
+  out.dwell_pages = rollupDwellPages(out.page_facts);
+  out.dwell_analysis = dwellAnalysisMeta(out.page_facts);
+  out.journeys = journeyRollup(out.journey_rows);
+}
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
 console.log(`Wrote behavior intelligence: ${checkoutProducts.rows.length} checkout products, ${paymentProducts.rows.length} payment products, ${dwellPages.length} dwell pages to ${outPath}`);
-console.log(`Coverage: abandoned_checkouts=${abandonedResult.ok ? abandonedResult.rows.length : 'failed'} meta_demographics=${metaDemographics.ok ? metaDemographics.rows.length : 'failed'} meta_payment=${metaPayment.ok ? metaPayment.rows.length : 'failed'} session_events=${sessionEvents.length}`);
+console.log(`Coverage: abandoned_checkouts=${abandonedResult.ok ? abandonedResult.rows.length : 'failed'} meta_demographics=${metaDemographics.ok ? metaDemographics.rows.length : 'failed'} meta_payment=${metaPayment.ok ? metaPayment.rows.length : 'failed'} session_events=${allSessionEvents.length} (${sessionEvents.length} in window)`);

@@ -3,12 +3,12 @@ import { ChevronDown, FlaskConical } from "lucide-react";
 import { compact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  dwellPageInsight,
   formatDwellSeconds,
   journeyStepInsight,
   normalizePagePath,
   pagePathLabel,
 } from "@/lib/pagePath";
+import { dwellPageInsight } from "@/lib/dwellStats";
 
 interface BehaviorStep {
   products?: any[];
@@ -369,7 +369,7 @@ function DwellPages({ pages }: { pages: any[] }) {
     <div className="rounded-xl border border-border bg-surface-2/40 p-4">
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-sm font-semibold">Where people get stuck</p>
-        <span className="text-[0.65rem] text-muted-foreground">Time on page · non-buyers vs buyers</span>
+        <span className="text-[0.65rem] text-muted-foreground">Mann-Whitney on session medians · BH-adjusted p</span>
       </div>
       <div className="mt-3 space-y-3">
         {visiblePages.length ? (
@@ -378,9 +378,10 @@ function DwellPages({ pages }: { pages: any[] }) {
               page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0,
             );
             const buyerDwell = Number(page.purchaser_median_dwell_seconds || 0);
+            const buyerSessions = Number(page.purchaser_sessions || 0);
             const width = Math.min(100, Math.max(8, dwell / 6));
             const label = pagePathLabel(page.path);
-            const insight = dwellPageInsight(page);
+            const insight = page.insight || dwellPageInsight(page);
             return (
               <div key={normalizePagePath(page.path)}>
                 <div className="mb-1 flex items-baseline justify-between gap-3">
@@ -397,8 +398,14 @@ function DwellPages({ pages }: { pages: any[] }) {
                 <p className="mt-1 text-[0.65rem] font-medium text-foreground">{insight.headline}</p>
                 <p className="mt-0.5 text-[0.65rem] leading-relaxed text-muted-foreground">
                   {insight.detail}
-                  {buyerDwell > 0 ? ` Buyers: ${formatDwellSeconds(buyerDwell)}.` : ""}
+                  {buyerSessions > 0 ? ` Buyer median: ${formatDwellSeconds(buyerDwell)}.` : ""}
                 </p>
+                {page.confidence ? (
+                  <p className="mt-1 text-[0.6rem] text-muted-foreground">
+                    {page.confidence}
+                    {page.p_value_adjusted != null ? ` · adjusted p=${Number(page.p_value_adjusted).toFixed(3)}` : ""}
+                  </p>
+                ) : null}
               </div>
             );
           })
