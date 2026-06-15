@@ -3,8 +3,14 @@ import { Globe2 } from "lucide-react";
 import { familyColors, fmtCurrency, type CountrySales } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
-const ranges = ["3D", "7D", "14D", "All"] as const;
+const ranges = ["Today", "3D", "7D", "14D", "All"] as const;
 type Range = (typeof ranges)[number];
+
+function rangeCaption(range: Range) {
+  if (range === "All") return "since launch";
+  if (range === "Today") return "today";
+  return `trailing ${range}`;
+}
 
 function roasClass(v: number) {
   if (v >= 3) return "text-positive";
@@ -21,7 +27,7 @@ function CountryRow({ c, delay }: { c: CountrySales; delay: number }) {
   }, []);
 
   return (
-    <div className="rounded-xl border border-border bg-surface-2/40 p-4 transition-colors hover:bg-surface-2/70">
+    <div className="min-w-0 rounded-xl border border-border bg-surface-2/40 p-4 transition-colors hover:bg-surface-2/70">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-3 text-left"
@@ -97,28 +103,29 @@ export function CountrySalesPanel({
   const shown = windows?.[range] ?? countries;
 
   return (
-    <div className="panel p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+    <div className="panel min-w-0 overflow-hidden p-4 sm:p-6">
+      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-soft text-brand">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
               <Globe2 className="h-4 w-4" />
             </span>
-            <h2 className="font-display text-lg font-semibold tracking-tight">Country sales + ROAS</h2>
+            <h2 className="font-display text-base font-semibold tracking-tight sm:text-lg">
+              Country sales + ROAS
+            </h2>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Per-market revenue, spend and product-mix breakdown
-            {range === "All" ? " since launch" : ` · trailing ${range}`} · tap a country for detail
+            Per-market revenue, spend and product-mix breakdown · {rangeCaption(range)} · tap a country for detail
           </p>
         </div>
 
-        <div className="inline-flex self-start rounded-full border border-border bg-surface-2 p-1">
+        <div className="inline-flex max-w-full self-start overflow-x-auto rounded-full border border-border bg-surface-2 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {ranges.map((r) => (
             <button
               key={r}
               onClick={() => setRange(r)}
               className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium transition-all",
+                "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-all sm:px-3",
                 range === r
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
@@ -138,7 +145,7 @@ export function CountrySalesPanel({
         </div>
       ) : (
         <div className="mt-5 rounded-xl border border-dashed border-border bg-surface-2/40 px-4 py-10 text-center text-sm text-muted-foreground">
-          No country sales in the trailing {range} window.
+          No country sales {range === "Today" ? "today" : `in the ${rangeCaption(range)} window`}.
         </div>
       )}
     </div>
