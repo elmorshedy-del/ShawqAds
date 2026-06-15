@@ -19,6 +19,7 @@
     "test:historical-insights": "node scripts/historical-insights-test.mjs",
     "test:stats": "node scripts/stats-tests.mjs",
     "test:location-label": "node scripts/location-label-test.mjs",
+    "test:order-merchandise": "node scripts/order-merchandise-test.mjs",
     "start": "node server.mjs",
     "build:deploy": "vite build"
   },

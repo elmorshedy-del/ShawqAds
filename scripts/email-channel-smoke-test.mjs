@@ -28,7 +28,8 @@ const denmarkEmailOrder = {
   currency: 'USD',
   presentment_currency: 'USD',
   line_items: [
-    { title: 'ShawQ Signature Hoodie', quantity: 1, price: '95.00', product_id: 11, variant_id: 111 },
+    { title: 'ShawQ Signature Hoodie', quantity: 1, price: '85.00', product_id: 11, variant_id: 111 },
+    { title: 'Tip', quantity: 1, price: '10.00', product_id: 99, variant_id: 999 },
   ],
   shipping_address: { country_code: 'DK', country: 'Denmark', city: 'Copenhagen' },
   // How Klaviyo / Shopify Email typically stamps the landing URL.
@@ -116,6 +117,9 @@ try {
   console.log(JSON.stringify(dk, null, 2));
 
   assert(dk, 'Denmark order shows up in the live monitor purchases');
+  assert(payload.sale?.item_count === 1, `latest sale counts merchandise only (got ${payload.sale?.item_count})`);
+  assert(dk.items === 1, `map purchase excludes tip lines (got ${dk.items})`);
+  assert(dk.items === payload.sale?.item_count, 'sale banner and map agree on item count');
   assert(dk.channel === 'email', "Denmark order is tagged channel='email'");
   assert(/^Email campaign/.test(dk.source || ''), `Denmark order source reads as an email campaign (got: "${dk.source}")`);
   assert((dk.source || '').includes('spring_drop'), 'Denmark order source carries the email campaign name');
