@@ -1,5 +1,5 @@
 ---
-description: Persistent memory for phone + Cloud Agent workflow. Repo files are the memory layer; no localhost required.
+description: Persistent memory for phone + Cloud Agent workflow. Repo memory/ is primary; agentmemory on Railway is optional cross-session recall.
 alwaysApply: true
 ---
 
@@ -7,22 +7,30 @@ alwaysApply: true
 
 The user works from a **phone**, not a desktop. Cloud Agents run in the cloud. Do not assume local terminals, npm installs, or `localhost` services.
 
-## Memory layer (always available)
+## Memory layers (priority order)
 
-1. **`AGENTS.md`** — primary long-term memory. Read Scope discipline and Project notes at the start of every task.
-2. **This rule + Karpathy guidelines** — behavioral guardrails every session (`alwaysApply: true`).
-3. **`.cursor/skills/`** — reference when a skill matches the task.
+1. **`memory/` (RavByte AMS)** — read `context-index.json` → `11-shawq-domain-map.md` → topic file. See `.cursor/rules/ams-memory.mdc`.
+2. **`AGENTS.md`** — scope discipline, subsystem map, incident lessons.
+3. **agentmemory MCP** — only when `AGENTMEMORY_URL` points at the Railway service (not localhost). Use `memory_smart_search` / `recall` for past sessions.
 
 ## Every session
 
-1. **Recall first** — read `AGENTS.md` scope discipline, subsystem map, and any incident notes before editing code.
-2. **Remember by committing** — when the user corrects you or you learn something that should stick, append a bullet to the Scope discipline section in `AGENTS.md` in the same PR. That is how memory survives across phone sessions.
+1. **Recall first** — read `memory/11-shawq-domain-map.md` and `AGENTS.md` scope discipline before editing code.
+2. **Remember by committing** — append lessons to `AGENTS.md` and update `memory/` after structural changes (`npm run memory:maintain`).
 3. **Surgical changes** — follow Karpathy guidelines; one concern per PR.
 
 ## Do not (phone workflow)
 
-- Ask the user to run `agentmemory`, `npm install -g`, or open `localhost:3111` / `:3113`.
-- Rely on agentmemory MCP tools unless they are clearly available (desktop with server running). If MCP is unreachable, use `AGENTS.md` only.
+- Ask the user to run `agentmemory` locally, `npm install -g`, or open `localhost:3111`.
+- Cold-grep the repo for features already mapped in `memory/11-shawq-domain-map.md`.
+- Rely on MCP if unreachable — fall back to `memory/` + `AGENTS.md`.
+
+## Railway agentmemory setup
+
+Operator one-time steps: `deploy/agentmemory/RAILWAY.md`. After deploy, set in Cursor MCP env:
+
+- `AGENTMEMORY_URL` — `https://<service>.up.railway.app`
+- `AGENTMEMORY_SECRET` — from Railway deploy logs
 
 ## Project facts (quick recall)
 

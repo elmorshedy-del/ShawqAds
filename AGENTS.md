@@ -85,22 +85,26 @@ Treat Gemini comments as a required pre-merge checklist, not optional feedback.
 | **Project instructions + lessons** | `AGENTS.md` | Cloud Agent reads every task |
 | **Gemini review gate** | `.cursor/rules/gemini-review-gate.mdc` | `alwaysApply: true` — never merge without Gemini |
 | **Karpathy guidelines** | `.cursor/rules/karpathy-guidelines.mdc` | `alwaysApply: true` |
-| **Memory behavior** | `.cursor/rules/agentmemory.mdc` | `alwaysApply: true` |
+| **Repo memory (AMS)** | `.cursor/rules/ams-memory.mdc` + `memory/` | `alwaysApply: true` — read before grepping |
+| **Session memory behavior** | `.cursor/rules/agentmemory.mdc` | `alwaysApply: true` |
 | **Skills reference** | `.cursor/skills/` | Available when relevant |
 
 Cloud Agents clone `main` and get all of the above every session. **You do not need to run anything on your phone.**
 
-### Persistent memory = the repo (not localhost)
+### Persistent memory = git + optional Railway agentmemory
 
-On phone, there is no local `agentmemory` server. Instead:
+**Layer 1 — always in git (phone + cloud):**
 
-1. **At session start** — read `AGENTS.md` (especially Scope discipline) before coding.
-2. **After a non-obvious fix or user correction** — append a short lesson to the Scope discipline section in `AGENTS.md` in the same PR, so the next Cloud Agent session inherits it.
-3. **Do not** tell the user to run terminal commands, install npm packages locally, or open localhost URLs.
+1. **At session start** — read `memory/context-index.json`, then `memory/11-shawq-domain-map.md` and `AGENTS.md` Scope discipline before coding.
+2. **After structural changes** — run `npm run memory:maintain` (and `memory:graph` if imports/routes changed); commit updated `memory/` in the same PR.
+3. **After a non-obvious fix or user correction** — append a short lesson to Scope discipline in `AGENTS.md` (and `memory/08-known-issues-and-tech-debt.md` if it is a recurring incident).
+4. **Do not** tell the user to run local terminal commands, install npm packages on their phone, or open localhost URLs.
 
-### Optional: agentmemory MCP (desktop only)
+**Layer 2 — optional cross-session recall ([agentmemory](https://github.com/rohitg00/agentmemory) on Railway):**
 
-[agentmemory](https://github.com/rohitg00/agentmemory) via `.cursor/mcp.json` only works when someone runs `agentmemory` on a machine with Cursor desktop. It is **not** part of the phone workflow. Ignore MCP memory tools if the server is unreachable; fall back to `AGENTS.md`.
+- Deploy as a **separate Railway service** — see `deploy/agentmemory/RAILWAY.md`.
+- Set `AGENTMEMORY_URL` (HTTPS Railway URL) and `AGENTMEMORY_SECRET` in Cursor project MCP env.
+- Cloud Agents use MCP `memory_smart_search` / `recall` when the server is reachable; otherwise fall back to `memory/` + `AGENTS.md`.
 
 Follow Karpathy guidelines (surgical changes, simplicity first) on every task.
 
