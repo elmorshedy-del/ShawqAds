@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, FlaskConical } from "lucide-react";
 import { compact } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -45,6 +45,62 @@ function EmptyBlock({ title, text, dense }: { title: string; text: string; dense
     >
       <p className="text-xs font-semibold">{title}</p>
       <p className="mt-1 text-[0.65rem] leading-relaxed text-muted-foreground">{text}</p>
+    </div>
+  );
+}
+
+function SessionIngestBanner({ behavior }: { behavior: BehaviorData }) {
+  const [live, setLive] = useState<{ count: number; sessions: number; last_received_at: string } | null>(null);
+  const cached = behavior?.extraction?.session_events;
+  const cachedCount = Number(cached?.count || 0);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const res = await fetch("/api/session-events/status", { cache: "no-store" });
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (!cancelled && payload?.ok) {
+          setLive({
+            count: Number(payload.count || 0),
+            sessions: Number(payload.sessions || 0),
+            last_received_at: String(payload.last_received_at || ""),
+          });
+        }
+      } catch {
+        // Ignore transient network errors; banner falls back to cached extraction status.
+      }
+    }
+    poll();
+    const timer = window.setInterval(poll, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  if (!live?.count) return null;
+  const synced = cached?.ok && cachedCount >= live.count;
+  return (
+    <div
+      className={cn(
+        "rounded-xl border px-4 py-3 text-xs",
+        synced ? "border-positive/30 bg-positive/5 text-positive" : "border-gold/30 bg-gold/5 text-gold",
+      )}
+    >
+      <p className="font-semibold">
+        {synced ? "Session pixel data synced" : "Session pixel events arriving"}
+      </p>
+      <p className="mt-1 leading-relaxed opacity-90">
+        Live ingest: {compact(live.count)} events · {compact(live.sessions)} sessions
+        {live.last_received_at ? ` · last ${new Date(live.last_received_at).toLocaleString()}` : ""}.
+        {synced
+          ? " Behavior aggregates include these events."
+          : cachedCount
+            ? ` Behavior snapshot has ${compact(cachedCount)} events — refreshing aggregates on the next load.`
+            : " Behavior aggregates refresh automatically after ingest."}
+      </p>
     </div>
   );
 }
@@ -497,6 +553,7 @@ export function BehaviorAnalytics({ behavior }: { behavior: BehaviorData }) {
             </p>
           </div>
 
+          <SessionIngestBanner behavior={behavior} />
           <ExtractionStatus behavior={behavior} />
           <ProductMatrix behavior={behavior} />
 

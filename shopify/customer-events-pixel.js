@@ -1,12 +1,11 @@
 /*
-  ShawQ Customer Events Pixel
+  ShawQ Session Intelligence Pixel
 
   Paste this into Shopify Admin > Settings > Customer events > Custom pixel.
-  Replace the endpoint with the deployed dashboard URL, for example:
-  https://YOUR-APP.onrender.com/api/session-events
+  Connected dashboard: https://shawq-ads-production.up.railway.app/
 */
 
-const SHAWQ_SESSION_ENDPOINT = 'https://YOUR_DASHBOARD_DOMAIN/api/session-events';
+const SHAWQ_SESSION_ENDPOINT = 'https://shawq-ads-production.up.railway.app/api/session-events';
 const SHAWQ_SESSION_KEY = '';
 
 const SHAWQ_EVENTS = [
@@ -24,6 +23,7 @@ const SHAWQ_EVENTS = [
 let shawqCurrentPath = '';
 let shawqHeartbeatTimer = null;
 let shawqHeartbeatCount = 0;
+let shawqLastEvent = null;
 
 function shawqCleanId(value) {
   return String(value || '').replace(/^gid:\/\/shopify\//, '').slice(0, 90);
@@ -109,12 +109,17 @@ function shawqSend(payload) {
   }).catch(() => {});
 }
 
+function shawqStopHeartbeat() {
+  if (shawqHeartbeatTimer) clearInterval(shawqHeartbeatTimer);
+  shawqHeartbeatTimer = null;
+}
+
 function shawqStartHeartbeat(event) {
   const path = shawqPath(event);
   if (!path || path === shawqCurrentPath) return;
   shawqCurrentPath = path;
   shawqHeartbeatCount = 0;
-  if (shawqHeartbeatTimer) clearInterval(shawqHeartbeatTimer);
+  shawqStopHeartbeat();
   shawqHeartbeatTimer = setInterval(() => {
     shawqHeartbeatCount += 1;
     shawqSend(shawqPayload(event, {
@@ -123,14 +128,28 @@ function shawqStartHeartbeat(event) {
       path: shawqCurrentPath,
       line_items: [],
     }));
-    if (shawqHeartbeatCount >= 24) clearInterval(shawqHeartbeatTimer);
+    if (shawqHeartbeatCount >= 24) shawqStopHeartbeat();
   }, 15000);
 }
 
 SHAWQ_EVENTS.forEach((eventName) => {
   analytics.subscribe(eventName, (event) => {
-    const payload = shawqPayload(event);
-    shawqSend(payload);
+    shawqLastEvent = event;
+    shawqSend(shawqPayload(event));
     if (eventName === 'page_viewed') shawqStartHeartbeat(event);
   });
 });
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return;
+    shawqStopHeartbeat();
+    if (!shawqLastEvent) return;
+    shawqSend(shawqPayload(shawqLastEvent, {
+      event_name: 'visibility_hidden',
+      timestamp: new Date().toISOString(),
+      path: shawqCurrentPath || shawqPath(shawqLastEvent),
+      line_items: [],
+    }));
+  });
+}

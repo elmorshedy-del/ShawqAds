@@ -38,6 +38,7 @@ import { HistoricalInsights } from './components/dashboard/HistoricalInsights';
 
 const SALE_POLL_MS = 30000;
 const META_POLL_MS = 120000;
+const BEHAVIOR_POLL_MS = 60000;
 const REPORTING_TIMEZONE = 'Europe/Istanbul';
 const CAMPAIGN_LAUNCH_DATE = '2026-06-03';
 
@@ -2385,6 +2386,27 @@ function App() {
   }, []);
   useEffect(() => {
     fetchJsonWithFallback('/api/data/behavior-intelligence.json', '/data/behavior-intelligence.json', fallbackBehavior).then(setBehaviorRaw);
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    async function pollBehavior() {
+      for (const target of ['/api/data/behavior-intelligence.json', '/data/behavior-intelligence.json']) {
+        try {
+          const res = await fetch(target, { cache: 'no-store' });
+          if (!res.ok) continue;
+          const payload = await res.json();
+          if (!cancelled && payload && typeof payload === 'object') setBehaviorRaw(payload);
+          return;
+        } catch {
+          // Try the next source; keep the last loaded snapshot on failure.
+        }
+      }
+    }
+    const timer = window.setInterval(pollBehavior, BEHAVIOR_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
   useEffect(() => {
     saleSoundEnabledRef.current = saleSoundEnabled;

@@ -206,7 +206,7 @@ POST https://YOUR_APP/api/session-events
 Local `127.0.0.1` cannot receive events from real shoppers. Use the deployed Render/Railway HTTPS URL in the Shopify pixel.
 
 1. Open `shopify/customer-events-pixel.js`.
-2. Replace `https://YOUR_DASHBOARD_DOMAIN/api/session-events` with the deployed dashboard URL.
+2. Set `SHAWQ_SESSION_ENDPOINT` in `shopify/customer-events-pixel.js` to the deployed dashboard URL (production: `https://shawq-ads-production.up.railway.app/api/session-events`).
 3. If `SESSION_EVENT_INGEST_KEY` is set on the server, paste the same value into `SHAWQ_SESSION_KEY`.
 4. Paste the file into Shopify Admin > Settings > Customer events > Custom pixel.
 5. Save/connect the custom pixel.

@@ -49,6 +49,38 @@ let metaLiveInFlight = { key: '', promise: null };
 let metaAccountCache = { fetchedAt: 0, payload: null };
 const fxCache = new Map();
 
+const SESSION_BEHAVIOR_REFRESH_MS = Number(process.env.SESSION_BEHAVIOR_REFRESH_MS || 15000);
+let sessionBehaviorRefreshTimer = null;
+let sessionBehaviorRefreshInFlight = false;
+let sessionBehaviorRefreshPending = false;
+
+async function runBehaviorRefreshFromSessionEvents() {
+  if (sessionBehaviorRefreshInFlight) {
+    sessionBehaviorRefreshPending = true;
+    return;
+  }
+  sessionBehaviorRefreshInFlight = true;
+  try {
+    do {
+      sessionBehaviorRefreshPending = false;
+      const result = await runScript('fetch:behavior');
+      if (result.code !== 0) console.warn(result.output || 'fetch:behavior failed after session event');
+    } while (sessionBehaviorRefreshPending);
+  } catch (error) {
+    console.warn('behavior refresh after session event failed:', error.message);
+  } finally {
+    sessionBehaviorRefreshInFlight = false;
+  }
+}
+
+function scheduleBehaviorRefreshFromSessionEvents() {
+  if (sessionBehaviorRefreshTimer) clearTimeout(sessionBehaviorRefreshTimer);
+  sessionBehaviorRefreshTimer = setTimeout(() => {
+    void runBehaviorRefreshFromSessionEvents();
+  }, SESSION_BEHAVIOR_REFRESH_MS);
+  sessionBehaviorRefreshTimer.unref?.();
+}
+
 // Live orders map: location resolver + webhook-sourced purchase store.
 const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET || '';
 const locationCachePath = process.env.LOCATION_CACHE_PATH || path.join(__dirname, 'data', 'location-cache.json');
@@ -385,6 +417,23 @@ function sanitizePixelPayload(value, depth = 0) {
   return out;
 }
 
+function behaviorNeedsSessionRefresh(behaviorFile) {
+  if (!fs.existsSync(sessionEventsPath)) return false;
+  const status = sessionEventStatus();
+  if (!status.configured || status.count === 0) return false;
+  if (!fs.existsSync(behaviorFile)) return true;
+  try {
+    const sessionMtime = fs.statSync(sessionEventsPath).mtimeMs;
+    const behaviorMtime = fs.statSync(behaviorFile).mtimeMs;
+    if (sessionMtime > behaviorMtime) return true;
+    const behavior = JSON.parse(fs.readFileSync(behaviorFile, 'utf8'));
+    const cachedCount = Number(behavior?.extraction?.session_events?.count || 0);
+    return status.count > cachedCount;
+  } catch {
+    return true;
+  }
+}
+
 function sessionEventStatus() {
   if (!fs.existsSync(sessionEventsPath)) {
     return { configured: false, count: 0, sessions: 0, last_received_at: '', path: sessionEventsPath };
@@ -429,6 +478,7 @@ async function recordSessionEvent(req, res, url) {
     }
     fs.mkdirSync(path.dirname(sessionEventsPath), { recursive: true });
     fs.appendFileSync(sessionEventsPath, `${JSON.stringify(event)}\n`);
+    scheduleBehaviorRefreshFromSessionEvents();
     send(res, 200, JSON.stringify({ ok: true }));
   } catch (error) {
     send(res, 400, JSON.stringify({ ok: false, error: error.message }));
@@ -1270,7 +1320,8 @@ async function serveData(req, res, name, script) {
     return;
   }
 
-  if (force || !fs.existsSync(file)) {
+  const sessionStale = script === 'fetch:behavior' && !force && behaviorNeedsSessionRefresh(file);
+  if (force || !fs.existsSync(file) || sessionStale) {
     const env = dateEnvFromUrl(url);
     const result = script === 'fetch:shopify'
       ? await runShopifyFetch(env)
