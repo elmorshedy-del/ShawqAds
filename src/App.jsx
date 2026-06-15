@@ -2711,7 +2711,7 @@ function App() {
   const decisions = adapt.toAdSetDecisions(filtered, adsetPerfById, statusLabels);
   const productDemand = adapt.toProductDemand(launchProductData, launchDateRange.since);
   const countrySales = adapt.toCountrySales(launchProductData.countries || [], launchCountryMetaByCode);
-  // Trailing-window country aggregates (3D/7D/14D) for the panel's range toggle.
+  // Trailing-window country aggregates (Today / 3D / 7D / 14D) for the panel's range toggle.
   // Each window re-runs the exact same filter + adapt pipeline as the "All" view
   // above, just over a shorter trailing range — so no business logic is recomputed,
   // every figure stays calculation-identical to the launch-window view.
@@ -2725,7 +2725,7 @@ function App() {
       const metaByCode = new Map((wm.countries || []).map((row) => [row.country_code, row]));
       return adapt.toCountrySales(ws.countries || [], metaByCode);
     };
-    return { '3D': build(-2), '7D': build(-6), '14D': build(-13) };
+    return { Today: build(0), '3D': build(-2), '7D': build(-6), '14D': build(-13) };
   }, [baseProductData, baseData, loadedBounds]);
   // Mobile "Top movers" — today's leader as the hero, with the current week and
   // previous week as comparison windows (paid-ads only; email orders excluded).
