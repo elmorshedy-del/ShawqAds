@@ -49,4 +49,13 @@ assert.equal(
   'compound city without a readable province name should collapse to country only',
 );
 
+assert.equal(
+  pickPublicLocality({ city: 'France', province: 'Occitanie', country_code: 'FR' }, 'FR'),
+  'Occitanie',
+);
+assert.equal(
+  buildPublicLocation({ city: 'Nancy', country_code: 'FR' }, 'FR'),
+  'Nancy, France',
+);
+
 console.log('order-locality-test: ok');

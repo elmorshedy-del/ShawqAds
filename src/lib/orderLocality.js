@@ -1,4 +1,16 @@
-import { countryDisplayName, US_STATE_CODE_TO_NAME } from './orderLocations.mjs';
+import { countryDisplayName, US_STATE_CODE_TO_NAME, countryNames, normalize } from './orderLocations.mjs';
+
+const COUNTRY_NAME_VARIANTS = new Set(
+  Object.entries(countryNames).flatMap(([code, name]) => [normalize(name), normalize(code)]),
+);
+
+function cityMatchesCountry(city = '', countryCode = '') {
+  const cityNorm = normalize(city);
+  if (!cityNorm) return true;
+  if (COUNTRY_NAME_VARIANTS.has(cityNorm)) return true;
+  const countryName = normalize(countryDisplayName(countryCode));
+  return cityNorm === countryName;
+}
 
 const NOISE_PATTERN = /\b(apartment|apt|flat|unit|suite|ste|floor|fl|villa|tower|building|bldg|block|room|rm|door|gate|plot|phase|street|st|road|rd|avenue|ave|boulevard|blvd|drive|dr|lane|ln)\b|\b#\s?\d+/i;
 
@@ -62,12 +74,16 @@ export function pickPublicLocality(address = {}, country = '') {
     return titleCaseLocality(rawCity);
   }
 
-  if (rawCity && !isCompoundLocality(rawCity)) {
+  const cityUsable = rawCity
+    && !cityMatchesCountry(rawCity, countryCode)
+    && !isCompoundLocality(rawCity);
+
+  if (cityUsable) {
     return titleCaseLocality(rawCity);
   }
 
   const adminRegion = adminRegionFromAddress(address);
-  if (adminRegion) return adminRegion;
+  if (adminRegion && !cityMatchesCountry(adminRegion, countryCode)) return adminRegion;
 
   return '';
 }
@@ -85,6 +101,8 @@ export function buildPublicLocation(address = {}, country = '', regionCode = '')
     return parts.join(', ');
   }
 
-  if (locality) return `${locality}, ${countryName}`;
+  if (locality && normalize(locality) !== normalize(countryName)) {
+    return `${locality}, ${countryName}`;
+  }
   return countryName;
 }

@@ -10,6 +10,13 @@ import {
   buildMonthProjection,
 } from './lib/businessKpiInsights.js';
 import { buildShopifyHistoricalDaily } from './lib/historicalInsights.js';
+import {
+  dwellPageInsight,
+  formatDwellSeconds,
+  journeyStepInsight,
+  normalizePagePath,
+  pagePathLabel,
+} from './lib/pagePath.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
 import { Sidebar, MobileFilters, datePresets } from './components/dashboard/Sidebar';
@@ -1809,7 +1816,8 @@ function demographicsBehaviorRollup(rows = []) {
 function dwellBehaviorRollup(pageFacts = []) {
   const byPath = new Map();
   pageFacts.forEach((fact) => {
-    const row = byPath.get(fact.path) || { path: fact.path, sessions: new Set(), purchaser_values: [], non_purchaser_values: [] };
+    const path = normalizePagePath(fact.path);
+    const row = byPath.get(path) || { path, sessions: new Set(), purchaser_values: [], non_purchaser_values: [] };
     row.sessions.add(fact.session_hash || `${fact.path}-${row.sessions.size}`);
     if (fact.purchased) row.purchaser_values.push(fact.dwell_seconds);
     else row.non_purchaser_values.push(fact.dwell_seconds);
@@ -1838,12 +1846,13 @@ function journeyBehaviorRollup(journeyRows = []) {
     const cohort = row.purchased ? 'purchasers' : 'non_purchasers';
     totals[cohort] += 1;
     (row.path_sequence || []).forEach((path, index) => {
-      const key = `${index}:${path}`;
-      const cur = pageMap.get(key) || { step: index + 1, path, purchasers: 0, non_purchasers: 0 };
+      const normalized = normalizePagePath(path);
+      const key = `${index}:${normalized}`;
+      const cur = pageMap.get(key) || { step: index + 1, path: normalized, purchasers: 0, non_purchasers: 0 };
       cur[cohort] += 1;
       pageMap.set(key, cur);
     });
-    const pathKey = (row.path_sequence || []).join(' → ');
+    const pathKey = (row.path_sequence || []).map((path) => normalizePagePath(path)).join(' → ');
     if (pathKey) {
       const curPath = pathMap.get(pathKey) || { path_sequence: row.path_sequence || [], purchasers: 0, non_purchasers: 0 };
       curPath[cohort] += 1;
@@ -2087,15 +2096,19 @@ function BehaviorSegmentPanel({ title, rows, type }) {
 function DwellPagesPanel({ pages }) {
   const visiblePages = (pages || []).filter((page) => Number(page.sessions || 0) > 0 && Number(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0) > 0).slice(0, 6);
   return <article className="behavior-panel">
-    <div className="behavior-panel-head"><h3>Pages with dwell</h3><small>High dwell + exit can mean friction</small></div>
+    <div className="behavior-panel-head"><h3>Where people get stuck</h3><small>Time on page · non-buyers vs buyers</small></div>
     <div className="behavior-dwell-grid">
       {visiblePages.map((page) => {
-        const width = Math.min(100, Math.max(8, Number(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0) / 6));
-        return <div className="dwell-page-card" key={page.path}>
-          <b>{page.path}</b>
-          <span>{Math.round(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0)}s non-purchaser dwell</span>
+        const dwell = Number(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0);
+        const buyerDwell = Number(page.purchaser_median_dwell_seconds || 0);
+        const width = Math.min(100, Math.max(8, dwell / 6));
+        const label = pagePathLabel(page.path);
+        const insight = dwellPageInsight(page);
+        return <div className="dwell-page-card" key={normalizePagePath(page.path)}>
+          <b>{label}</b>
+          <span>{formatDwellSeconds(dwell)} non-buyer dwell{buyerDwell > 0 ? ` · ${formatDwellSeconds(buyerDwell)} buyers` : ''}</span>
           <div className="dwell-meter"><i style={{ width: `${width}%` }} /></div>
-          <small>{page.sessions} sessions · {page.read || 'Neutral'}</small>
+          <small><strong>{insight.headline}</strong> {insight.detail}</small>
         </div>;
       })}
       {!visiblePages.length ? <div className="behavior-empty compact"><b>No dwell rows yet</b><span>The session pixel will calculate dwell once page-view sessions are populated.</span></div> : null}
@@ -2110,15 +2123,15 @@ function JourneyComparisonPanel({ journeys }) {
     <div className="journey-compare">
       <div className="journey-column">
         <b>Purchasers common path</b>
-        {steps.filter((row) => row.purchasers > 0).slice(0, 5).map((row) => <div className="journey-step" key={`p-${row.step}-${row.path}`}>
-          <span>{row.step}</span><strong>{row.path}</strong><small>{Math.round(row.purchaser_support * 100)}% support · lift {Number(row.lift || 0).toFixed(1)}x</small>
+        {steps.filter((row) => row.purchasers > 0).slice(0, 5).map((row) => <div className="journey-step" key={`p-${row.step}-${normalizePagePath(row.path)}`}>
+          <span>{row.step}</span><strong>{pagePathLabel(row.path)}</strong><small>{journeyStepInsight(row)}</small>
         </div>)}
         {!steps.some((row) => row.purchasers > 0) ? <div className="behavior-empty compact"><b>No purchaser path yet</b><span>Waiting for session path + checkout_completed events.</span></div> : null}
       </div>
       <div className="journey-column">
         <b>Non-purchasers common path</b>
-        {steps.filter((row) => row.non_purchasers > 0).slice(0, 5).map((row) => <div className="journey-step" key={`n-${row.step}-${row.path}`}>
-          <span>{row.step}</span><strong>{row.path}</strong><small>{Math.round(row.non_purchaser_support * 100)}% support · {row.non_purchasers} sessions</small>
+        {steps.filter((row) => row.non_purchasers > 0).slice(0, 5).map((row) => <div className="journey-step" key={`n-${row.step}-${normalizePagePath(row.path)}`}>
+          <span>{row.step}</span><strong>{pagePathLabel(row.path)}</strong><small>{journeyStepInsight(row)}</small>
         </div>)}
         {!steps.some((row) => row.non_purchasers > 0) ? <div className="behavior-empty compact"><b>No non-purchaser path yet</b><span>Waiting for page_viewed events from sessions that do not purchase.</span></div> : null}
       </div>

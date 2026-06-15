@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { productTaxonomyForName } from '../src/lib/productMapping.js';
+import { normalizePagePath } from '../src/lib/pagePath.js';
 
 const envPaths = [process.env.ENV_FILE, path.resolve('.env')].filter(Boolean);
 for (const envPath of envPaths) {
@@ -251,12 +252,7 @@ function eventTimestamp(raw = {}) {
 
 function eventPath(raw = {}) {
   const href = raw.path || raw.url || raw.page_url || raw.context?.document?.location?.href || raw.payload?.context?.document?.location?.href || raw.payload?.url || '';
-  try {
-    const url = new URL(href, 'https://shawq.co');
-    return `${url.pathname}${url.search ? url.search.slice(0, 120) : ''}` || '/';
-  } catch {
-    return String(href || '/').slice(0, 160) || '/';
-  }
+  return normalizePagePath(href);
 }
 
 function eventSessionKey(raw = {}) {
@@ -366,7 +362,8 @@ function aggregateSessionFacts(events = []) {
     }
     const sequence = [];
     for (const event of pageViews) {
-      if (sequence.at(-1) !== event.path) sequence.push(event.path);
+      const normalizedPath = eventPath(event);
+      if (sequence.at(-1) !== normalizedPath) sequence.push(normalizedPath);
       if (sequence.length >= 6) break;
     }
     if (sequence.length) journeyRows.push({ date: list[0].date, purchased, session_hash: sessionHash, path_sequence: sequence });
