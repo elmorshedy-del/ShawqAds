@@ -166,16 +166,18 @@ export function detectKpiRecord(rows, key, { today, intraday = false } = {}) {
     const todayRow = allRows.find((row) => row && row.date === today);
     const todayValue = todayRow ? metricValue(todayRow, key) : null;
     const priorMax = Math.max(...history.map((row) => row.v));
-    if (todayValue != null && Number.isFinite(priorMax) && todayValue >= priorMax - epsilon) {
+    // Intraday badges only when today strictly beats the prior all-time high — ties are not "new" records.
+    if (todayValue != null && Number.isFinite(priorMax) && todayValue > priorMax + epsilon) {
       return {
-          key,
-          kind: 'all-high',
-          scope: 'all',
-          intraday: true,
-          favorable: favorableWhenUp,
-          value: todayValue,
-          date: today,
-          recordKey: `${key}:all-high-intraday:${today}`,
+        key,
+        kind: 'all-high',
+        scope: 'all',
+        intraday: true,
+        strictBeat: true,
+        favorable: favorableWhenUp,
+        value: todayValue,
+        date: today,
+        recordKey: `${key}:all-high-intraday:${today}`,
       };
     }
   }
@@ -190,12 +192,18 @@ export function detectKpiRecord(rows, key, { today, intraday = false } = {}) {
   let favorable = false;
   let scope = null;
 
+  const tiedAllHigh = Math.abs(latest.v - priorMax) <= epsilon;
+  const tiedAllLow = Math.abs(latest.v - priorMin) <= epsilon;
+  const strictAllHigh = latest.v > priorMax + epsilon;
+  const strictAllLow = latest.v < priorMin - epsilon;
+
   // All-time records (including ties) outrank week records on the business cards.
-  if (latest.v > priorMax + epsilon || Math.abs(latest.v - priorMax) <= epsilon) {
+  // Confetti only fires on strict beats — see buildKpiRecordDisplay.
+  if (strictAllHigh || tiedAllHigh) {
     kind = 'all-high';
     favorable = true;
     scope = 'all';
-  } else if (latest.v < priorMin - epsilon || Math.abs(latest.v - priorMin) <= epsilon) {
+  } else if (strictAllLow || tiedAllLow) {
     kind = 'all-low';
     favorable = false;
     scope = 'all';
@@ -219,11 +227,13 @@ export function detectKpiRecord(rows, key, { today, intraday = false } = {}) {
   }
 
   if (!kind) return null;
+  const strictBeat = kind === 'all-high' ? strictAllHigh : kind === 'all-low' ? strictAllLow : false;
   return {
     key,
     kind,
     scope,
     intraday: false,
+    strictBeat,
     favorable: favorable ? favorableWhenUp : !favorableWhenUp,
     value: latest.v,
     date: latest.date,
@@ -290,7 +300,7 @@ export function buildKpiRecordDisplay(records, key) {
     detail,
     tip,
     favorable: record.favorable,
-    celebrate: record.favorable && record.scope === 'all',
+    celebrate: record.favorable && record.scope === 'all' && record.strictBeat === true,
     recordKey: record.recordKey,
     high,
   };

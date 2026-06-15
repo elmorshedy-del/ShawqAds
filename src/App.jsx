@@ -2662,7 +2662,11 @@ function App() {
     () => buildMonthProjection(allBusinessRows, { today: reportingToday, elapsedShare: elapsedReportingDayShare() }),
     [allBusinessRows, reportingToday],
   );
-  const kpiRecords = useMemo(() => buildKpiRecordMap(allBusinessRows, reportingToday), [allBusinessRows, reportingToday]);
+  const kpiRecordRows = useMemo(
+    () => allBusinessRows.filter((row) => row?.date && row.date >= CAMPAIGN_LAUNCH_DATE),
+    [allBusinessRows],
+  );
+  const kpiRecords = useMemo(() => buildKpiRecordMap(kpiRecordRows, reportingToday), [kpiRecordRows, reportingToday]);
   const kpiProjection = (key) => buildKpiProjectionDisplay(monthProjection, key);
   const kpiRecord = (key) => buildKpiRecordDisplay(kpiRecords, key);
   const trendDayRows = adapt.toDayRows(allBusinessRows).filter(
