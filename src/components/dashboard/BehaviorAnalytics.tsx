@@ -35,6 +35,83 @@ function rateLabel(value: any) {
   return Number.isFinite(Number(value)) ? `${Math.round(Number(value || 0) * 100)}%` : "n/a";
 }
 
+function ratePoints(value: any) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "n/a";
+  const rounded = Math.round(n);
+  return `${rounded >= 0 ? "+" : ""}${rounded} pts`;
+}
+
+function segmentExtremes(rows: any[], { minExposed = 5, take = 2 } = {}) {
+  const eligible = (rows || []).filter((row) => Number(row.exposed || 0) >= minExposed);
+  if (!eligible.length) return { worst: [], best: [] };
+  const sorted = [...eligible].sort(
+    (a, b) => Number(b.shrunk_rate || 0) - Number(a.shrunk_rate || 0),
+  );
+  return {
+    worst: sorted.slice(0, take),
+    best: sorted.slice(-take).reverse(),
+  };
+}
+
+function segmentKey(row: any) {
+  return row.key || row.country_code || row.segment || "";
+}
+
+function FrictionLegend() {
+  return (
+    <p className="mt-1 text-[0.65rem] leading-relaxed text-muted-foreground">
+      <span className="font-medium text-foreground">Abandon rate</span> — share who reached this step but did not finish.
+      {" "}
+      <span className="font-medium text-foreground">Adjusted rate</span> pulls thin data toward your site average so one
+      quiet day is not mistaken for a crisis.
+      {" "}
+      <span className="font-medium text-foreground">Pts vs avg</span> — how many percentage points above or below that
+      site average.
+      {" "}
+      <span className="font-medium text-foreground">Extra quits</span> — roughly how many more people left than you would
+      expect at the site rate.
+    </p>
+  );
+}
+
+function ExtremeRow({
+  row,
+  type,
+  tone,
+}: {
+  row: any;
+  type: "country" | "gender";
+  tone: "worst" | "best";
+}) {
+  const vs = Number(row.vs_site_pp || 0);
+  const label =
+    type === "country"
+      ? row.country || row.country_code || "Unknown"
+      : row.segment || row.gender || "Unknown";
+  return (
+    <div className="flex items-start justify-between gap-2 rounded-lg border border-border/70 bg-surface px-2.5 py-2">
+      <span className="flex min-w-0 items-center gap-1.5 text-xs">
+        {type === "country" ? <span className="shrink-0">{countryFlag(row.country_code)}</span> : null}
+        <span className="truncate">{label}</span>
+      </span>
+      <div className="shrink-0 text-right">
+        <p
+          className={cn(
+            "text-xs font-semibold tabular-nums",
+            tone === "worst" ? "text-destructive" : "text-positive",
+          )}
+        >
+          {rateLabel(row.shrunk_rate)} abandon
+        </p>
+        <p className="text-[0.6rem] tabular-nums text-muted-foreground">
+          {row.abandoned}/{row.exposed} · {ratePoints(vs)} vs avg
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function confidenceChip(value?: string) {
   const v = String(value || "").toLowerCase();
   if (v.includes("high")) return "bg-positive/10 text-positive";
@@ -160,6 +237,8 @@ function StepCell({ row, label, global }: { row: any; label: string; global?: { 
     );
   }
   const vs = Number(row.vs_site_pp || 0);
+  const excess = Math.max(0, Number(row.excess_abandons || 0));
+  const siteRate = rateLabel(global?.rate || 0);
   return (
     <div className="rounded-lg border border-border bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
@@ -169,29 +248,36 @@ function StepCell({ row, label, global }: { row: any; label: string; global?: { 
             "rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium",
             confidenceChip(row.confidence),
           )}
+          title="How much data backs this read — thin samples stay cautious"
         >
           {row.confidence}
         </span>
       </div>
-      <p className="mt-0.5 font-display text-base font-semibold tabular-nums">
-        {row.abandoned}/{row.exposed}
+      <p className="mt-0.5 font-display text-xl font-semibold tabular-nums tracking-tight">
+        {rateLabel(row.shrunk_rate)}
+        <span className="ml-1 text-sm font-medium text-muted-foreground">abandon</span>
       </p>
-      <p className="text-[0.65rem] text-muted-foreground">
-        {rateLabel(row.shrunk_rate)} shrunk rate · site {rateLabel(global?.rate || 0)}
+      <p className="text-[0.65rem] leading-relaxed text-muted-foreground">
+        {row.abandoned} of {row.exposed} quit here · site avg {siteRate}
       </p>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         <span
+          title="Percentage points above or below your site-wide abandon rate at this step"
           className={cn(
             "rounded-full px-1.5 py-0.5 text-[0.6rem] tabular-nums",
             vs >= 0 ? "bg-destructive/10 text-destructive" : "bg-positive/10 text-positive",
           )}
         >
-          {vs >= 0 ? "+" : ""}
-          {vs.toFixed(1)}pp vs site
+          {ratePoints(vs)} vs avg
         </span>
-        <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.6rem] tabular-nums text-muted-foreground">
-          {Number(row.excess_abandons || 0).toFixed(1)} excess
-        </span>
+        {excess >= 0.5 ? (
+          <span
+            title="Estimated extra abandonments vs if this segment matched the site rate"
+            className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.6rem] tabular-nums text-muted-foreground"
+          >
+            ~{Math.round(excess)} extra quits
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -229,11 +315,12 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
 
   return (
     <div>
-      <p className="mb-3 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
         Friction by product
       </p>
+      <FrictionLegend />
       {rows.length ? (
-        <div className="space-y-3">
+        <div className="mt-3 space-y-3">
           {rows.map(({ key, main, checkout, payment }) => (
             <div key={key} className="rounded-xl border border-border bg-surface-2/40 p-4">
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
@@ -280,7 +367,12 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
                       <span>{countryFlag(country.country_code)}</span>
                       {country.country_code || "UNK"}
                       <span className="tabular-nums text-muted-foreground">
-                        {country.abandoned}/{country.exposed}
+                        {rateLabel(
+                          Number(country.exposed)
+                            ? Number(country.abandoned || 0) / Number(country.exposed)
+                            : 0,
+                        )}{" "}
+                        · {country.abandoned}/{country.exposed}
                       </span>
                     </span>
                   ))}
@@ -307,50 +399,68 @@ function SegmentPanel({
   title,
   rows,
   type,
+  siteRate,
 }: {
   title: string;
   rows: any[];
   type: "country" | "gender";
+  siteRate?: number;
 }) {
-  const visibleRows = (rows || [])
-    .filter((row: any) => Number(row.exposed || 0) > 0 && Number(row.abandoned || 0) > 0)
-    .slice(0, 5);
+  const { worst, best } = segmentExtremes(rows, { minExposed: 5, take: 2 });
+  const bestRows = best.filter((row) => !worst.some((w) => segmentKey(w) === segmentKey(row)));
+  const hasExtremes = worst.length > 0 || bestRows.length > 0;
+  const siteLabel = Number.isFinite(Number(siteRate)) ? rateLabel(siteRate) : null;
+
   return (
     <div className="rounded-xl border border-border bg-surface-2/40 p-4">
       <p className="text-sm font-semibold">{title}</p>
-      <p className="text-[0.65rem] text-muted-foreground">Rate + denominator, not raw count</p>
-      <div className="mt-3 space-y-2">
-        {visibleRows.length ? (
-          visibleRows.map((row: any) => (
-            <div
-              key={`${type}-${row.key || row.segment || row.country_code}`}
-              className="flex items-center justify-between gap-2"
-            >
-              <span className="flex min-w-0 items-center gap-1.5 text-xs">
-                {type === "country" ? (
-                  <span className="shrink-0">{countryFlag(row.country_code)}</span>
-                ) : null}
-                <span className="truncate">
-                  {type === "country"
-                    ? row.country || row.country_code || "Unknown"
-                    : row.segment || row.gender || "Unknown"}
-                </span>
-              </span>
-              <span className="flex shrink-0 items-center gap-2">
-                <span className="text-xs font-semibold tabular-nums">
-                  {row.abandoned}/{row.exposed}
-                </span>
-                <span className="text-[0.65rem] tabular-nums text-muted-foreground">
-                  {rateLabel(row.shrunk_rate)}
-                </span>
-              </span>
-            </div>
-          ))
+      <p className="text-[0.65rem] leading-relaxed text-muted-foreground">
+        {siteLabel ? `Site average ${siteLabel} abandon · ` : ""}
+        Highest and lowest segments — adjusted rate, not raw counts alone
+      </p>
+      <div className="mt-3 space-y-3">
+        {hasExtremes ? (
+          <>
+            {worst.length ? (
+              <div>
+                <p className="mb-1.5 text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-destructive">
+                  Most abandon
+                </p>
+                <div className="space-y-1.5">
+                  {worst.map((row: any) => (
+                    <ExtremeRow
+                      key={`worst-${type}-${row.key || row.country_code || row.segment}`}
+                      row={row}
+                      type={type}
+                      tone="worst"
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {bestRows.length ? (
+              <div>
+                <p className="mb-1.5 text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-positive">
+                  Smoothest
+                </p>
+                <div className="space-y-1.5">
+                  {bestRows.map((row: any) => (
+                    <ExtremeRow
+                      key={`best-${type}-${segmentKey(row)}`}
+                      row={row}
+                      type={type}
+                      tone="best"
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </>
         ) : (
           <EmptyBlock
             dense
-            title="No actionable segment rows yet"
-            text="Rows with zero abandonments are hidden until they become useful."
+            title="Not enough segment data yet"
+            text="Need a few exposed sessions per country or demographic before ranking highs and lows."
           />
         )}
       </div>
@@ -593,10 +703,30 @@ export function BehaviorAnalytics({
           <ProductMatrix behavior={behavior} />
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <SegmentPanel title="Checkout countries" rows={checkoutCountries} type="country" />
-            <SegmentPanel title="Submit-payment countries" rows={paymentCountries} type="country" />
-            <SegmentPanel title="Checkout age / gender" rows={checkoutGender} type="gender" />
-            <SegmentPanel title="Payment age / gender" rows={paymentGender} type="gender" />
+            <SegmentPanel
+              title="Checkout countries"
+              rows={checkoutCountries}
+              type="country"
+              siteRate={behavior?.matrix?.checkout?.global?.rate}
+            />
+            <SegmentPanel
+              title="Submit-payment countries"
+              rows={paymentCountries}
+              type="country"
+              siteRate={behavior?.matrix?.submit_payment?.global?.rate}
+            />
+            <SegmentPanel
+              title="Checkout age / gender"
+              rows={checkoutGender}
+              type="gender"
+              siteRate={behavior?.matrix?.checkout?.global?.rate}
+            />
+            <SegmentPanel
+              title="Payment age / gender"
+              rows={paymentGender}
+              type="gender"
+              siteRate={behavior?.matrix?.submit_payment?.global?.rate}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
