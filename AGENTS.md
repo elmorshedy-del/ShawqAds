@@ -82,6 +82,7 @@ Treat Gemini comments as a required pre-merge checklist, not optional feedback.
 | Layer | Location | Loads how |
 |-------|----------|-----------|
 | **Project instructions + lessons** | `AGENTS.md` | Cloud Agent reads every task |
+| **Gemini review gate** | `.cursor/rules/gemini-review-gate.mdc` | `alwaysApply: true` — never merge without Gemini |
 | **Karpathy guidelines** | `.cursor/rules/karpathy-guidelines.mdc` | `alwaysApply: true` |
 | **Memory behavior** | `.cursor/rules/agentmemory.mdc` | `alwaysApply: true` |
 | **Skills reference** | `.cursor/skills/` | Available when relevant |
