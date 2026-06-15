@@ -75,19 +75,32 @@ Treat Gemini comments as a required pre-merge checklist, not optional feedback.
 
 ## Cursor agent stack (loads every session)
 
-Committed in-repo so Cloud Agents and local Cursor pick this up automatically:
+**Primary workflow: phone + Cloud Agents** — no local desktop, no localhost services. Memory lives in **git**, not on your device.
 
-| Layer | Source | Location |
-|-------|--------|----------|
-| **Project instructions** | This file | `AGENTS.md` |
-| **Karpathy guidelines** | [swarmclawai/andrej-karpathy-skills](https://github.com/swarmclawai/andrej-karpathy-skills) | `.cursor/rules/karpathy-guidelines.mdc` (always apply) |
-| **Persistent memory** | [rohitg00/agentmemory](https://github.com/rohitg00/agentmemory) | `.cursor/mcp.json` + `.cursor/rules/agentmemory.mdc` |
-| **Memory skills** | agentmemory plugin | `.cursor/skills/` (`remember`, `recall`, `handoff`, …) |
-| **Karpathy skill** | andrej-karpathy-skills | `.cursor/skills/karpathy-guidelines/` |
+### What loads automatically (phone / cloud — no setup)
 
-**Local memory server (required for full recall):** run `agentmemory` in a terminal (port 3111). Viewer: http://localhost:3113. Upgrade skills with `npx skills add rohitg00/agentmemory -y -a cursor` (updates `skills-lock.json`).
+| Layer | Location | Loads how |
+|-------|----------|-----------|
+| **Project instructions + lessons** | `AGENTS.md` | Cloud Agent reads every task |
+| **Karpathy guidelines** | `.cursor/rules/karpathy-guidelines.mdc` | `alwaysApply: true` |
+| **Memory behavior** | `.cursor/rules/agentmemory.mdc` | `alwaysApply: true` |
+| **Skills reference** | `.cursor/skills/` | Available when relevant |
 
-At session start: **recall** project context from agentmemory. After non-obvious fixes: **remember** with concept tags. Follow Karpathy guidelines (surgical changes, simplicity first).
+Cloud Agents clone `main` and get all of the above every session. **You do not need to run anything on your phone.**
+
+### Persistent memory = the repo (not localhost)
+
+On phone, there is no local `agentmemory` server. Instead:
+
+1. **At session start** — read `AGENTS.md` (especially Scope discipline) before coding.
+2. **After a non-obvious fix or user correction** — append a short lesson to the Scope discipline section in `AGENTS.md` in the same PR, so the next Cloud Agent session inherits it.
+3. **Do not** tell the user to run terminal commands, install npm packages locally, or open localhost URLs.
+
+### Optional: agentmemory MCP (desktop only)
+
+[agentmemory](https://github.com/rohitg00/agentmemory) via `.cursor/mcp.json` only works when someone runs `agentmemory` on a machine with Cursor desktop. It is **not** part of the phone workflow. Ignore MCP memory tools if the server is unreachable; fall back to `AGENTS.md`.
+
+Follow Karpathy guidelines (surgical changes, simplicity first) on every task.
 
 ## Project notes
 
