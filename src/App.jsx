@@ -2792,6 +2792,9 @@ function App() {
     if (dayCount(activeDateRange) !== 1) return null;
     const day = activeDateRange.until;
     if (!day || day === endedDay) return null;
+    // In-progress reporting today has too few orders vs a full prior day — would
+    // falsely show "What dragged orders down" at day start (e.g. Jun 16 vs Jun 15).
+    if (day >= reportingToday) return null;
     const selected = buildOrderDropRankings(lines, day, shiftDate(day, -1), opts);
     return selected ? { ...selected, context: 'selected-day' } : null;
   }, [baseProductData, activeDateRange, loadedBounds]);
