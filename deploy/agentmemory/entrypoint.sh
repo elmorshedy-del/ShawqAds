@@ -23,11 +23,13 @@ III_CONFIG="/opt/agentmemory/node_modules/@agentmemory/agentmemory/dist/iii-conf
 mkdir -p "$DATA_DIR"
 chown -R "$RUN_AS" "$DATA_DIR"
 
-cat > "$III_CONFIG" <<'EOF'
+LISTEN_PORT="${PORT:-${AGENTMEMORY_PORT:-3111}}"
+
+cat > "$III_CONFIG" <<EOF
 workers:
   - name: iii-http
     config:
-      port: 3111
+      port: ${LISTEN_PORT}
       host: 0.0.0.0
       default_timeout: 180000
       cors:
