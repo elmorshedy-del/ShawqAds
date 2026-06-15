@@ -162,3 +162,24 @@ export function significanceLabel(pValue, alpha = 0.05) {
   if (pValue < alpha) return 'significant';
   return 'not significant';
 }
+
+/**
+ * One-sample z-test: is the observed success rate higher than a baseline rate?
+ * Used for segment abandonment vs site average (upper tail).
+ */
+export function proportionZTest(successes, trials, baselineRate, { tail = 'upper' } = {}) {
+  const n = Number(trials || 0);
+  const k = Number(successes || 0);
+  const p0 = Number(baselineRate || 0);
+  const pHat = n ? k / n : 0;
+  if (!n || !Number.isFinite(p0) || p0 <= 0 || p0 >= 1) {
+    return { z: null, pValue: null, pHat, successes: k, trials: n, baselineRate: p0, test: 'proportion-z-vs-baseline' };
+  }
+  const se = Math.sqrt(p0 * (1 - p0) / n);
+  const z = se > 0 ? (pHat - p0) / se : 0;
+  let pValue = null;
+  if (tail === 'upper') pValue = 1 - normalCdf(z);
+  else if (tail === 'lower') pValue = normalCdf(z);
+  else pValue = 2 * (1 - normalCdf(Math.abs(z)));
+  return { z, pValue, pHat, successes: k, trials: n, baselineRate: p0, test: 'proportion-z-vs-baseline' };
+}

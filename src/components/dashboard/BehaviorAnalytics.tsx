@@ -30,9 +30,10 @@ function rateLabel(value: any) {
 function confidenceChip(value?: string) {
   const v = String(value || "").toLowerCase();
   if (v.includes("high")) return "bg-positive/10 text-positive";
-  if (v.includes("med")) return "bg-gold/10 text-gold";
-  if (v.includes("low")) return "bg-destructive/10 text-destructive";
-  return "bg-surface-2 text-muted-foreground";
+  if (v.includes("actionable") || v.includes("directional")) return "bg-gold/10 text-gold";
+  if (v.includes("watch") || v.includes("underpowered")) return "bg-surface-2 text-muted-foreground";
+  if (v.includes("insufficient")) return "bg-surface-2 text-muted-foreground";
+  return "bg-destructive/10 text-destructive";
 }
 
 function EmptyBlock({ title, text, dense }: { title: string; text: string; dense?: boolean }) {
@@ -170,6 +171,7 @@ function StepCell({ row, label, global }: { row: any; label: string; global?: { 
       </p>
       <p className="text-[0.65rem] text-muted-foreground">
         {rateLabel(row.shrunk_rate)} shrunk rate · site {rateLabel(global?.rate || 0)}
+        {row.p_value_label && row.p_value_label !== "—" ? ` · p ${row.p_value_label}` : ""}
       </p>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         <span
@@ -385,7 +387,8 @@ function DwellPages({ pages }: { pages: any[] }) {
                   <div className="h-full rounded-full bg-brand" style={{ width: `${width}%` }} />
                 </div>
                 <p className="mt-1 text-[0.65rem] text-muted-foreground">
-                  {page.sessions} sessions · {page.read || "Neutral"}
+                  {page.sessions} sessions · n {page.n_non_purchaser ?? "—"}/{page.n_purchaser ?? "—"} · {page.read || "Neutral"}
+                  {page.p_value_label && page.p_value_label !== "—" ? ` · p ${page.p_value_label}` : ""}
                 </p>
               </div>
             );
@@ -462,21 +465,27 @@ function JourneyColumn({
   );
 }
 
-function JourneyComparison({ journeys }: { journeys: { steps?: any[] } }) {
+function JourneyComparison({ journeys }: { journeys: { steps?: any[]; lift_reliable?: boolean; note?: string } }) {
   const steps = journeys?.steps || [];
+  const liftReliable = Boolean(journeys?.lift_reliable);
   return (
     <div className="rounded-xl border border-border bg-surface-2/40 p-4">
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-sm font-semibold">Purchaser vs non-purchaser journey</p>
         <span className="text-[0.65rem] text-muted-foreground">Shared sequence &amp; divergence</span>
       </div>
+      {!liftReliable && journeys?.note ? (
+        <p className="mt-2 text-[0.65rem] leading-relaxed text-gold">{journeys.note}</p>
+      ) : null}
       <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <JourneyColumn
           tone="brand"
           label="Purchasers"
           steps={steps.filter((row: any) => row.purchasers > 0).slice(0, 5)}
           render={(row) =>
-            `${Math.round(row.purchaser_support * 100)}% support · lift ${Number(row.lift || 0).toFixed(1)}x`
+            liftReliable && row.lift != null
+              ? `${Math.round(row.purchaser_support * 100)}% support · lift ${Number(row.lift || 0).toFixed(1)}x`
+              : `${Math.round(row.purchaser_support * 100)}% support`
           }
           emptyTitle="No purchaser path yet"
           emptyText="Waiting for session path + checkout_completed events."
@@ -549,7 +558,8 @@ export function BehaviorAnalytics({ behavior }: { behavior: BehaviorData }) {
             <p className="mt-1 text-xs text-muted-foreground">
               Checkout abandonment comes from Shopify abandoned checkouts + paid checkout exposures.
               Submit-payment uses Meta AddPaymentInfo now; dwell and page journeys use first-party
-              session events.
+              session events. Abandonment confidence uses one-tailed proportion tests vs site rate (p &lt; 0.05);
+              dwell gaps use Mann-Whitney U with minimum cohort sizes.
             </p>
           </div>
 

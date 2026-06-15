@@ -18,6 +18,7 @@
     "test:kpi-insights": "node scripts/business-kpi-insights-test.mjs",
     "test:historical-insights": "node scripts/historical-insights-test.mjs",
     "test:stats": "node scripts/stats-tests.mjs",
+    "test:behavior-stats": "node scripts/behavior-stats-test.mjs",
     "test:location-label": "node scripts/location-label-test.mjs",
     "start": "node server.mjs",
     "build:deploy": "vite build"

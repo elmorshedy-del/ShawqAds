@@ -10,6 +10,11 @@ import {
   buildMonthProjection,
 } from './lib/businessKpiInsights.js';
 import { buildShopifyHistoricalDaily } from './lib/historicalInsights.js';
+import {
+  dwellBehaviorRollup,
+  journeyBehaviorRollup,
+  scoreBehaviorRows,
+} from './lib/behaviorStats.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
 import { Sidebar, MobileFilters, datePresets } from './components/dashboard/Sidebar';
@@ -1688,40 +1693,7 @@ function rateLabel(value) {
 }
 
 function confidenceSlug(value = '') {
-  return slug(value || 'Insufficient');
-}
-
-function behaviorMedian(values = []) {
-  const arr = values.map(Number).filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
-  if (!arr.length) return 0;
-  const mid = Math.floor(arr.length / 2);
-  return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
-}
-
-function scoreBehaviorRows(rows, { priorStrength = 20, globalRate = 0 } = {}) {
-  return rows.map((row) => {
-    const exposed = Number(row.exposed || 0);
-    const abandoned = Number(row.abandoned || 0);
-    const rawRate = exposed ? abandoned / exposed : 0;
-    const shrunkRate = (abandoned + priorStrength * globalRate) / ((exposed + priorStrength) || 1);
-    const excessRate = shrunkRate - globalRate;
-    const supportWeight = Math.min(1, Math.sqrt(exposed / 30));
-    let confidence = 'Insufficient';
-    if (exposed >= 100 && abandoned >= 8 && excessRate > 0.05) confidence = 'High Confidence';
-    else if (exposed >= 50 && abandoned >= 8 && excessRate > 0.10) confidence = 'Actionable';
-    else if (exposed >= 20 && abandoned >= 3 && excessRate > 0.05) confidence = 'Directional';
-    else if (exposed >= 8) confidence = 'Watch';
-    return {
-      ...row,
-      raw_rate: rawRate,
-      shrunk_rate: shrunkRate,
-      site_rate: globalRate,
-      vs_site_pp: (shrunkRate - globalRate) * 100,
-      excess_abandons: Math.max(0, excessRate * exposed),
-      risk_score: Math.max(0, excessRate) * supportWeight * 100,
-      confidence,
-    };
-  }).sort((a, b) => b.excess_abandons - a.excess_abandons || b.shrunk_rate - a.shrunk_rate || b.exposed - a.exposed);
+  return slug(value || 'Insufficient data');
 }
 
 function rollupBehaviorFacts(facts, step, dimension) {
@@ -1806,60 +1778,6 @@ function demographicsBehaviorRollup(rows = []) {
   };
 }
 
-function dwellBehaviorRollup(pageFacts = []) {
-  const byPath = new Map();
-  pageFacts.forEach((fact) => {
-    const row = byPath.get(fact.path) || { path: fact.path, sessions: new Set(), purchaser_values: [], non_purchaser_values: [] };
-    row.sessions.add(fact.session_hash || `${fact.path}-${row.sessions.size}`);
-    if (fact.purchased) row.purchaser_values.push(fact.dwell_seconds);
-    else row.non_purchaser_values.push(fact.dwell_seconds);
-    byPath.set(fact.path, row);
-  });
-  return [...byPath.values()].map((row) => {
-    const purchaserMedian = behaviorMedian(row.purchaser_values);
-    const nonPurchaserMedian = behaviorMedian(row.non_purchaser_values);
-    return {
-      path: row.path,
-      sessions: row.sessions.size,
-      median_dwell_seconds: behaviorMedian([...row.purchaser_values, ...row.non_purchaser_values]),
-      purchaser_median_dwell_seconds: purchaserMedian,
-      non_purchaser_median_dwell_seconds: nonPurchaserMedian,
-      dwell_gap_seconds: nonPurchaserMedian - purchaserMedian,
-      read: nonPurchaserMedian > purchaserMedian + 20 ? 'Friction watch' : purchaserMedian >= nonPurchaserMedian ? 'Consideration path' : 'Neutral',
-    };
-  }).sort((a, b) => b.non_purchaser_median_dwell_seconds - a.non_purchaser_median_dwell_seconds || b.sessions - a.sessions).slice(0, 8);
-}
-
-function journeyBehaviorRollup(journeyRows = []) {
-  const totals = { purchasers: 0, non_purchasers: 0 };
-  const pageMap = new Map();
-  const pathMap = new Map();
-  journeyRows.forEach((row) => {
-    const cohort = row.purchased ? 'purchasers' : 'non_purchasers';
-    totals[cohort] += 1;
-    (row.path_sequence || []).forEach((path, index) => {
-      const key = `${index}:${path}`;
-      const cur = pageMap.get(key) || { step: index + 1, path, purchasers: 0, non_purchasers: 0 };
-      cur[cohort] += 1;
-      pageMap.set(key, cur);
-    });
-    const pathKey = (row.path_sequence || []).join(' → ');
-    if (pathKey) {
-      const curPath = pathMap.get(pathKey) || { path_sequence: row.path_sequence || [], purchasers: 0, non_purchasers: 0 };
-      curPath[cohort] += 1;
-      pathMap.set(pathKey, curPath);
-    }
-  });
-  const steps = [...pageMap.values()].map((row) => {
-    const purchaserSupport = totals.purchasers ? row.purchasers / totals.purchasers : 0;
-    const nonPurchaserSupport = totals.non_purchasers ? row.non_purchasers / totals.non_purchasers : 0;
-    return { ...row, purchaser_support: purchaserSupport, non_purchaser_support: nonPurchaserSupport, lift: nonPurchaserSupport ? purchaserSupport / nonPurchaserSupport : 0 };
-  }).sort((a, b) => a.step - b.step || b.purchaser_support - a.purchaser_support).slice(0, 10);
-  const paths = [...pathMap.values()].map((row) => ({ ...row, purchaser_support: totals.purchasers ? row.purchasers / totals.purchasers : 0, non_purchaser_support: totals.non_purchasers ? row.non_purchasers / totals.non_purchasers : 0 }))
-    .sort((a, b) => (b.purchasers + b.non_purchasers) - (a.purchasers + a.non_purchasers)).slice(0, 4);
-  return { totals, steps, paths };
-}
-
 function filterBehaviorByDateRange(behavior, range) {
   const facts = filterRowsByDateRange(behavior?.facts || [], range);
   const demographicRows = filterRowsByDateRange(behavior?.meta_demographics_rows || [], range);
@@ -1870,9 +1788,20 @@ function filterBehaviorByDateRange(behavior, range) {
   const paymentProducts = rollupBehaviorFacts(facts, 'submit_payment', 'product');
   const paymentCountries = rollupBehaviorFacts(facts, 'submit_payment', 'country');
   const demographics = demographicsBehaviorRollup(demographicRows);
+  const filteredSessions = new Set(journeyRows.map((row) => row.session_hash).filter(Boolean));
+  const sessionEventsBase = behavior?.extraction?.session_events || {};
   return {
     ...behavior,
     period: { ...(behavior?.period || {}), since: range.since, until: range.until },
+    extraction: {
+      ...(behavior?.extraction || {}),
+      session_events: {
+        ...sessionEventsBase,
+        count: pageFacts.length,
+        sessions: filteredSessions.size || journeyRows.length,
+        ok: pageFacts.length > 0 || journeyRows.length > 0,
+      },
+    },
     matrix: {
       checkout: { global: checkoutProducts.global, products: checkoutProducts.rows, countries: checkoutCountries.rows, gender: demographics.checkout },
       submit_payment: { global: paymentProducts.global, products: paymentProducts.rows, countries: paymentCountries.rows, gender: demographics.submit_payment },
