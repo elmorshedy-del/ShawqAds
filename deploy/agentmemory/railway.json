@@ -6,7 +6,6 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "/usr/bin/tini -- /usr/local/bin/agentmemory-entrypoint.sh",
     "healthcheckPath": "/agentmemory/livez",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",

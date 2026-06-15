@@ -21,7 +21,7 @@ RUN_AS="node:node"
 III_CONFIG="/opt/agentmemory/node_modules/@agentmemory/agentmemory/dist/iii-config.yaml"
 
 mkdir -p "$DATA_DIR"
-chown -R "$RUN_AS" "$DATA_DIR"
+chown "$RUN_AS" "$DATA_DIR"
 
 LISTEN_PORT="${PORT:-${AGENTMEMORY_PORT:-3111}}"
 
