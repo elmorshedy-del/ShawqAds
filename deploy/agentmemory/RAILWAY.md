@@ -4,7 +4,25 @@ ShawQ Ads runs on Railway at https://shawq-ads-production.up.railway.app/. **age
 
 Upstream template: [rohitg00/agentmemory deploy/railway](https://github.com/rohitg00/agentmemory/tree/main/deploy/railway)
 
-## One-time setup
+## Deploy via Railway CLI (ShawQ project)
+
+The `agentmemory` service in project **faithful-compassion** deploys from this repo:
+
+- **Root directory:** `deploy/agentmemory`
+- **Config:** `railway.json`
+- **Public URL:** `https://agentmemory-production-dcdc.up.railway.app`
+
+```bash
+# From repo root (requires Railway project token)
+export RAILWAY_TOKEN=<project-token>
+railway link -p <project-id> -e production -s agentmemory
+cd deploy/agentmemory && railway up
+railway volume add --mount-path /data --service agentmemory
+railway redeploy --service agentmemory
+railway logs --service agentmemory | grep AGENTMEMORY_SECRET=
+```
+
+## One-time setup (dashboard)
 
 1. In [Railway dashboard](https://railway.app), create a **new service** in the same project (or a dedicated project).
 2. **Deploy from GitHub** → repository: `rohitg00/agentmemory`
