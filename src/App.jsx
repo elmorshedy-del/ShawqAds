@@ -13,7 +13,9 @@ import { buildShopifyHistoricalDaily } from './lib/historicalInsights.js';
 import {
   dwellBehaviorRollup,
   journeyBehaviorRollup,
+  rollupBehaviorFacts,
   scoreBehaviorRows,
+  sortBehaviorProducts,
 } from './lib/behaviorStats.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
@@ -860,6 +862,7 @@ function presetDateRange(preset, bounds) {
 function emailPanelRangeLabel(range, preset, isDemo) {
   if (isDemo) return 'Sample';
   if (!range?.since || !range?.until) return 'Selected range';
+  if (preset === 'launch') return `Since launch · ${range.since} – ${range.until}`;
   if (range.since === range.until) {
     if (preset === 'today') return 'Today';
     if (preset === 'yesterday') return 'Yesterday';
@@ -1696,55 +1699,6 @@ function confidenceSlug(value = '') {
   return slug(value || 'Insufficient data');
 }
 
-function rollupBehaviorFacts(facts, step, dimension) {
-  const scoped = (facts || []).filter((fact) => fact.step === step);
-  const totalExposed = sum(scoped, 'exposed');
-  const totalAbandoned = sum(scoped, 'abandoned');
-  const globalRate = totalExposed ? totalAbandoned / totalExposed : 0;
-  const map = new Map();
-  scoped.forEach((fact) => {
-    const key = dimension === 'product'
-      ? String(fact.source === 'meta_add_payment_info' ? `${fact.family || 'Other'}:${fact.subtype || fact.product || 'Unknown product'}` : (fact.product_id || fact.variant_id || fact.product || 'unknown_product'))
-      : String(fact.country_code || 'UNKNOWN');
-    const row = map.get(key) || {
-      key,
-      product_id: fact.product_id || '',
-      product: fact.product || 'Unknown product',
-      family: fact.family || 'Other',
-      subtype: fact.subtype || 'Unknown',
-      image_url: fact.image_url || '',
-      country_code: fact.country_code || '',
-      country: fact.country || countryNameFromCode(fact.country_code || ''),
-      exposed: 0,
-      abandoned: 0,
-      completed: 0,
-      units: 0,
-      value_usd: 0,
-      countries_map: new Map(),
-    };
-    row.exposed += Number(fact.exposed || 0);
-    row.abandoned += Number(fact.abandoned || 0);
-    row.completed += Number(fact.completed || 0);
-    row.units += Number(fact.units || 0);
-    row.value_usd += Number(fact.value_usd || 0);
-    if (!row.image_url && fact.image_url) row.image_url = fact.image_url;
-    if (fact.country_code) {
-      const c = row.countries_map.get(fact.country_code) || { country_code: fact.country_code, country: fact.country || countryNameFromCode(fact.country_code), exposed: 0, abandoned: 0 };
-      c.exposed += Number(fact.exposed || 0);
-      c.abandoned += Number(fact.abandoned || 0);
-      row.countries_map.set(fact.country_code, c);
-    }
-    map.set(key, row);
-  });
-  const rows = [...map.values()].map((row) => {
-    const countries = [...row.countries_map.values()].sort((a, b) => b.abandoned - a.abandoned || b.exposed - a.exposed).slice(0, 4);
-    const out = { ...row, countries };
-    delete out.countries_map;
-    return out;
-  });
-  return { global: { exposed: totalExposed, abandoned: totalAbandoned, rate: globalRate }, rows: scoreBehaviorRows(rows, { priorStrength: dimension === 'country' ? 30 : 20, globalRate }) };
-}
-
 function countryNameFromCode(code) {
   try {
     return code ? new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code : 'Unknown';
@@ -1783,10 +1737,10 @@ function filterBehaviorByDateRange(behavior, range) {
   const demographicRows = filterRowsByDateRange(behavior?.meta_demographics_rows || [], range);
   const pageFacts = filterRowsByDateRange(behavior?.page_facts || [], range);
   const journeyRows = filterRowsByDateRange(behavior?.journey_rows || [], range);
-  const checkoutProducts = rollupBehaviorFacts(facts, 'checkout', 'product');
-  const checkoutCountries = rollupBehaviorFacts(facts, 'checkout', 'country');
-  const paymentProducts = rollupBehaviorFacts(facts, 'submit_payment', 'product');
-  const paymentCountries = rollupBehaviorFacts(facts, 'submit_payment', 'country');
+  const checkoutProducts = rollupBehaviorFacts(facts, 'checkout', 'product', { countryName: countryNameFromCode });
+  const checkoutCountries = rollupBehaviorFacts(facts, 'checkout', 'country', { countryName: countryNameFromCode });
+  const paymentProducts = rollupBehaviorFacts(facts, 'submit_payment', 'product', { countryName: countryNameFromCode });
+  const paymentCountries = rollupBehaviorFacts(facts, 'submit_payment', 'country', { countryName: countryNameFromCode });
   const demographics = demographicsBehaviorRollup(demographicRows);
   const filteredSessions = new Set(journeyRows.map((row) => row.session_hash).filter(Boolean));
   const sessionEventsBase = behavior?.extraction?.session_events || {};
@@ -2456,7 +2410,11 @@ function App() {
   const productData = useMemo(() => filterShopifyByDateRange(baseProductData, activeDateRange), [baseProductData, activeDateRange]);
   const launchData = useMemo(() => filterMetaDataByDateRange(baseData, launchDateRange), [baseData, launchDateRange]);
   const launchProductData = useMemo(() => filterShopifyByDateRange(baseProductData, launchDateRange), [baseProductData, launchDateRange]);
-  const behaviorData = useMemo(() => filterBehaviorByDateRange(baseBehaviorData, activeDateRange), [baseBehaviorData, activeDateRange]);
+  const behaviorData = useMemo(() => filterBehaviorByDateRange(baseBehaviorData, launchDateRange), [baseBehaviorData, launchDateRange]);
+  const launchScopeLabel = useMemo(
+    () => emailPanelRangeLabel(launchDateRange, 'launch', saleMonitor.status === 'not_configured'),
+    [launchDateRange, saleMonitor.status],
+  );
   function handleDatePreset(nextPreset) {
     setDatePreset(nextPreset);
     if (nextPreset === 'custom') {
@@ -2572,8 +2530,8 @@ function App() {
   const mapPurchases = mapIsDemo ? DEMO_PURCHASES : livePurchases;
   const emailCampaignData = useMemo(() => {
     if (mapIsDemo) return buildEmailCampaignFromPurchases(DEMO_PURCHASES, { countryFlag });
-    return buildEmailCampaignSummary(productData.order_lines || [], { countryFlag, timeZone: REPORTING_TIMEZONE });
-  }, [mapIsDemo, productData.order_lines]);
+    return buildEmailCampaignSummary(launchProductData.order_lines || [], { countryFlag, timeZone: REPORTING_TIMEZONE });
+  }, [mapIsDemo, launchProductData.order_lines]);
   const monitorStatusText = saleMonitor.status === 'live'
     ? (livePurchases.length ? 'Live Shopify sales monitor' : 'Live Shopify sales monitor · no orders yet today')
     : saleMonitor.status === 'checking'
@@ -2763,7 +2721,7 @@ function App() {
       <EmailCampaign
         summary={emailCampaignData.summary}
         orders={emailCampaignData.orders}
-        rangeLabel={emailPanelRangeLabel(activeDateRange, datePreset, mapIsDemo)}
+        rangeLabel={launchScopeLabel}
         isLive={!mapIsDemo}
       />
     ),
@@ -2799,7 +2757,7 @@ function App() {
     product: <ProductDemand data={productDemand} />,
     country: <CountrySalesPanel countries={countrySales} windows={countrySalesWindows} />,
     mobileTops: <TopMovers cards={topMoverCards} />,
-    behavior: <BehaviorAnalytics behavior={behaviorData} />,
+    behavior: <BehaviorAnalytics behavior={behaviorData} scopeLabel={launchScopeLabel} />,
     data: <DataTable rows={dayRows} />,
     historicalInsights: (
       <HistoricalInsights

@@ -6,6 +6,7 @@ import {
   dwellBehaviorRollup as dwellRollup,
   journeyBehaviorRollup as journeyRollup,
   normalizeBehaviorPath,
+  rollupBehaviorFacts,
   scoreBehaviorRows as scoreRows,
 } from '../src/lib/behaviorStats.js';
 
@@ -508,49 +509,7 @@ function metaPaymentFacts(rows = []) {
 }
 
 function rollupFacts(facts, step, dimension) {
-  const scoped = facts.filter((fact) => fact.step === step);
-  const totalExposed = scoped.reduce((a, r) => a + Number(r.exposed || 0), 0);
-  const totalAbandoned = scoped.reduce((a, r) => a + Number(r.abandoned || 0), 0);
-  const globalRate = totalExposed ? totalAbandoned / totalExposed : 0;
-  const map = new Map();
-  for (const fact of scoped) {
-    const key = dimension === 'product' ? productKey(fact) : fact.country_code || 'UNKNOWN';
-    const row = map.get(key) || {
-      key,
-      product_id: fact.product_id || '',
-      product: fact.product || 'Unknown product',
-      family: fact.family || 'Other',
-      subtype: fact.subtype || 'Unknown',
-      image_url: fact.image_url || '',
-      country_code: fact.country_code || '',
-      country: fact.country || countryName(fact.country_code || ''),
-      exposed: 0,
-      abandoned: 0,
-      completed: 0,
-      units: 0,
-      value_usd: 0,
-      countries_map: new Map(),
-    };
-    row.exposed += Number(fact.exposed || 0);
-    row.abandoned += Number(fact.abandoned || 0);
-    row.completed += Number(fact.completed || 0);
-    row.units += Number(fact.units || 0);
-    row.value_usd += Number(fact.value_usd || 0);
-    if (!row.image_url && fact.image_url) row.image_url = fact.image_url;
-    if (fact.country_code) {
-      const c = row.countries_map.get(fact.country_code) || { country_code: fact.country_code, country: fact.country || countryName(fact.country_code), exposed: 0, abandoned: 0 };
-      c.exposed += Number(fact.exposed || 0);
-      c.abandoned += Number(fact.abandoned || 0);
-      row.countries_map.set(fact.country_code, c);
-    }
-    map.set(key, row);
-  }
-  const rows = [...map.values()].map((row) => ({
-    ...row,
-    countries: [...row.countries_map.values()].sort((a, b) => b.abandoned - a.abandoned || b.exposed - a.exposed).slice(0, 4),
-    countries_map: undefined,
-  }));
-  return { global: { exposed: totalExposed, abandoned: totalAbandoned, rate: globalRate }, rows: scoreRows(rows, { priorStrength: dimension === 'country' ? 30 : 20, globalRate }) };
+  return rollupBehaviorFacts(facts, step, dimension, { countryName: countryName });
 }
 
 function demographicsRollup(rows = []) {
@@ -680,10 +639,18 @@ const out = {
     },
   },
   scoring: {
-    method: 'Bayesian shrinkage toward site average, one-tailed proportion z-test vs site rate (alpha=0.05), Mann-Whitney U for dwell gaps',
+    method: 'Family-adjusted Bayesian shrinkage, Benjamini–Hochberg FDR across product tests, Mann-Whitney U for dwell',
+    popularity_adjustment: 'Products compare to their category average (hoodie vs hoodies), not raw traffic counts.',
     checkout_window: 'No paid order/recovery in selected window; Shopify abandoned checkout completed_at is treated as recovered.',
     submit_payment_window: 'No checkout_completed within 2 hours after payment_info_submitted.',
-    thresholds: { visible_exposure: 8, directional_exposure: 20, actionable_exposure: 50, dwell_min_per_cohort: { purchaser: 3, non_purchaser: 5 }, journey_lift_min: { purchasers: 5, non_purchasers: 5 } },
+    thresholds: {
+      visible_exposure: 8,
+      family_baseline_exposure: 12,
+      directional_exposure: 20,
+      actionable_exposure: 50,
+      dwell_min_per_cohort: { purchaser: 3, non_purchaser: 5 },
+      journey_lift_min: { purchasers: 5, non_purchasers: 5 },
+    },
   },
   facts,
   meta_demographics_rows: metaDemographics.rows || [],

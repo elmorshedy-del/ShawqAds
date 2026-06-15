@@ -150,6 +150,25 @@ export function bonferroniAdjust(pValues = []) {
   return pValues.map((p) => (Number.isFinite(p) ? Math.min(1, p * m) : null));
 }
 
+/** Benjamini–Hochberg FDR adjustment for many product/segment comparisons. */
+export function benjaminiHochberg(pValues = []) {
+  const indexed = pValues
+    .map((p, i) => ({ p: Number.isFinite(p) ? p : null, i }))
+    .filter((entry) => entry.p != null);
+  const adjusted = Array(pValues.length).fill(null);
+  const m = indexed.length;
+  if (!m) return adjusted;
+  indexed.sort((a, b) => a.p - b.p);
+  let minSoFar = 1;
+  for (let k = m - 1; k >= 0; k -= 1) {
+    const rank = k + 1;
+    const value = Math.min(minSoFar, (indexed[k].p * m) / rank);
+    minSoFar = value;
+    adjusted[indexed[k].i] = Math.min(1, value);
+  }
+  return adjusted;
+}
+
 export function formatPValue(pValue) {
   if (pValue == null || !Number.isFinite(pValue)) return '—';
   if (pValue < 0.001) return '< 0.001';
