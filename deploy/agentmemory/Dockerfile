@@ -28,7 +28,7 @@ RUN printf '{"name":"agentmemory-deploy","version":"1.0.0","private":true,"overr
 ENV AGENTMEMORY_III_VERSION=${III_VERSION} \
     TINI_SUBREAPER=1
 
-COPY --chmod=0755 entrypoint.sh /usr/local/bin/agentmemory-entrypoint.sh
+COPY --chmod=0755 deploy/agentmemory/entrypoint.sh /usr/local/bin/agentmemory-entrypoint.sh
 
 EXPOSE 3111
 
