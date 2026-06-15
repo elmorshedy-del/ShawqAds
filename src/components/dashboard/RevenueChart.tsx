@@ -36,7 +36,7 @@ function movingAverage(values: number[], window: number) {
 }
 
 function smoothWindow(pointCount: number, range: Range) {
-  if (pointCount <= 14 || range === "3D" || range === "7D") return 0;
+  if (pointCount < 3 || range === "3D" || range === "7D") return 0;
   if (range === "14D") return 3;
   return pointCount > 30 ? 7 : 3;
 }
@@ -112,14 +112,18 @@ export function RevenueChart({ rows }: { rows: DayRow[] }) {
   const chartData = useMemo(() => {
     const window = smoothWindow(data.length, range);
     if (!window) return data;
-    const smoothColumn = (key: FocusKey | "spend") => movingAverage(data.map((row) => row[key]), window);
+    const revenuePlot = movingAverage(data.map((row) => row.revenue), window);
+    const spendPlot = movingAverage(data.map((row) => row.spend), window);
+    const profitPlot = movingAverage(data.map((row) => row.profit), window);
+    const ordersPlot = movingAverage(data.map((row) => row.orders), window);
+    const roasPlot = movingAverage(data.map((row) => row.roas), window);
     return data.map((row, index) => ({
       ...row,
-      revenuePlot: smoothColumn("revenue")[index],
-      spendPlot: smoothColumn("spend")[index],
-      profitPlot: smoothColumn("profit")[index],
-      ordersPlot: smoothColumn("orders")[index],
-      roasPlot: smoothColumn("roas")[index],
+      revenuePlot: revenuePlot[index],
+      spendPlot: spendPlot[index],
+      profitPlot: profitPlot[index],
+      ordersPlot: ordersPlot[index],
+      roasPlot: roasPlot[index],
     }));
   }, [data, range]);
 
