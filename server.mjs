@@ -406,6 +406,23 @@ function sanitizePixelPayload(value, depth = 0) {
   return out;
 }
 
+function behaviorNeedsSessionRefresh(behaviorFile) {
+  if (!fs.existsSync(sessionEventsPath)) return false;
+  const status = sessionEventStatus();
+  if (!status.configured || status.count === 0) return false;
+  if (!fs.existsSync(behaviorFile)) return true;
+  try {
+    const sessionMtime = fs.statSync(sessionEventsPath).mtimeMs;
+    const behaviorMtime = fs.statSync(behaviorFile).mtimeMs;
+    if (sessionMtime > behaviorMtime) return true;
+    const behavior = JSON.parse(fs.readFileSync(behaviorFile, 'utf8'));
+    const cachedCount = Number(behavior?.extraction?.session_events?.count || 0);
+    return status.count > cachedCount;
+  } catch {
+    return true;
+  }
+}
+
 function sessionEventStatus() {
   if (!fs.existsSync(sessionEventsPath)) {
     return { configured: false, count: 0, sessions: 0, last_received_at: '', path: sessionEventsPath };
@@ -1292,7 +1309,8 @@ async function serveData(req, res, name, script) {
     return;
   }
 
-  if (force || !fs.existsSync(file)) {
+  const sessionStale = script === 'fetch:behavior' && !force && behaviorNeedsSessionRefresh(file);
+  if (force || !fs.existsSync(file) || sessionStale) {
     const env = dateEnvFromUrl(url);
     const result = script === 'fetch:shopify'
       ? await runShopifyFetch(env)
