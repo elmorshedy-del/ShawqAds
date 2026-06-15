@@ -44,6 +44,51 @@ Treat Gemini comments as a required pre-merge checklist, not optional feedback.
 - Base branch for PRs: `main`
 - Retry fetch/push on network errors (4s, 8s, 16s, 32s backoff)
 
+## Scope discipline (learn from past mistakes)
+
+**Do not bundle unrelated edits.** When fixing one subsystem, touch only the files and logic for that task. Unrelated changes hide regressions and waste review time.
+
+### Incident: behavior/dwell fixes broke KPI all-time highs (Jun 2026)
+
+- **User complaint:** “Why do your edits touch unrelated parts? All-time highs are acting weird.”
+- **What went wrong:**
+  - Behavior/dwell/location PRs bundled extra `App.jsx` changes (polling, date-range scoping, chart filters) that were not required for the stated fix.
+  - PR #33 changed KPI tie logic so **ties** counted as all-time highs — intraday revenue/orders showed “still climbing” and fired confetti on a tie, not a new record.
+  - KPI record detection used **full** Shopify history while the performance chart was scoped to `CAMPAIGN_LAUNCH_DATE` (`2026-06-03`), so badges could disagree with the chart.
+- **Rules going forward:**
+  1. **One concern per PR** — e.g. dwell UX changes stay in `dwellStats.js`, `pagePath.js`, `BehaviorAnalytics.tsx`; do not also edit KPI cards, `RevenueChart`, or global `App.jsx` wiring unless the user asks.
+  2. **If `App.jsx` must change**, limit to the smallest hook/data line for that feature (e.g. `behaviorData` range only). Never refactor or “while I’m here” edit KPI projection, record badges, or trend chart filters in the same PR.
+  3. **KPI all-time highs** (`src/lib/businessKpiInsights.js`):
+     - Intraday ATH requires **strictly beating** prior max (`>`), not tying (`>=`).
+     - Confetti/celebrate only on `strictBeat` (genuine new record).
+     - Record rows should use the same launch window as the performance trend chart (`>= CAMPAIGN_LAUNCH_DATE`).
+  4. **Before pushing**, scan the diff: if a file is unrelated to the task title, revert it or split into a separate PR.
+
+### Subsystem map (stay in your lane)
+
+| Task area | Primary files | Do not touch unless asked |
+|-----------|---------------|---------------------------|
+| Behavior / dwell | `dwellStats.js`, `pagePath.js`, `BehaviorAnalytics.tsx`, `fetch-behavior-intelligence.mjs` | `businessKpiInsights.js`, `KpiCard.tsx`, `RevenueChart.tsx` |
+| KPI badges / projection | `businessKpiInsights.js`, `KpiCard.tsx`, `kpiRecord*` in `App.jsx` | Behavior rollups, dwell panels |
+| Location labels | `orderLocality.js`, `orderResolver.mjs` | KPI logic, charts |
+| Performance trend chart | `RevenueChart.tsx`, `trendDayRows` in `App.jsx` | Dwell stats, behavior polling |
+
+## Cursor agent stack (loads every session)
+
+Committed in-repo so Cloud Agents and local Cursor pick this up automatically:
+
+| Layer | Source | Location |
+|-------|--------|----------|
+| **Project instructions** | This file | `AGENTS.md` |
+| **Karpathy guidelines** | [swarmclawai/andrej-karpathy-skills](https://github.com/swarmclawai/andrej-karpathy-skills) | `.cursor/rules/karpathy-guidelines.mdc` (always apply) |
+| **Persistent memory** | [rohitg00/agentmemory](https://github.com/rohitg00/agentmemory) | `.cursor/mcp.json` + `.cursor/rules/agentmemory.mdc` |
+| **Memory skills** | agentmemory plugin | `.cursor/skills/` (`remember`, `recall`, `handoff`, …) |
+| **Karpathy skill** | andrej-karpathy-skills | `.cursor/skills/karpathy-guidelines/` |
+
+**Local memory server (required for full recall):** run `agentmemory` in a terminal (port 3111). Viewer: http://localhost:3113. Upgrade skills with `npx skills add rohitg00/agentmemory -y -a cursor` (updates `skills-lock.json`).
+
+At session start: **recall** project context from agentmemory. After non-obvious fixes: **remember** with concept tags. Follow Karpathy guidelines (surgical changes, simplicity first).
+
 ## Project notes
 
 - Reporting timezone: `Europe/Istanbul`

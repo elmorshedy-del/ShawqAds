@@ -1,0 +1,31 @@
+---
+description: Persistent memory via agentmemory (rohitg00/agentmemory). Recall project context at session start; save decisions and lessons before ending.
+alwaysApply: true
+---
+
+# agentmemory (persistent memory)
+
+This repo wires [agentmemory](https://github.com/rohitg00/agentmemory) through `.cursor/mcp.json`.
+
+## Local setup (once per machine)
+
+```bash
+npm install -g @agentmemory/agentmemory   # or: npx -y @agentmemory/agentmemory@latest
+agentmemory                               # memory server on :3111, viewer on :3113
+```
+
+Restart Cursor after first clone so MCP picks up `.cursor/mcp.json`. With the server running you get the full tool surface (~53 tools); without it the MCP shim falls back to 7 core tools.
+
+## Every session
+
+1. **Recall first** — use the `recall` skill or `memory_smart_search` for this repo (architecture, past decisions, user preferences, known incidents).
+2. **Remember learnings** — after fixing a bug or making a non-obvious decision, use the `remember` skill or `memory_save` with 2–5 concept tags so the next session finds it.
+3. **Handoff** — on multi-step work, use `handoff` or `commit-context` before stopping.
+
+## Project-specific memories to preserve
+
+- Scope discipline: one concern per PR; do not bundle unrelated `App.jsx` / KPI / chart edits with behavior/dwell/location fixes (see `AGENTS.md`).
+- KPI all-time highs: intraday requires strict beat (`>`); celebrate only on `strictBeat`; records scoped to `CAMPAIGN_LAUNCH_DATE`.
+- Reporting timezone: `Europe/Istanbul`. CBO launch: `2026-06-03`.
+
+Skills live in `.cursor/skills/` (`remember`, `recall`, `handoff`, etc.).
