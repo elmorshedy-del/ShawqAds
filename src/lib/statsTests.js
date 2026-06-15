@@ -150,6 +150,25 @@ export function bonferroniAdjust(pValues = []) {
   return pValues.map((p) => (Number.isFinite(p) ? Math.min(1, p * m) : null));
 }
 
+/** Benjamini–Hochberg FDR adjustment for many product/segment comparisons. */
+export function benjaminiHochberg(pValues = []) {
+  const indexed = pValues
+    .map((p, i) => ({ p: Number.isFinite(p) ? p : null, i }))
+    .filter((entry) => entry.p != null);
+  const adjusted = Array(pValues.length).fill(null);
+  const m = indexed.length;
+  if (!m) return adjusted;
+  indexed.sort((a, b) => a.p - b.p);
+  let minSoFar = 1;
+  for (let k = m - 1; k >= 0; k -= 1) {
+    const rank = k + 1;
+    const value = Math.min(minSoFar, (indexed[k].p * m) / rank);
+    minSoFar = value;
+    adjusted[indexed[k].i] = Math.min(1, value);
+  }
+  return adjusted;
+}
+
 export function formatPValue(pValue) {
   if (pValue == null || !Number.isFinite(pValue)) return '—';
   if (pValue < 0.001) return '< 0.001';
@@ -161,4 +180,25 @@ export function significanceLabel(pValue, alpha = 0.05) {
   if (pValue < alpha / 10) return 'highly significant';
   if (pValue < alpha) return 'significant';
   return 'not significant';
+}
+
+/**
+ * One-sample z-test: is the observed success rate higher than a baseline rate?
+ * Used for segment abandonment vs site average (upper tail).
+ */
+export function proportionZTest(successes, trials, baselineRate, { tail = 'upper' } = {}) {
+  const n = Number(trials || 0);
+  const k = Number(successes || 0);
+  const p0 = Number(baselineRate || 0);
+  const pHat = n ? k / n : 0;
+  if (!n || !Number.isFinite(p0) || p0 <= 0 || p0 >= 1) {
+    return { z: null, pValue: null, pHat, successes: k, trials: n, baselineRate: p0, test: 'proportion-z-vs-baseline' };
+  }
+  const se = Math.sqrt(p0 * (1 - p0) / n);
+  const z = se > 0 ? (pHat - p0) / se : 0;
+  let pValue = null;
+  if (tail === 'upper') pValue = 1 - normalCdf(z);
+  else if (tail === 'lower') pValue = normalCdf(z);
+  else pValue = 2 * (1 - normalCdf(Math.abs(z)));
+  return { z, pValue, pHat, successes: k, trials: n, baselineRate: p0, test: 'proportion-z-vs-baseline' };
 }

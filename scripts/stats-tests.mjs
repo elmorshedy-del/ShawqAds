@@ -1,10 +1,12 @@
 import {
   bonferroniAdjust,
+  benjaminiHochberg,
   chiSquarePValue,
   formatPValue,
   kruskalWallis,
   mannWhitneyU,
   normalCdf,
+  proportionZTest,
 } from '../src/lib/statsTests.js';
 
 function assert(condition, message) {
@@ -33,5 +35,11 @@ assert(formatPValue(0.0005) === '< 0.001', 'formatPValue should floor tiny value
 assert(formatPValue(0.0421) === '0.042', 'formatPValue should show three decimals');
 
 assert(chiSquarePValue(10, 3) < 0.05, 'chiSquarePValue should reject large chi-square values');
+
+const higher = proportionZTest(40, 100, 0.2, { tail: 'upper' });
+assert(higher.pValue != null && higher.pValue < 0.05, 'proportionZTest should detect higher abandonment rate');
+
+const bh = benjaminiHochberg([0.001, 0.02, 0.03, 0.2]);
+assert(bh[0] != null && bh[0] <= 0.004, 'benjaminiHochberg should adjust downward from raw p-values');
 
 console.log('stats tests passed');

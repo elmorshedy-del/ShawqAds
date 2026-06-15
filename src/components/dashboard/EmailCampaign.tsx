@@ -96,7 +96,7 @@ export function EmailCampaign({ summary, orders = [], isLive = true, rangeLabel 
             <Send className="h-3 w-3" /> Email channel
           </span>
           <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-            {rangeLabel || (isLive ? "Today" : "Sample")}
+            {rangeLabel || (isLive ? "Since launch" : "Sample")}
           </span>
         </div>
 

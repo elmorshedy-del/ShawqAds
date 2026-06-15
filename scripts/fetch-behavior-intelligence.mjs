@@ -2,6 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { productTaxonomyForName } from '../src/lib/productMapping.js';
+import {
+  dwellBehaviorRollup as dwellRollup,
+  journeyBehaviorRollup as journeyRollup,
+  normalizeBehaviorPath,
+  rollupBehaviorFacts,
+  scoreBehaviorRows as scoreRows,
+} from '../src/lib/behaviorStats.js';
 
 const envPaths = [process.env.ENV_FILE, path.resolve('.env')].filter(Boolean);
 for (const envPath of envPaths) {
@@ -251,12 +258,7 @@ function eventTimestamp(raw = {}) {
 
 function eventPath(raw = {}) {
   const href = raw.path || raw.url || raw.page_url || raw.context?.document?.location?.href || raw.payload?.context?.document?.location?.href || raw.payload?.url || '';
-  try {
-    const url = new URL(href, 'https://shawq.co');
-    return `${url.pathname}${url.search ? url.search.slice(0, 120) : ''}` || '/';
-  } catch {
-    return String(href || '/').slice(0, 160) || '/';
-  }
+  return normalizeBehaviorPath(href);
 }
 
 function eventSessionKey(raw = {}) {
@@ -506,83 +508,8 @@ function metaPaymentFacts(rows = []) {
   });
 }
 
-function median(values = []) {
-  const arr = values.map(Number).filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
-  if (!arr.length) return 0;
-  const mid = Math.floor(arr.length / 2);
-  return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
-}
-
-function scoreRows(rows, { priorStrength = 20, globalRate = 0 } = {}) {
-  return rows.map((row) => {
-    const exposed = Number(row.exposed || 0);
-    const abandoned = Number(row.abandoned || 0);
-    const rawRate = exposed ? abandoned / exposed : 0;
-    const shrunkRate = (abandoned + priorStrength * globalRate) / (exposed + priorStrength || 1);
-    const excessRate = shrunkRate - globalRate;
-    const supportWeight = Math.min(1, Math.sqrt(exposed / 30));
-    let confidence = 'Insufficient';
-    if (exposed >= 100 && abandoned >= 8 && excessRate > 0.05) confidence = 'High Confidence';
-    else if (exposed >= 50 && abandoned >= 8 && excessRate > 0.10) confidence = 'Actionable';
-    else if (exposed >= 20 && abandoned >= 3 && excessRate > 0.05) confidence = 'Directional';
-    else if (exposed >= 8) confidence = 'Watch';
-    return {
-      ...row,
-      raw_rate: rawRate,
-      shrunk_rate: shrunkRate,
-      site_rate: globalRate,
-      vs_site_pp: (shrunkRate - globalRate) * 100,
-      excess_abandons: Math.max(0, excessRate * exposed),
-      risk_score: Math.max(0, excessRate) * supportWeight * 100,
-      confidence,
-    };
-  }).sort((a, b) => b.excess_abandons - a.excess_abandons || b.shrunk_rate - a.shrunk_rate || b.exposed - a.exposed);
-}
-
 function rollupFacts(facts, step, dimension) {
-  const scoped = facts.filter((fact) => fact.step === step);
-  const totalExposed = scoped.reduce((a, r) => a + Number(r.exposed || 0), 0);
-  const totalAbandoned = scoped.reduce((a, r) => a + Number(r.abandoned || 0), 0);
-  const globalRate = totalExposed ? totalAbandoned / totalExposed : 0;
-  const map = new Map();
-  for (const fact of scoped) {
-    const key = dimension === 'product' ? productKey(fact) : fact.country_code || 'UNKNOWN';
-    const row = map.get(key) || {
-      key,
-      product_id: fact.product_id || '',
-      product: fact.product || 'Unknown product',
-      family: fact.family || 'Other',
-      subtype: fact.subtype || 'Unknown',
-      image_url: fact.image_url || '',
-      country_code: fact.country_code || '',
-      country: fact.country || countryName(fact.country_code || ''),
-      exposed: 0,
-      abandoned: 0,
-      completed: 0,
-      units: 0,
-      value_usd: 0,
-      countries_map: new Map(),
-    };
-    row.exposed += Number(fact.exposed || 0);
-    row.abandoned += Number(fact.abandoned || 0);
-    row.completed += Number(fact.completed || 0);
-    row.units += Number(fact.units || 0);
-    row.value_usd += Number(fact.value_usd || 0);
-    if (!row.image_url && fact.image_url) row.image_url = fact.image_url;
-    if (fact.country_code) {
-      const c = row.countries_map.get(fact.country_code) || { country_code: fact.country_code, country: fact.country || countryName(fact.country_code), exposed: 0, abandoned: 0 };
-      c.exposed += Number(fact.exposed || 0);
-      c.abandoned += Number(fact.abandoned || 0);
-      row.countries_map.set(fact.country_code, c);
-    }
-    map.set(key, row);
-  }
-  const rows = [...map.values()].map((row) => ({
-    ...row,
-    countries: [...row.countries_map.values()].sort((a, b) => b.abandoned - a.abandoned || b.exposed - a.exposed).slice(0, 4),
-    countries_map: undefined,
-  }));
-  return { global: { exposed: totalExposed, abandoned: totalAbandoned, rate: globalRate }, rows: scoreRows(rows, { priorStrength: dimension === 'country' ? 30 : 20, globalRate }) };
+  return rollupBehaviorFacts(facts, step, dimension, { countryName: countryName });
 }
 
 function demographicsRollup(rows = []) {
@@ -611,63 +538,6 @@ function demographicsRollup(rows = []) {
     checkout: scoreRows(checkoutRows.map((r) => ({ ...r, exposed: r.exposed_checkout, abandoned: r.abandoned_checkout })), { priorStrength: 40, globalRate: checkoutGlobalExposure ? checkoutGlobalAbandoned / checkoutGlobalExposure : 0 }).slice(0, 8),
     submit_payment: scoreRows(paymentRows.map((r) => ({ ...r, exposed: r.exposed_payment, abandoned: r.abandoned_payment })), { priorStrength: 40, globalRate: paymentGlobalExposure ? paymentGlobalAbandoned / paymentGlobalExposure : 0 }).slice(0, 8),
   };
-}
-
-function dwellRollup(pageFacts = []) {
-  const byPath = new Map();
-  for (const fact of pageFacts) {
-    const row = byPath.get(fact.path) || { path: fact.path, sessions: new Set(), purchaser_values: [], non_purchaser_values: [] };
-    row.sessions.add(fact.session_hash);
-    if (fact.purchased) row.purchaser_values.push(fact.dwell_seconds);
-    else row.non_purchaser_values.push(fact.dwell_seconds);
-    byPath.set(fact.path, row);
-  }
-  return [...byPath.values()].map((row) => {
-    const purchaserMedian = median(row.purchaser_values);
-    const nonPurchaserMedian = median(row.non_purchaser_values);
-    const allValues = [...row.purchaser_values, ...row.non_purchaser_values];
-    const med = median(allValues);
-    return {
-      path: row.path,
-      sessions: row.sessions.size,
-      median_dwell_seconds: med,
-      purchaser_median_dwell_seconds: purchaserMedian,
-      non_purchaser_median_dwell_seconds: nonPurchaserMedian,
-      dwell_gap_seconds: nonPurchaserMedian - purchaserMedian,
-      read: nonPurchaserMedian > purchaserMedian + 20 ? 'Friction watch' : purchaserMedian >= nonPurchaserMedian ? 'Consideration path' : 'Neutral',
-    };
-  }).sort((a, b) => b.non_purchaser_median_dwell_seconds - a.non_purchaser_median_dwell_seconds || b.sessions - a.sessions).slice(0, 8);
-}
-
-function journeyRollup(journeyRows = []) {
-  const totals = { purchasers: 0, non_purchasers: 0 };
-  const pageMap = new Map();
-  const pathMap = new Map();
-  for (const row of journeyRows) {
-    const cohort = row.purchased ? 'purchasers' : 'non_purchasers';
-    totals[cohort] += 1;
-    row.path_sequence.forEach((path, index) => {
-      const key = `${index}:${path}`;
-      const cur = pageMap.get(key) || { step: index + 1, path, purchasers: 0, non_purchasers: 0 };
-      cur[cohort] += 1;
-      pageMap.set(key, cur);
-    });
-    const pathKey = row.path_sequence.join(' → ');
-    const curPath = pathMap.get(pathKey) || { path_sequence: row.path_sequence, purchasers: 0, non_purchasers: 0 };
-    curPath[cohort] += 1;
-    pathMap.set(pathKey, curPath);
-  }
-  const steps = [...pageMap.values()].map((row) => {
-    const purchaserSupport = totals.purchasers ? row.purchasers / totals.purchasers : 0;
-    const nonPurchaserSupport = totals.non_purchasers ? row.non_purchasers / totals.non_purchasers : 0;
-    return { ...row, purchaser_support: purchaserSupport, non_purchaser_support: nonPurchaserSupport, lift: nonPurchaserSupport ? purchaserSupport / nonPurchaserSupport : 0 };
-  }).sort((a, b) => a.step - b.step || b.purchaser_support - a.purchaser_support).slice(0, 10);
-  const paths = [...pathMap.values()].map((row) => ({
-    ...row,
-    purchaser_support: totals.purchasers ? row.purchasers / totals.purchasers : 0,
-    non_purchaser_support: totals.non_purchasers ? row.non_purchasers / totals.non_purchasers : 0,
-  })).sort((a, b) => (b.purchasers + b.non_purchasers) - (a.purchasers + a.non_purchasers)).slice(0, 4);
-  return { totals, steps, paths };
 }
 
 const shopMetadata = await getShopMetadata();
@@ -769,10 +639,18 @@ const out = {
     },
   },
   scoring: {
-    method: 'Bayesian shrinkage toward site average plus support-weighted excess abandons',
+    method: 'Family-adjusted Bayesian shrinkage, Benjamini–Hochberg FDR across product tests, Mann-Whitney U for dwell',
+    popularity_adjustment: 'Products compare to their category average (hoodie vs hoodies), not raw traffic counts.',
     checkout_window: 'No paid order/recovery in selected window; Shopify abandoned checkout completed_at is treated as recovered.',
     submit_payment_window: 'No checkout_completed within 2 hours after payment_info_submitted.',
-    thresholds: { visible_exposure: 8, directional_exposure: 20, actionable_exposure: 50 },
+    thresholds: {
+      visible_exposure: 8,
+      family_baseline_exposure: 12,
+      directional_exposure: 20,
+      actionable_exposure: 50,
+      dwell_min_per_cohort: { purchaser: 3, non_purchaser: 5 },
+      journey_lift_min: { purchasers: 5, non_purchasers: 5 },
+    },
   },
   facts,
   meta_demographics_rows: metaDemographics.rows || [],
