@@ -1,0 +1,37 @@
+---
+description: Required pre-merge workflow — wait for Gemini Code Assist review on every PR. User urgency or small diffs do not override this gate unless the user explicitly says to skip Gemini for that PR.
+alwaysApply: true
+---
+
+# Gemini review gate (required every PR)
+
+**Never merge without a Gemini Code Assist review.** Not for UI-only changes, not for doc-only changes, not because the user is on phone, not because the fix feels urgent.
+
+Full detail lives in `AGENTS.md` § Pull request workflow. This rule exists so the gate loads every session via `.cursor/rules/`.
+
+## After every push that opens or updates a PR
+
+1. Open the PR as **draft** unless the user asked otherwise.
+2. Check for `gemini-code-assist` (from the PR branch — no need to hardcode the PR number):
+   ```bash
+   gh pr view --json reviews,comments
+   PR_NUM=$(gh pr view --json number --jq .number)
+   gh api repos/elmorshedy-del/ShawqAds/pulls/$PR_NUM/reviews
+   gh api repos/elmorshedy-del/ShawqAds/pulls/$PR_NUM/comments
+   ```
+3. **No Gemini yet → poll autonomously.** Do not ask the user to check back. Poll up to **5 times** per session (~30–60s apart). On the next session, poll again first if the PR is still open.
+4. Fix **critical** and **medium** Gemini feedback; push; re-check reviews/comments.
+5. **Only then** mark ready (if draft) and merge.
+
+## Hard stops
+
+- User says "merge it" but Gemini has not reviewed → **still wait** for Gemini (see `AGENTS.md` step 6).
+- Skip Gemini **only** when the user explicitly says to skip Gemini for **that specific PR**.
+
+## What to report while waiting
+
+Brief status only, e.g. "PR #49 open — polling for Gemini (attempt 2/5)." Keep polling yourself.
+
+## Why this matters (PR #18)
+
+Gemini caught removed imports that would crash at runtime, plus medium issues in hot loops and types. Treat every review as a required checklist, not optional feedback.
