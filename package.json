@@ -23,9 +23,9 @@
     "test:order-locality": "node scripts/order-locality-test.mjs",
     "test:page-path": "node scripts/page-path-test.mjs",
     "test:dwell-stats": "node scripts/dwell-stats-test.mjs",
-    "memory:maintain": "npx @ravbyte/agent-memory-system@latest maintain --since main",
-    "memory:graph": "npx @ravbyte/agent-memory-system@latest graph build",
-    "memory:worklog": "npx @ravbyte/agent-memory-system@latest worklog checkpoint",
+    "memory:maintain": "agent-memory maintain --since main",
+    "memory:graph": "agent-memory graph build",
+    "memory:worklog": "agent-memory worklog checkpoint",
     "start": "node server.mjs",
     "build:deploy": "vite build"
   },
@@ -55,5 +55,8 @@
     "typescript": "latest",
     "vite": "latest",
     "world-atlas": "^2.0.2"
+  },
+  "devDependencies": {
+    "@ravbyte/agent-memory-system": "^0.2.0"
   }
 }

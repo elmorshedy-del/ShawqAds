@@ -12,7 +12,7 @@ alwaysApply: true
 1. Read `memory/context-index.json` — pick the topic file for your task.
 2. Read **`memory/11-shawq-domain-map.md`** for tab wiring, date scopes, data paths, and past mistakes.
 3. Read `memory/agent-handoff.md` if resuming work.
-4. For shared types/APIs, check `memory/repository-graph.json` or run `npx @ravbyte/agent-memory-system graph query --file <path>`.
+4. For shared types/APIs, check `memory/repository-graph.json` or run `agent-memory graph query --file <path>`.
 
 ## After structural changes
 
@@ -26,10 +26,7 @@ Commit updated `memory/` files in the same PR.
 ## After completing non-trivial work
 
 ```bash
-npx @ravbyte/agent-memory-system worklog checkpoint \
-  --agent cursor \
-  --message "<what changed and why>" \
-  --files "<comma-separated paths>"
+npm run memory:worklog -- --agent cursor --message "<what changed and why>" --files "<comma-separated paths>"
 ```
 
 Before stopping mid-task, update `memory/agent-handoff.md` or run `worklog handoff`.
