@@ -11,12 +11,12 @@ import {
 } from './lib/businessKpiInsights.js';
 import { buildShopifyHistoricalDaily } from './lib/historicalInsights.js';
 import {
-  dwellPageInsight,
   formatDwellSeconds,
   journeyStepInsight,
   normalizePagePath,
   pagePathLabel,
 } from './lib/pagePath.js';
+import { dwellPageInsight, dwellAnalysisMeta, rollupDwellPages } from './lib/dwellStats.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
 import { familyStyle } from './features/product-demand/constants.js';
 import { Sidebar, MobileFilters, datePresets } from './components/dashboard/Sidebar';
@@ -1814,28 +1814,7 @@ function demographicsBehaviorRollup(rows = []) {
 }
 
 function dwellBehaviorRollup(pageFacts = []) {
-  const byPath = new Map();
-  pageFacts.forEach((fact) => {
-    const path = normalizePagePath(fact.path);
-    const row = byPath.get(path) || { path, sessions: new Set(), purchaser_values: [], non_purchaser_values: [] };
-    row.sessions.add(fact.session_hash || `${fact.path}-${row.sessions.size}`);
-    if (fact.purchased) row.purchaser_values.push(fact.dwell_seconds);
-    else row.non_purchaser_values.push(fact.dwell_seconds);
-    byPath.set(fact.path, row);
-  });
-  return [...byPath.values()].map((row) => {
-    const purchaserMedian = behaviorMedian(row.purchaser_values);
-    const nonPurchaserMedian = behaviorMedian(row.non_purchaser_values);
-    return {
-      path: row.path,
-      sessions: row.sessions.size,
-      median_dwell_seconds: behaviorMedian([...row.purchaser_values, ...row.non_purchaser_values]),
-      purchaser_median_dwell_seconds: purchaserMedian,
-      non_purchaser_median_dwell_seconds: nonPurchaserMedian,
-      dwell_gap_seconds: nonPurchaserMedian - purchaserMedian,
-      read: nonPurchaserMedian > purchaserMedian + 20 ? 'Friction watch' : purchaserMedian >= nonPurchaserMedian ? 'Consideration path' : 'Neutral',
-    };
-  }).sort((a, b) => b.non_purchaser_median_dwell_seconds - a.non_purchaser_median_dwell_seconds || b.sessions - a.sessions).slice(0, 8);
+  return rollupDwellPages(pageFacts);
 }
 
 function journeyBehaviorRollup(journeyRows = []) {
@@ -1887,6 +1866,7 @@ function filterBehaviorByDateRange(behavior, range) {
       submit_payment: { global: paymentProducts.global, products: paymentProducts.rows, countries: paymentCountries.rows, gender: demographics.submit_payment },
     },
     dwell_pages: dwellBehaviorRollup(pageFacts),
+    dwell_analysis: dwellAnalysisMeta(pageFacts),
     journeys: journeyBehaviorRollup(journeyRows),
   };
 }
@@ -2101,14 +2081,16 @@ function DwellPagesPanel({ pages }) {
       {visiblePages.map((page) => {
         const dwell = Number(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0);
         const buyerDwell = Number(page.purchaser_median_dwell_seconds || 0);
+        const buyerSessions = Number(page.purchaser_sessions || 0);
         const width = Math.min(100, Math.max(8, dwell / 6));
         const label = pagePathLabel(page.path);
-        const insight = dwellPageInsight(page);
+        const insight = page.insight || dwellPageInsight(page);
         return <div className="dwell-page-card" key={normalizePagePath(page.path)}>
           <b>{label}</b>
-          <span>{formatDwellSeconds(dwell)} non-buyer dwell{buyerDwell > 0 ? ` · ${formatDwellSeconds(buyerDwell)} buyers` : ''}</span>
+          <span>{formatDwellSeconds(dwell)} non-buyer median{buyerSessions > 0 ? ` · ${formatDwellSeconds(buyerDwell)} buyer median` : ''}</span>
           <div className="dwell-meter"><i style={{ width: `${width}%` }} /></div>
           <small><strong>{insight.headline}</strong> {insight.detail}</small>
+          {page.confidence ? <em className="dwell-confidence">{page.confidence}{page.p_value_adjusted != null ? ` · p=${Number(page.p_value_adjusted).toFixed(3)} adj` : ''}</em> : null}
         </div>;
       })}
       {!visiblePages.length ? <div className="behavior-empty compact"><b>No dwell rows yet</b><span>The session pixel will calculate dwell once page-view sessions are populated.</span></div> : null}
@@ -2540,7 +2522,7 @@ function App() {
   const productData = useMemo(() => filterShopifyByDateRange(baseProductData, activeDateRange), [baseProductData, activeDateRange]);
   const launchData = useMemo(() => filterMetaDataByDateRange(baseData, launchDateRange), [baseData, launchDateRange]);
   const launchProductData = useMemo(() => filterShopifyByDateRange(baseProductData, launchDateRange), [baseProductData, launchDateRange]);
-  const behaviorData = useMemo(() => filterBehaviorByDateRange(baseBehaviorData, activeDateRange), [baseBehaviorData, activeDateRange]);
+  const behaviorData = useMemo(() => filterBehaviorByDateRange(baseBehaviorData, launchDateRange), [baseBehaviorData, launchDateRange]);
   function handleDatePreset(nextPreset) {
     setDatePreset(nextPreset);
     if (nextPreset === 'custom') {

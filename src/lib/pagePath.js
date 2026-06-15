@@ -60,37 +60,6 @@ export function formatDwellSeconds(seconds = 0) {
   return `${value.toFixed(2)}s`;
 }
 
-export function dwellPageInsight(page = {}) {
-  const nonPurchaser = Number(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0);
-  const purchaser = Number(page.purchaser_median_dwell_seconds || 0);
-  const gap = nonPurchaser - purchaser;
-  const sessions = Number(page.sessions || 0);
-  const label = pagePathLabel(page.path);
-
-  if (!nonPurchaser) {
-    return {
-      headline: 'Not enough time-on-page data',
-      detail: `${sessions} session${sessions === 1 ? '' : 's'} tracked so far.`,
-    };
-  }
-  if (gap >= 30) {
-    return {
-      headline: 'Possible stuck point',
-      detail: `Non-buyers linger ${formatDwellSeconds(nonPurchaser)} here vs ${formatDwellSeconds(purchaser || 0)} for buyers — review clarity, price, or sizing on ${label}.`,
-    };
-  }
-  if (purchaser > nonPurchaser + 15) {
-    return {
-      headline: 'Buyers take their time here',
-      detail: `Purchasers average ${formatDwellSeconds(purchaser)} on ${label} — likely a decision step worth optimizing.`,
-    };
-  }
-  return {
-    headline: 'Normal browsing',
-    detail: `Typical non-buyer time ${formatDwellSeconds(nonPurchaser)} across ${sessions} session${sessions === 1 ? '' : 's'} — no large buyer gap.`,
-  };
-}
-
 export function journeyStepInsight(row = {}) {
   const label = pagePathLabel(row.path);
   const purchaserPct = Math.round(Number(row.purchaser_support || 0) * 100);

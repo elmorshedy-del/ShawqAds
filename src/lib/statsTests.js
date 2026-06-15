@@ -150,6 +150,25 @@ export function bonferroniAdjust(pValues = []) {
   return pValues.map((p) => (Number.isFinite(p) ? Math.min(1, p * m) : null));
 }
 
+/** Benjamini–Hochberg FDR adjustment for multiple path-level dwell tests. */
+export function benjaminiHochberg(pValues = []) {
+  const adjusted = Array(pValues.length).fill(null);
+  const ranked = pValues
+    .map((p, index) => ({ index, p: Number.isFinite(p) ? p : null }))
+    .filter((row) => row.p != null)
+    .sort((a, b) => a.p - b.p);
+  const m = ranked.length;
+  if (!m) return adjusted;
+  let minSoFar = 1;
+  for (let i = m - 1; i >= 0; i -= 1) {
+    const rank = i + 1;
+    const value = Math.min(1, (ranked[i].p * m) / rank);
+    minSoFar = Math.min(minSoFar, value);
+    adjusted[ranked[i].index] = minSoFar;
+  }
+  return adjusted;
+}
+
 export function formatPValue(pValue) {
   if (pValue == null || !Number.isFinite(pValue)) return '—';
   if (pValue < 0.001) return '< 0.001';

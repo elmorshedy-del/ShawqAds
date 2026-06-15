@@ -22,6 +22,7 @@
     "test:order-merchandise": "node scripts/order-merchandise-test.mjs",
     "test:order-locality": "node scripts/order-locality-test.mjs",
     "test:page-path": "node scripts/page-path-test.mjs",
+    "test:dwell-stats": "node scripts/dwell-stats-test.mjs",
     "start": "node server.mjs",
     "build:deploy": "vite build"
   },

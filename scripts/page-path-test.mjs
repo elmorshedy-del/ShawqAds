@@ -4,11 +4,11 @@ import {
   pickPublicLocality,
 } from '../src/lib/orderLocality.js';
 import {
-  dwellPageInsight,
   formatDwellSeconds,
   normalizePagePath,
   pagePathLabel,
 } from '../src/lib/pagePath.js';
+import { dwellPageInsight } from '../src/lib/dwellStats.js';
 
 assert.equal(
   pickPublicLocality({ city: 'France', province: 'Grand Est', country_code: 'FR' }, 'FR'),
@@ -43,11 +43,19 @@ assert.equal(formatDwellSeconds(125), '2.1 min');
 
 const insight = dwellPageInsight({
   path: '/products/test-hoodie',
-  sessions: 12,
+  sessions: 14,
   non_purchaser_median_dwell_seconds: 95,
+  non_purchaser_sessions: 8,
   purchaser_median_dwell_seconds: 40,
+  purchaser_sessions: 6,
+  p_value_adjusted: 0.02,
+  significant: true,
+  effect_size: 0.4,
+  confidence: 'Actionable',
+  pattern: 'significant_non_buyer_longer',
 });
-assert.match(insight.headline, /stuck/i);
-assert.match(insight.detail, /min|s/);
+assert.match(insight.headline, /Non-buyers linger/i);
+assert.match(insight.detail, /p=/i);
+assert.doesNotMatch(insight.detail, /vs 0\.00/i);
 
 console.log('page-path + locality tests: ok');
