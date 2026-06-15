@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { productTaxonomyForName } from './src/lib/productMapping.js';
+import { isTipTitle, merchandiseLineItems, merchandiseItemCount } from './src/lib/orderMerchandise.js';
 import { createLocationStore, createGeocoder, buildPurchase, relativeTime } from './src/lib/orderResolver.mjs';
 import { isEmailAttribution, emailCampaignName, emailSourceLabel } from './src/lib/orderChannel.mjs';
 
@@ -1061,16 +1062,10 @@ function orderTipAmount(order = {}) {
   );
 }
 
-function isTipTitle(value = '') {
-  return /(^|\s)(tip|tips|gratuity)(\s|$)/i.test(String(value || '').replace(/[^a-z0-9]+/gi, ' '));
-}
-
 function summarizeOrder(order) {
   const lineItems = order.line_items || [];
-  const merchLineItems = lineItems
-    .map((item) => ({ item, taxonomy: productTaxonomyForName(item.title) }))
-    .filter(({ item, taxonomy }) => taxonomy.family && !isTipTitle(item.title));
-  const itemCount = merchLineItems.reduce((total, { item }) => total + Number(item.quantity || 0), 0);
+  const merchLineItems = merchandiseLineItems(lineItems);
+  const itemCount = merchandiseItemCount(lineItems);
   const firstProduct = merchLineItems[0]?.item?.title || lineItems.find((item) => item?.title)?.title || '';
   const attribution = orderAttribution(order);
   const matchedAd = matchAttributionToMetaAd(attribution);

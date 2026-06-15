@@ -21,6 +21,7 @@ import {
   normalize,
   US_STATE_CODE_TO_NAME,
 } from './orderLocations.mjs';
+import { merchandiseItemCount } from './orderMerchandise.js';
 
 function isValidCoord(value) {
   return Array.isArray(value)
@@ -245,7 +246,7 @@ export async function buildPurchase(order, store, opts = {}) {
   const location = locationLabel(norm.country, region, cityTitle);
   const amount = Number(order.current_total_price || order.total_price || 0) || 0;
   const currency = order.currency || order.presentment_currency || 'USD';
-  const items = (order.line_items || []).reduce((total, item) => total + (Number(item.quantity || 0) || 0), 0);
+  const items = merchandiseItemCount(order.line_items);
   const id = String(order.id || '');
   const product = productHint || (order.line_items || []).find((item) => item?.title)?.title || '';
 
@@ -260,7 +261,7 @@ export async function buildPurchase(order, store, opts = {}) {
     flag: countryFlag(norm.country),
     amount,
     currency,
-    items: items || 1,
+    items,
     product: product || undefined,
     source: source || undefined,
     channel: channel || undefined,
