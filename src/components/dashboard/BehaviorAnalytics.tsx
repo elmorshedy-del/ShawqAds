@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { ChevronDown, FlaskConical } from "lucide-react";
 import { compact } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import {
+  dwellPageInsight,
+  formatDwellSeconds,
+  journeyStepInsight,
+  normalizePagePath,
+  pagePathLabel,
+} from "@/lib/pagePath";
 
 interface BehaviorStep {
   products?: any[];
@@ -361,8 +368,8 @@ function DwellPages({ pages }: { pages: any[] }) {
   return (
     <div className="rounded-xl border border-border bg-surface-2/40 p-4">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-semibold">Pages with dwell</p>
-        <span className="text-[0.65rem] text-muted-foreground">High dwell + exit = friction</span>
+        <p className="text-sm font-semibold">Where people get stuck</p>
+        <span className="text-[0.65rem] text-muted-foreground">Time on page · non-buyers vs buyers</span>
       </div>
       <div className="mt-3 space-y-3">
         {visiblePages.length ? (
@@ -370,22 +377,27 @@ function DwellPages({ pages }: { pages: any[] }) {
             const dwell = Number(
               page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0,
             );
+            const buyerDwell = Number(page.purchaser_median_dwell_seconds || 0);
             const width = Math.min(100, Math.max(8, dwell / 6));
+            const label = pagePathLabel(page.path);
+            const insight = dwellPageInsight(page);
             return (
-              <div key={page.path}>
+              <div key={normalizePagePath(page.path)}>
                 <div className="mb-1 flex items-baseline justify-between gap-3">
-                  <span className="truncate text-xs font-medium" title={page.path}>
-                    {page.path}
+                  <span className="truncate text-xs font-medium" title={label}>
+                    {label}
                   </span>
                   <span className="shrink-0 text-xs font-semibold tabular-nums">
-                    {Math.round(dwell)}s
+                    {formatDwellSeconds(dwell)}
                   </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
                   <div className="h-full rounded-full bg-brand" style={{ width: `${width}%` }} />
                 </div>
-                <p className="mt-1 text-[0.65rem] text-muted-foreground">
-                  {page.sessions} sessions · {page.read || "Neutral"}
+                <p className="mt-1 text-[0.65rem] font-medium text-foreground">{insight.headline}</p>
+                <p className="mt-0.5 text-[0.65rem] leading-relaxed text-muted-foreground">
+                  {insight.detail}
+                  {buyerDwell > 0 ? ` Buyers: ${formatDwellSeconds(buyerDwell)}.` : ""}
                 </p>
               </div>
             );
@@ -437,7 +449,7 @@ function JourneyColumn({
         {steps.length ? (
           steps.map((row: any) => (
             <div
-              key={`${label}-${row.step}-${row.path}`}
+              key={`${label}-${row.step}-${normalizePagePath(row.path)}`}
               className="flex items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5"
             >
               <span
@@ -449,8 +461,8 @@ function JourneyColumn({
                 {row.step}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium">{row.path}</p>
-                <p className="text-[0.6rem] text-muted-foreground">{render(row)}</p>
+                <p className="truncate text-xs font-medium">{pagePathLabel(row.path)}</p>
+                <p className="text-[0.6rem] leading-relaxed text-muted-foreground">{render(row)}</p>
               </div>
             </div>
           ))
@@ -475,9 +487,7 @@ function JourneyComparison({ journeys }: { journeys: { steps?: any[] } }) {
           tone="brand"
           label="Purchasers"
           steps={steps.filter((row: any) => row.purchasers > 0).slice(0, 5)}
-          render={(row) =>
-            `${Math.round(row.purchaser_support * 100)}% support · lift ${Number(row.lift || 0).toFixed(1)}x`
-          }
+          render={(row) => journeyStepInsight(row)}
           emptyTitle="No purchaser path yet"
           emptyText="Waiting for session path + checkout_completed events."
         />
@@ -485,9 +495,7 @@ function JourneyComparison({ journeys }: { journeys: { steps?: any[] } }) {
           tone="muted"
           label="Non-purchasers"
           steps={steps.filter((row: any) => row.non_purchasers > 0).slice(0, 5)}
-          render={(row) =>
-            `${Math.round(row.non_purchaser_support * 100)}% support · ${row.non_purchasers} sessions`
-          }
+          render={(row) => journeyStepInsight(row)}
           emptyTitle="No non-purchaser path yet"
           emptyText="Waiting for page_viewed events from sessions that do not purchase."
         />
