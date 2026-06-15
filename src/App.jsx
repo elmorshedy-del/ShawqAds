@@ -869,6 +869,16 @@ function emailPanelRangeLabel(range, preset, isDemo) {
   }
   return `${range.since} – ${range.until}`;
 }
+function panelScopeRangeLabel(scope, launchRange, activeRange, preset, isDemo) {
+  if (isDemo) return 'Sample';
+  if (scope === 'launch') {
+    const range = launchRange || {};
+    if (!range.since || !range.until) return 'Since launch';
+    if (range.since === range.until) return `Since launch · ${range.since}`;
+    return `Since launch · ${range.since} – ${range.until}`;
+  }
+  return emailPanelRangeLabel(activeRange, preset, false);
+}
 function dateRangeLabel(range, preset) {
   if (!range?.since || !range?.until) return 'Choose dates';
   const prefix = datePresets.find((p) => p.value === preset)?.label || 'Custom';
@@ -2360,6 +2370,8 @@ function App() {
   const [activeBusiness, setActiveBusiness] = useState('revenue');
   const [businessWindow, setBusinessWindow] = useState('all');
   const [datePreset, setDatePreset] = useState('today');
+  const [emailPanelScope, setEmailPanelScope] = useState('launch');
+  const [behaviorPanelScope, setBehaviorPanelScope] = useState('launch');
   const [dateRange, setDateRange] = useState({ since: '', until: '' });
   const [customRange, setCustomRange] = useState({ since: '', until: '' });
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
@@ -2522,7 +2534,22 @@ function App() {
   const productData = useMemo(() => filterShopifyByDateRange(baseProductData, activeDateRange), [baseProductData, activeDateRange]);
   const launchData = useMemo(() => filterMetaDataByDateRange(baseData, launchDateRange), [baseData, launchDateRange]);
   const launchProductData = useMemo(() => filterShopifyByDateRange(baseProductData, launchDateRange), [baseProductData, launchDateRange]);
-  const behaviorData = useMemo(() => filterBehaviorByDateRange(baseBehaviorData, launchDateRange), [baseBehaviorData, launchDateRange]);
+  const emailPanelDateRange = useMemo(
+    () => (emailPanelScope === 'launch' ? launchDateRange : activeDateRange),
+    [emailPanelScope, launchDateRange, activeDateRange],
+  );
+  const emailPanelProductData = useMemo(
+    () => filterShopifyByDateRange(baseProductData, emailPanelDateRange),
+    [baseProductData, emailPanelDateRange],
+  );
+  const behaviorPanelDateRange = useMemo(
+    () => (behaviorPanelScope === 'launch' ? launchDateRange : activeDateRange),
+    [behaviorPanelScope, launchDateRange, activeDateRange],
+  );
+  const behaviorData = useMemo(
+    () => filterBehaviorByDateRange(baseBehaviorData, behaviorPanelDateRange),
+    [baseBehaviorData, behaviorPanelDateRange],
+  );
   function handleDatePreset(nextPreset) {
     setDatePreset(nextPreset);
     if (nextPreset === 'custom') {
@@ -2638,8 +2665,10 @@ function App() {
   const mapPurchases = mapIsDemo ? DEMO_PURCHASES : livePurchases;
   const emailCampaignData = useMemo(() => {
     if (mapIsDemo) return buildEmailCampaignFromPurchases(DEMO_PURCHASES, { countryFlag });
-    return buildEmailCampaignSummary(productData.order_lines || [], { countryFlag, timeZone: REPORTING_TIMEZONE });
-  }, [mapIsDemo, productData.order_lines]);
+    return buildEmailCampaignSummary(emailPanelProductData.order_lines || [], { countryFlag, timeZone: REPORTING_TIMEZONE });
+  }, [mapIsDemo, emailPanelProductData.order_lines]);
+  const emailPanelRangeText = panelScopeRangeLabel(emailPanelScope, launchDateRange, activeDateRange, datePreset, mapIsDemo);
+  const behaviorPanelRangeText = panelScopeRangeLabel(behaviorPanelScope, launchDateRange, activeDateRange, datePreset, false);
   const monitorStatusText = saleMonitor.status === 'live'
     ? (livePurchases.length ? 'Live Shopify sales monitor' : 'Live Shopify sales monitor · no orders yet today')
     : saleMonitor.status === 'checking'
@@ -2829,7 +2858,9 @@ function App() {
       <EmailCampaign
         summary={emailCampaignData.summary}
         orders={emailCampaignData.orders}
-        rangeLabel={emailPanelRangeLabel(activeDateRange, datePreset, mapIsDemo)}
+        rangeLabel={emailPanelRangeText}
+        scope={emailPanelScope}
+        onScopeChange={setEmailPanelScope}
         isLive={!mapIsDemo}
       />
     ),
@@ -2865,7 +2896,14 @@ function App() {
     product: <ProductDemand data={productDemand} />,
     country: <CountrySalesPanel countries={countrySales} windows={countrySalesWindows} />,
     mobileTops: <TopMovers cards={topMoverCards} />,
-    behavior: <BehaviorAnalytics behavior={behaviorData} />,
+    behavior: (
+      <BehaviorAnalytics
+        behavior={behaviorData}
+        scope={behaviorPanelScope}
+        onScopeChange={setBehaviorPanelScope}
+        rangeLabel={behaviorPanelRangeText}
+      />
+    ),
     data: <DataTable rows={dayRows} />,
     historicalInsights: (
       <HistoricalInsights

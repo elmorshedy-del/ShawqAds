@@ -84,6 +84,36 @@ assertIncludes(
 
 assertIncludes(
   app,
+  "useState('launch')",
+  'Email and behavior panels must default to launch scope, not the dashboard date picker.'
+);
+
+assertIncludes(
+  app,
+  'emailPanelScope === \'launch\' ? launchDateRange : activeDateRange',
+  'Email campaign must use launch window by default with an option to follow the dashboard range.'
+);
+
+assertIncludes(
+  app,
+  'behaviorPanelScope === \'launch\' ? launchDateRange : activeDateRange',
+  'Behavior panel must use launch window by default with an option to follow the dashboard range.'
+);
+
+assertIncludes(
+  app,
+  'onScopeChange={setEmailPanelScope}',
+  'Email campaign panel must expose a scope toggle.'
+);
+
+assertIncludes(
+  app,
+  'onScopeChange={setBehaviorPanelScope}',
+  'Behavior panel must expose a scope toggle.'
+);
+
+assertIncludes(
+  app,
   'productGrowthOption(launchProductData)',
   'Developing growth chart must use Shopify product data from campaign launch onward.'
 );

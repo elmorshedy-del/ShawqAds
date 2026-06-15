@@ -9,6 +9,7 @@ import {
   pagePathLabel,
 } from "@/lib/pagePath";
 import { dwellPageInsight } from "@/lib/dwellStats";
+import { PanelScopeToggle, type PanelScope } from "@/components/dashboard/PanelScopeToggle";
 
 interface BehaviorStep {
   products?: any[];
@@ -511,7 +512,17 @@ function JourneyComparison({ journeys }: { journeys: { steps?: any[] } }) {
   );
 }
 
-export function BehaviorAnalytics({ behavior }: { behavior: BehaviorData }) {
+export function BehaviorAnalytics({
+  behavior,
+  scope = "launch",
+  onScopeChange,
+  rangeLabel,
+}: {
+  behavior: BehaviorData;
+  scope?: PanelScope;
+  onScopeChange?: (scope: PanelScope) => void;
+  rangeLabel?: string;
+}) {
   const [open, setOpen] = useState(false);
   const period = behavior?.period || {};
   const checkoutCountries = behavior?.matrix?.checkout?.countries || [];
@@ -546,9 +557,12 @@ export function BehaviorAnalytics({ behavior }: { behavior: BehaviorData }) {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          {period.since ? (
+          {onScopeChange ? (
+            <PanelScopeToggle scope={scope} onScopeChange={onScopeChange} className="hidden sm:flex" />
+          ) : null}
+          {(rangeLabel || period.since) ? (
             <span className="hidden text-xs tabular-nums text-muted-foreground sm:inline">
-              {period.since} – {period.until}
+              {rangeLabel || `${period.since} – ${period.until}`}
             </span>
           ) : null}
           <ChevronDown
@@ -559,6 +573,12 @@ export function BehaviorAnalytics({ behavior }: { behavior: BehaviorData }) {
 
       {open ? (
         <div className="space-y-6 border-t border-border px-6 pb-6 pt-5">
+          {onScopeChange ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">Date scope for session intelligence and journeys</p>
+              <PanelScopeToggle scope={scope} onScopeChange={onScopeChange} className="sm:hidden" />
+            </div>
+          ) : null}
           <div>
             <h3 className="font-display text-sm font-semibold">Behavior friction matrix</h3>
             <p className="mt-1 text-xs text-muted-foreground">

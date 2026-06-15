@@ -1,6 +1,7 @@
 import { Mail, Inbox, Package, ShoppingBag, Send, Sparkles } from "lucide-react";
 import { fmtCurrency } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
+import { PanelScopeToggle, type PanelScope } from "@/components/dashboard/PanelScopeToggle";
 
 const ACCENT = "var(--color-chart-4)";
 
@@ -36,6 +37,8 @@ export interface EmailCampaignProps {
   orders?: EmailOrder[];
   isLive?: boolean;
   rangeLabel?: string;
+  scope?: PanelScope;
+  onScopeChange?: (scope: PanelScope) => void;
 }
 
 function formatMoney(amount: number, currency: string): string {
@@ -60,7 +63,14 @@ function StatTile({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-export function EmailCampaign({ summary, orders = [], isLive = true, rangeLabel }: EmailCampaignProps) {
+export function EmailCampaign({
+  summary,
+  orders = [],
+  isLive = true,
+  rangeLabel,
+  scope = "launch",
+  onScopeChange,
+}: EmailCampaignProps) {
   const orderCount = summary?.orders ?? orders.length;
   const revenue = summary?.revenue_usd ?? orders.reduce((total, order) => total + (Number(order.amount) || 0), 0);
   const units = summary?.units ?? orders.reduce((total, order) => total + (Number(order.items) || 0), 0);
@@ -72,14 +82,17 @@ export function EmailCampaign({ summary, orders = [], isLive = true, rangeLabel 
 
   return (
     <section>
-      <div className="mb-3 flex items-center gap-2">
-        <span
-          className="flex h-7 w-7 items-center justify-center rounded-lg"
-          style={{ background: `color-mix(in oklab, ${ACCENT} 16%, white)`, color: ACCENT }}
-        >
-          <Mail className="h-4 w-4" />
-        </span>
-        <h2 className="font-display text-base font-semibold tracking-tight">Email campaign</h2>
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-lg"
+            style={{ background: `color-mix(in oklab, ${ACCENT} 16%, white)`, color: ACCENT }}
+          >
+            <Mail className="h-4 w-4" />
+          </span>
+          <h2 className="font-display text-base font-semibold tracking-tight">Email campaign</h2>
+        </div>
+        {onScopeChange ? <PanelScopeToggle scope={scope} onScopeChange={onScopeChange} /> : null}
       </div>
 
       <div
