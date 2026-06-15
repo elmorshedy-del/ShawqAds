@@ -15,11 +15,12 @@ Cursor Cloud Agents read this file automatically. Follow it on every task.
 
 After pushing a PR:
 
-1. Check for a review from `gemini-code-assist`:
+1. Check for a review from `gemini-code-assist` (from the PR branch):
    ```bash
-   gh pr view <number> --json reviews,comments
-   gh api repos/elmorshedy-del/ShawqAds/pulls/<number>/reviews
-   gh api repos/elmorshedy-del/ShawqAds/pulls/<number>/comments
+   gh pr view --json reviews,comments
+   PR_NUM=$(gh pr view --json number --jq .number)
+   gh api repos/elmorshedy-del/ShawqAds/pulls/$PR_NUM/reviews
+   gh api repos/elmorshedy-del/ShawqAds/pulls/$PR_NUM/comments
    ```
    Use `/reviews` for review summaries; use `/comments` for inline diff comments.
 2. If no Gemini review yet, **keep polling autonomously** — do not ask the user to prompt again. Poll several times in the same session (e.g. 30–60s apart, up to 5 times max) before ending the turn. On the next session, poll again first if the PR is still open.
