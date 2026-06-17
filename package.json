@@ -26,6 +26,8 @@
     "test:order-movers": "node scripts/order-drop-rankings-test.mjs",
     "test:behavior-developing": "node scripts/behavior-developing-day-test.mjs",
     "test:behavior-persistence": "node scripts/behavior-persistence-test.mjs",
+    "test:data-paths": "node scripts/data-paths-test.mjs",
+    "railway:deploy-shawq": "node scripts/railway-deploy-shawq.mjs",
     "memory:maintain": "agent-memory maintain --since main",
     "memory:graph": "agent-memory graph build",
     "memory:worklog": "agent-memory worklog checkpoint",

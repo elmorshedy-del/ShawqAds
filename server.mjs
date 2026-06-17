@@ -8,6 +8,14 @@ import { productTaxonomyForName } from './src/lib/productMapping.js';
 import { isTipTitle, merchandiseLineItems, merchandiseItemCount } from './src/lib/orderMerchandise.js';
 import { createLocationStore, createGeocoder, buildPurchase, relativeTime } from './src/lib/orderResolver.mjs';
 import { isEmailAttribution, emailCampaignName, emailSourceLabel } from './src/lib/orderChannel.mjs';
+import {
+  behaviorSnapshotPath,
+  ensureDirForFile,
+  locationCachePath,
+  ordersMapStorePath,
+  seedBehaviorSnapshot,
+  sessionEventsPath as defaultSessionEventsPath,
+} from './src/lib/dataPaths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -29,7 +37,8 @@ const distDir = path.join(__dirname, 'dist');
 const port = Number(process.env.PORT || 3000);
 const refreshKey = process.env.REFRESH_API_KEY || '';
 const sessionEventKey = process.env.SESSION_EVENT_INGEST_KEY || '';
-const sessionEventsPath = process.env.SESSION_EVENTS_PATH || path.join(__dirname, 'data', 'session-events.ndjson');
+const sessionEventsPath = defaultSessionEventsPath(__dirname);
+const behaviorDataPath = behaviorSnapshotPath(__dirname);
 const refreshOnStart = process.env.REFRESH_ON_START !== 'false';
 const SHOPIFY_HISTORICAL_SINCE = process.env.SHOPIFY_BACKFILL_START_DATE || '2026-02-01';
 const shopifyReportingTimezone = process.env.SHAWQ_SHOPIFY_REPORTING_TIMEZONE
@@ -84,9 +93,9 @@ function scheduleBehaviorRefreshFromSessionEvents() {
 
 // Live orders map: location resolver + webhook-sourced purchase store.
 const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET || '';
-const locationCachePath = process.env.LOCATION_CACHE_PATH || path.join(__dirname, 'data', 'location-cache.json');
-const webhookStorePath = process.env.ORDERS_MAP_STORE_PATH || path.join(__dirname, 'data', 'orders-map.json');
-const locationStore = createLocationStore({ cachePath: locationCachePath, geocoder: createGeocoder(process.env) });
+const locationCachePathResolved = locationCachePath(__dirname);
+const webhookStorePath = process.env.ORDERS_MAP_STORE_PATH || ordersMapStorePath(__dirname);
+const locationStore = createLocationStore({ cachePath: locationCachePathResolved, geocoder: createGeocoder(process.env) });
 const MAX_STORED_PURCHASES = 250;
 
 function loadWebhookPurchases() {
@@ -141,7 +150,20 @@ function runScript(script, extraEnv = {}) {
 }
 
 function publicDataPath(name) {
+  if (name === 'behavior-intelligence.json') return behaviorDataPath;
   return path.join(__dirname, 'public', 'data', name);
+}
+
+function bootstrapPersistentData() {
+  ensureDirForFile(sessionEventsPath);
+  ensureDirForFile(behaviorDataPath);
+  ensureDirForFile(locationCachePathResolved);
+  ensureDirForFile(webhookStorePath);
+  const seeded = seedBehaviorSnapshot({
+    volumePath: behaviorDataPath,
+    publicPath: path.join(__dirname, 'public', 'data', 'behavior-intelligence.json'),
+  });
+  if (seeded) console.log(`Seeded behavior snapshot at ${behaviorDataPath}`);
 }
 
 // Cache parsed JSON keyed by file mtime so hot paths (per-order attribution
@@ -181,6 +203,8 @@ function behaviorBackfillEnv(extra = {}) {
   const launchSince = process.env.BEHAVIOR_SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
   const env = {
     BACKFILL_START_DATE: process.env.BACKFILL_START_DATE || launchSince,
+    SESSION_EVENTS_PATH: sessionEventsPath,
+    BEHAVIOR_SNAPSHOT_PATH: behaviorDataPath,
     ...extra,
   };
   if (!extra.SINCE && !extra.BEHAVIOR_SINCE) {
@@ -1516,5 +1540,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(port, () => {
   console.log(`ShawQ Ad Set Radar listening on ${port}`);
+  bootstrapPersistentData();
   warmData().catch((error) => console.warn(error));
 });
