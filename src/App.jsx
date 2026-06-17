@@ -42,6 +42,12 @@ import { OrderDropRankings } from './components/dashboard/OrderDropRankings';
 import { buildOrderMoverRankings } from './lib/orderDropRankings.js';
 import { buildEmailCampaignSummary, buildEmailCampaignFromPurchases } from './lib/emailCampaignSummary.js';
 import { HistoricalInsights } from './components/dashboard/HistoricalInsights';
+import {
+  behaviorCachedUntil,
+  behaviorCoverageMeta,
+  emptyBehaviorGlobal,
+  isDevelopingReportingDayRange,
+} from './lib/reportingBounds.js';
 
 const SALE_POLL_MS = 30000;
 const META_POLL_MS = 120000;
@@ -878,6 +884,26 @@ function panelScopeRangeLabel(scope, launchRange, activeRange, preset, isDemo) {
     return `Since launch · ${range.since} – ${range.until}`;
   }
   return emailPanelRangeLabel(activeRange, preset, false);
+}
+function behaviorPanelRangeLabel(scope, launchRange, activeRange, preset, behavior, reportingToday) {
+  const base = panelScopeRangeLabel(scope, launchRange, activeRange, preset, false);
+  const cachedUntil = behaviorCachedUntil(behavior);
+  const range = scope === 'launch' ? launchRange : activeRange;
+  if (
+    cachedUntil
+    && range?.until
+    && range.until > cachedUntil
+    && isDevelopingReportingDayRange(range, reportingToday)
+  ) {
+    return `${base} · aggregates through ${cachedUntil}`;
+  }
+  if (scope === 'launch' && cachedUntil && range?.until && range.until > cachedUntil) {
+    return `${base} · data through ${cachedUntil}`;
+  }
+  if (scope === 'dashboard' && isDevelopingReportingDayRange(activeRange, reportingToday) && cachedUntil && activeRange?.until > cachedUntil) {
+    return `${base} · waiting for ${reportingToday} refresh`;
+  }
+  return base;
 }
 function dateRangeLabel(range, preset) {
   if (!range?.since || !range?.until) return 'Choose dates';
@@ -1871,26 +1897,45 @@ function journeyBehaviorRollup(journeyRows = []) {
   return { totals, steps, paths };
 }
 
-function filterBehaviorByDateRange(behavior, range) {
+function filterBehaviorByDateRange(behavior, range, reportingToday = currentReportingDay()) {
   const facts = filterRowsByDateRange(behavior?.facts || [], range);
   const demographicRows = filterRowsByDateRange(behavior?.meta_demographics_rows || [], range);
   const pageFacts = filterRowsByDateRange(behavior?.page_facts || [], range);
   const journeyRows = filterRowsByDateRange(behavior?.journey_rows || [], range);
+  const coverage = behaviorCoverageMeta(behavior, range, reportingToday);
   const checkoutProducts = rollupBehaviorFacts(facts, 'checkout', 'product');
   const checkoutCountries = rollupBehaviorFacts(facts, 'checkout', 'country');
   const paymentProducts = rollupBehaviorFacts(facts, 'submit_payment', 'product');
   const paymentCountries = rollupBehaviorFacts(facts, 'submit_payment', 'country');
   const demographics = demographicsBehaviorRollup(demographicRows);
+  const developingEmpty = coverage.developing_day
+    && !facts.length
+    && !demographicRows.length
+    && !pageFacts.length
+    && !journeyRows.length;
+  const checkoutGlobal = developingEmpty ? emptyBehaviorGlobal() : checkoutProducts.global;
+  const paymentGlobal = developingEmpty ? emptyBehaviorGlobal() : paymentProducts.global;
   return {
     ...behavior,
     period: { ...(behavior?.period || {}), since: range.since, until: range.until },
+    coverage,
     matrix: {
-      checkout: { global: checkoutProducts.global, products: checkoutProducts.rows, countries: checkoutCountries.rows, gender: demographics.checkout },
-      submit_payment: { global: paymentProducts.global, products: paymentProducts.rows, countries: paymentCountries.rows, gender: demographics.submit_payment },
+      checkout: {
+        global: checkoutGlobal,
+        products: developingEmpty ? [] : checkoutProducts.rows,
+        countries: developingEmpty ? [] : checkoutCountries.rows,
+        gender: developingEmpty ? [] : demographics.checkout,
+      },
+      submit_payment: {
+        global: paymentGlobal,
+        products: developingEmpty ? [] : paymentProducts.rows,
+        countries: developingEmpty ? [] : paymentCountries.rows,
+        gender: developingEmpty ? [] : demographics.submit_payment,
+      },
     },
-    dwell_pages: dwellBehaviorRollup(pageFacts),
-    dwell_analysis: dwellAnalysisMeta(pageFacts),
-    journeys: journeyBehaviorRollup(journeyRows),
+    dwell_pages: developingEmpty ? [] : dwellBehaviorRollup(pageFacts),
+    dwell_analysis: developingEmpty ? {} : dwellAnalysisMeta(pageFacts),
+    journeys: developingEmpty ? { totals: { purchasers: 0, non_purchasers: 0 }, steps: [], paths: [] } : journeyBehaviorRollup(journeyRows),
   };
 }
 
@@ -2559,9 +2604,10 @@ function App() {
     () => (behaviorPanelScope === 'launch' ? launchDateRange : activeDateRange),
     [behaviorPanelScope, launchDateRange, activeDateRange],
   );
+  const reportingToday = loadedBounds.today || currentReportingDay();
   const behaviorData = useMemo(
-    () => filterBehaviorByDateRange(baseBehaviorData, behaviorPanelDateRange),
-    [baseBehaviorData, behaviorPanelDateRange],
+    () => filterBehaviorByDateRange(baseBehaviorData, behaviorPanelDateRange, reportingToday),
+    [baseBehaviorData, behaviorPanelDateRange, reportingToday],
   );
   function handleDatePreset(nextPreset) {
     setDatePreset(nextPreset);
@@ -2695,7 +2741,14 @@ function App() {
     return buildEmailCampaignSummary(emailPanelProductData.order_lines || [], { countryFlag, timeZone: REPORTING_TIMEZONE });
   }, [mapIsDemo, emailPanelProductData.order_lines]);
   const emailPanelRangeText = panelScopeRangeLabel(emailPanelScope, launchDateRange, activeDateRange, datePreset, mapIsDemo);
-  const behaviorPanelRangeText = panelScopeRangeLabel(behaviorPanelScope, launchDateRange, activeDateRange, datePreset, false);
+  const behaviorPanelRangeText = behaviorPanelRangeLabel(
+    behaviorPanelScope,
+    launchDateRange,
+    activeDateRange,
+    datePreset,
+    baseBehaviorData,
+    reportingToday,
+  );
   const monitorStatusText = saleMonitor.status === 'live'
     ? (livePurchases.length ? 'Live Shopify sales monitor' : 'Live Shopify sales monitor · no orders yet today')
     : saleMonitor.status === 'checking'
@@ -2713,7 +2766,6 @@ function App() {
   // spend and make the revenue-vs-spend line unreadably spiky. Historical insights covers
   // the earlier Shopify-only period separately.
   // The current reporting day is omitted: it is still accumulating sales/spend.
-  const reportingToday = loadedBounds.today || currentReportingDay();
   const monthProjection = useMemo(
     () => buildMonthProjection(allBusinessRows, { today: reportingToday, elapsedShare: elapsedReportingDayShare() }),
     [allBusinessRows, reportingToday],
