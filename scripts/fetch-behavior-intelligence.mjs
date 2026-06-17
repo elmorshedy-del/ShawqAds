@@ -799,7 +799,7 @@ let out = {
   },
 };
 
-out = mergeBehaviorSnapshot(previous, out, { since, until });
+out = mergeBehaviorSnapshot(previous, out, { since, until, floorSince: requestedSince });
 out.dwell_pages = rollupDwellPages(out.page_facts);
 out.dwell_analysis = dwellAnalysisMeta(out.page_facts);
 out.journeys = journeyRollup(out.journey_rows);

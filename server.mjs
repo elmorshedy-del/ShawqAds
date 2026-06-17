@@ -179,11 +179,14 @@ function shopifyBackfillEnv(extra = {}) {
 
 function behaviorBackfillEnv(extra = {}) {
   const launchSince = process.env.BEHAVIOR_SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
-  return {
+  const env = {
     BACKFILL_START_DATE: process.env.BACKFILL_START_DATE || launchSince,
-    BEHAVIOR_SINCE: launchSince,
     ...extra,
   };
+  if (!extra.SINCE && !extra.BEHAVIOR_SINCE) {
+    env.BEHAVIOR_SINCE = launchSince;
+  }
+  return env;
 }
 
 function readShopifyPeriodSince(filePath) {

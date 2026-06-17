@@ -49,26 +49,24 @@ export function pruneRowsByDate(rows = [], { since = '', until = '' } = {}) {
   });
 }
 
-export function mergeBehaviorSnapshot(previous, next, { since, until }) {
+export function mergeBehaviorSnapshot(previous, next, { since, until, floorSince = '2026-06-03' } = {}) {
   if (!previous) return next;
   const merged = { ...next };
+  const launchFloor = [floorSince, previous?.period?.since].filter(Boolean).sort()[0] || floorSince;
+  const keepFromLaunch = (row) => !launchFloor || (row.date || row.date_start || '') >= launchFloor;
 
-  // Cumulate API-backed rows across refreshes. New fetch wins on key collision for the same window.
-  merged.facts = mergeRowSets(previous.facts, next.facts, behaviorFactKey)
-    .filter((row) => !since || (row.date || '') >= since);
-  merged.meta_demographics_rows = mergeRowSets(previous.meta_demographics_rows, next.meta_demographics_rows, metaDemographicKey)
-    .filter((row) => !since || (row.date || row.date_start || '') >= since);
+  // Cumulate API-backed rows across refreshes. New fetch wins on key collision.
+  merged.facts = mergeRowSets(previous.facts, next.facts, behaviorFactKey).filter(keepFromLaunch);
+  merged.meta_demographics_rows = mergeRowSets(previous.meta_demographics_rows, next.meta_demographics_rows, metaDemographicKey).filter(keepFromLaunch);
   merged.meta_payment_rows = mergeRowSets(
     previous.meta_payment_rows,
     next.meta_payment_rows,
     (row) => `${row.date || row.date_start || ''}:${row.ad_id || ''}:${row.country_code || ''}`,
-  ).filter((row) => !since || (row.date || row.date_start || '') >= since);
+  ).filter(keepFromLaunch);
 
   // Session-derived rows must cumulate across refreshes even when NDJSON shrinks or redeploys.
-  merged.page_facts = mergeRowSets(previous.page_facts, next.page_facts, pageFactKey)
-    .filter((row) => !since || (row.date || '') >= since);
-  merged.journey_rows = mergeRowSets(previous.journey_rows, next.journey_rows, journeyRowKey)
-    .filter((row) => !since || (row.date || '') >= since);
+  merged.page_facts = mergeRowSets(previous.page_facts, next.page_facts, pageFactKey).filter(keepFromLaunch);
+  merged.journey_rows = mergeRowSets(previous.journey_rows, next.journey_rows, journeyRowKey).filter(keepFromLaunch);
 
   const previousEventCount = Number(previous?.extraction?.session_events?.count || 0);
   const nextEventCount = Number(next?.extraction?.session_events?.count || 0);
@@ -83,7 +81,7 @@ export function mergeBehaviorSnapshot(previous, next, { since, until }) {
 
   merged.period = {
     ...(next.period || {}),
-    since: [previous?.period?.since, since].filter(Boolean).sort()[0] || since,
+    since: launchFloor,
     until: [previous?.period?.until, until, latestDateFromRows(merged.facts)].filter(Boolean).sort().at(-1) || until,
   };
 
@@ -91,9 +89,10 @@ export function mergeBehaviorSnapshot(previous, next, { since, until }) {
 }
 
 function latestDateFromRows(rows = []) {
-  return (rows || [])
-    .map((row) => row.date || row.date_start || '')
-    .filter(Boolean)
-    .sort()
-    .at(-1) || '';
+  let latest = '';
+  for (const row of rows || []) {
+    const date = row.date || row.date_start || '';
+    if (date && date > latest) latest = date;
+  }
+  return latest;
 }
