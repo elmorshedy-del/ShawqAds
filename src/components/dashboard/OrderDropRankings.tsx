@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { Globe2, Megaphone, TrendingDown } from "lucide-react";
+import { Globe2, Megaphone, TrendingDown, TrendingUp } from "lucide-react";
 
 export interface DropRow {
   key: string;
@@ -17,10 +17,30 @@ export interface OrderDropRankingsProps {
   orderDeltaPct: number;
   countries: DropRow[];
   ads: DropRow[];
-  context?: "ended-day" | "selected-day";
+  variant?: "daggers" | "rockets";
+  sameTimePreviousDay?: boolean;
 }
 
-const ACCENT = "var(--color-destructive)";
+const VARIANTS = {
+  daggers: {
+    title: "Today's daggers",
+    accent: "var(--color-destructive)",
+    Icon: TrendingDown,
+    badge: "Pulling down",
+    emptyCountry: "No country lost orders",
+    emptyAd: "No attributed ad lost orders",
+    positive: false,
+  },
+  rockets: {
+    title: "Today's rockets",
+    accent: "var(--color-positive)",
+    Icon: TrendingUp,
+    badge: "Lifting up",
+    emptyCountry: "No country gained orders",
+    emptyAd: "No attributed ad gained orders",
+    positive: true,
+  },
+} as const;
 
 function formatShortDate(iso: string) {
   const date = new Date(`${iso}T12:00:00Z`);
@@ -28,16 +48,18 @@ function formatShortDate(iso: string) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-function DropList({
+function MoverList({
   title,
   icon: Icon,
   rows,
   emptyLabel,
+  positive,
 }: {
   title: string;
   icon: ComponentType<{ className?: string }>;
   rows: DropRow[];
   emptyLabel: string;
+  positive: boolean;
 }) {
   return (
     <div>
@@ -59,8 +81,14 @@ function DropList({
                 {row.previous} orders → {row.current}
               </p>
             </div>
-            <span className="shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 font-display text-xs font-semibold tabular-nums text-destructive">
-              {row.delta}
+            <span
+              className={
+                positive
+                  ? "shrink-0 rounded-full bg-positive/10 px-2 py-0.5 font-display text-xs font-semibold tabular-nums text-positive"
+                  : "shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 font-display text-xs font-semibold tabular-nums text-destructive"
+              }
+            >
+              {row.delta > 0 ? `+${row.delta}` : row.delta}
             </span>
           </li>
         )) : (
@@ -81,47 +109,52 @@ export function OrderDropRankings({
   orderDeltaPct,
   countries,
   ads,
-  context = "ended-day",
+  variant = "daggers",
+  sameTimePreviousDay = false,
 }: OrderDropRankingsProps) {
+  const config = VARIANTS[variant];
   const dayLabel = formatShortDate(day);
   const prevDayLabel = formatShortDate(prevDay);
-  const dropPct = Math.abs(Math.round(orderDeltaPct));
-  const endedDay = context === "ended-day";
+  const movePct = Math.abs(Math.round(orderDeltaPct));
+  const comparisonNote = sameTimePreviousDay ? "same time yesterday" : "full prior day";
 
-  const title = endedDay ? "Why orders dropped yesterday" : "What dragged orders down";
-  const subtitle = endedDay
-    ? `${dayLabel} finished with ${currentOrders} orders, down ${dropPct}% from ${prevDayLabel} (${previousOrders}).`
-    : `${dayLabel} vs ${prevDayLabel} · ${currentOrders} orders vs ${previousOrders} (${orderDeltaPct > 0 ? "+" : ""}${Math.round(orderDeltaPct)}%)`;
+  const subtitle = config.positive
+    ? `${dayLabel} vs ${prevDayLabel} (${comparisonNote}) · ${currentOrders} orders vs ${previousOrders} (+${movePct}%)`
+    : `${dayLabel} vs ${prevDayLabel} (${comparisonNote}) · ${currentOrders} orders vs ${previousOrders} (−${movePct}%)`;
 
   return (
     <section>
       <div className="mb-3 flex items-center gap-2">
         <span
           className="flex h-7 w-7 items-center justify-center rounded-lg"
-          style={{ background: `color-mix(in oklab, ${ACCENT} 14%, white)`, color: ACCENT }}
+          style={{ background: `color-mix(in oklab, ${config.accent} 14%, white)`, color: config.accent }}
         >
-          <TrendingDown className="h-4 w-4" />
+          <config.Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0">
-          <h2 className="font-display text-base font-semibold tracking-tight">{title}</h2>
+          <h2 className="font-display text-base font-semibold tracking-tight">{config.title}</h2>
           <p className="text-[0.7rem] leading-snug text-muted-foreground">{subtitle}</p>
         </div>
       </div>
 
       <div
         className="panel relative overflow-hidden p-5"
-        style={{ background: `linear-gradient(180deg, color-mix(in oklab, ${ACCENT} 5%, var(--color-card)), var(--color-card) 65%)` }}
+        style={{ background: `linear-gradient(180deg, color-mix(in oklab, ${config.accent} 5%, var(--color-card)), var(--color-card) 65%)` }}
       >
-        <span className="pointer-events-none absolute inset-x-0 top-0 h-0.5" style={{ background: ACCENT }} />
+        <span className="pointer-events-none absolute inset-x-0 top-0 h-0.5" style={{ background: config.accent }} />
 
         <div className="flex flex-wrap items-center gap-2">
-          {endedDay ? (
-            <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-destructive">
-              Ended day
-            </span>
-          ) : null}
+          <span
+            className="rounded-full px-2.5 py-1 text-[0.58rem] font-semibold uppercase tracking-[0.1em]"
+            style={{
+              background: `color-mix(in oklab, ${config.accent} 12%, transparent)`,
+              color: config.accent,
+            }}
+          >
+            {config.badge}
+          </span>
           <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-            Top 3 pullbacks
+            Top 3 movers
           </span>
         </div>
 
@@ -134,22 +167,24 @@ export function OrderDropRankings({
           <div className="rounded-xl border border-border bg-surface-2/40 px-3.5 py-3">
             <p className="text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{prevDayLabel}</p>
             <p className="mt-1 font-display text-lg font-semibold tabular-nums tracking-tight">{previousOrders}</p>
-            <p className="mt-0.5 text-[0.65rem] text-muted-foreground">orders</p>
+            <p className="mt-0.5 text-[0.65rem] text-muted-foreground">orders ({comparisonNote})</p>
           </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
-          <DropList
+          <MoverList
             title="Countries"
             icon={Globe2}
             rows={countries}
-            emptyLabel="No country lost orders"
+            emptyLabel={config.emptyCountry}
+            positive={config.positive}
           />
-          <DropList
+          <MoverList
             title="Ads / sources"
             icon={Megaphone}
             rows={ads}
-            emptyLabel="No attributed ad lost orders"
+            emptyLabel={config.emptyAd}
+            positive={config.positive}
           />
         </div>
       </div>

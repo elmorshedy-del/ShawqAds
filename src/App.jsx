@@ -39,7 +39,7 @@ import { BehaviorAnalytics } from './components/dashboard/BehaviorAnalytics';
 import { DataTable } from './components/dashboard/DataTable';
 import * as adapt from './lib/adapt.js';
 import { OrderDropRankings } from './components/dashboard/OrderDropRankings';
-import { buildOrderDropRankings } from './lib/orderDropRankings.js';
+import { buildOrderMoverRankings } from './lib/orderDropRankings.js';
 import { buildEmailCampaignSummary, buildEmailCampaignFromPurchases } from './lib/emailCampaignSummary.js';
 import { HistoricalInsights } from './components/dashboard/HistoricalInsights';
 
@@ -1052,13 +1052,26 @@ function fallbackPeriodDelta(rows, key) {
 function businessPeriodDelta(rows, key, activeRange) {
   const sorted = [...(rows || [])].sort((a, b) => a.date.localeCompare(b.date));
   if (!activeRange?.since || !activeRange?.until) return fallbackPeriodDelta(sorted, key);
-  const currentRows = filterRowsByDateRange(sorted, activeRange);
-  if (!currentRows.length) return emptyPeriodDelta(key, 'no current data');
   const days = dayCount(activeRange);
+  const isDevelopingDay = days === 1 && activeRange.since === activeRange.until && activeRange.until === currentReportingDay();
+  let currentRows = filterRowsByDateRange(sorted, activeRange);
+  if (!currentRows.length && isDevelopingDay) {
+    currentRows = [{
+      date: activeRange.until,
+      revenue_usd: 0,
+      spend_usd: 0,
+      orders: 0,
+      units: 0,
+      aov: 0,
+      cac: 0,
+      roas: 0,
+    }];
+  } else if (!currentRows.length) {
+    return emptyPeriodDelta(key, 'no current data');
+  }
   const previousRange = { since: shiftDate(activeRange.since, -days), until: shiftDate(activeRange.until, -days) };
   const previousRows = filterRowsByDateRange(sorted, previousRange);
   if (previousRows.length) {
-    const isDevelopingDay = days === 1 && activeRange.since === activeRange.until && activeRange.until === currentReportingDay();
     const comparisonRows = isDevelopingDay ? scaleBusinessRows(previousRows, elapsedReportingDayShare()) : previousRows;
     return periodDeltaFromRows(currentRows, comparisonRows, key, isDevelopingDay ? 'vs same time previous day' : days === 1 ? 'vs previous day' : 'vs previous period');
   }
@@ -2608,15 +2621,29 @@ function App() {
     const accountRows = data.account_daily_metrics?.length ? data.account_daily_metrics : accountDailyFromAdRows(data.ad_country_daily || []);
     return accountRows.length ? accountRows : (data.daily_metrics || aggregateRows(data.adsets || []));
   }, [data]);
-  const allLoadedDateRange = useMemo(() => ({ since: loadedBounds.since, until: loadedBounds.until }), [loadedBounds.since, loadedBounds.until]);
+  const allLoadedDateRange = useMemo(() => ({
+    since: loadedBounds.since,
+    until: [loadedBounds.until, loadedBounds.today, baseProductData?.period?.current_reporting_day]
+      .filter(Boolean)
+      .sort()
+      .at(-1) || loadedBounds.until,
+  }), [loadedBounds.since, loadedBounds.until, loadedBounds.today, baseProductData?.period?.current_reporting_day]);
   const allLoadedData = useMemo(() => filterMetaDataByDateRange(baseData, allLoadedDateRange), [baseData, allLoadedDateRange]);
-  const allLoadedProductData = useMemo(() => filterShopifyByDateRange(baseProductData, allLoadedDateRange), [baseProductData, allLoadedDateRange]);
+  const allLoadedProductDaily = useMemo(
+    () => (baseProductData?.daily || []).filter((row) => {
+      if (!row?.date) return false;
+      if (allLoadedDateRange.since && row.date < allLoadedDateRange.since) return false;
+      if (allLoadedDateRange.until && row.date > allLoadedDateRange.until) return false;
+      return true;
+    }),
+    [baseProductData?.daily, allLoadedDateRange.since, allLoadedDateRange.until],
+  );
   const allLoadedAccountDaily = useMemo(() => {
     const accountRows = allLoadedData.account_daily_metrics?.length ? allLoadedData.account_daily_metrics : accountDailyFromAdRows(allLoadedData.ad_country_daily || []);
     return accountRows.length ? accountRows : (allLoadedData.daily_metrics || aggregateRows(allLoadedData.adsets || []));
   }, [allLoadedData]);
   const businessRows = useMemo(() => mergeBusinessRows(accountDaily, productData.daily || []), [accountDaily, productData]);
-  const allBusinessRows = useMemo(() => mergeBusinessRows(allLoadedAccountDaily, allLoadedProductData.daily || []), [allLoadedAccountDaily, allLoadedProductData]);
+  const allBusinessRows = useMemo(() => mergeBusinessRows(allLoadedAccountDaily, allLoadedProductDaily), [allLoadedAccountDaily, allLoadedProductDaily]);
   const business = businessStats(businessRows);
   const businessDeltas = useMemo(() => ({
     revenue: businessPeriodDelta(allBusinessRows, 'revenue_usd', activeDateRange),
@@ -2777,23 +2804,28 @@ function App() {
     },
   ]), [topMovers]);
 
-  const orderDropRankings = useMemo(() => {
+  const todayOrderMovers = useMemo(() => {
     const lines = baseProductData?.order_lines || [];
-    const opts = { limit: 3, minDropPct: 40, countryFlag, cleanAdLabel, isTipLine };
     const reportingToday = loadedBounds.today || currentReportingDay();
     if (!reportingToday) return null;
+    const isTodayView = dayCount(activeDateRange) === 1 && activeDateRange.until === reportingToday;
+    if (!isTodayView) return null;
 
-    // After the Istanbul day rolls over, explain the day that just ended (yesterday).
-    const endedDay = shiftDate(reportingToday, -1);
-    const rollover = buildOrderDropRankings(lines, endedDay, shiftDate(endedDay, -1), opts);
-    if (rollover) return { ...rollover, context: 'ended-day' };
-
-    // Fallback: user picked another single down day in the date filter.
-    if (dayCount(activeDateRange) !== 1) return null;
-    const day = activeDateRange.until;
-    if (!day || day === endedDay) return null;
-    const selected = buildOrderDropRankings(lines, day, shiftDate(day, -1), opts);
-    return selected ? { ...selected, context: 'selected-day' } : null;
+    const prevDay = shiftDate(reportingToday, -1);
+    const elapsedShare = elapsedReportingDayShare();
+    const opts = {
+      limit: 3,
+      minMovePct: 40,
+      elapsedShare,
+      timeZone: REPORTING_TIMEZONE,
+      countryFlag,
+      cleanAdLabel,
+      isTipLine,
+    };
+    const daggers = buildOrderMoverRankings(lines, reportingToday, prevDay, { ...opts, direction: 'down' });
+    const rockets = buildOrderMoverRankings(lines, reportingToday, prevDay, { ...opts, direction: 'up' });
+    if (!daggers && !rockets) return null;
+    return { daggers, rockets, reportingToday, prevDay, sameTimePreviousDay: elapsedShare < 1 };
   }, [baseProductData, activeDateRange, loadedBounds]);
 
   const histPeriod = deliveryComparison.historical || {};
@@ -2833,16 +2865,30 @@ function App() {
         <KpiCard label="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} delta={businessDeltas.roas.pct} series={adapt.sparkSeries(businessRows, 'roas', allBusinessRows)} accent="positive" projection={kpiProjection('roas')} record={kpiRecord('roas')} />
       </section>
     ),
-    orderDrop: orderDropRankings ? (
+    orderDrop: todayOrderMovers?.daggers ? (
       <OrderDropRankings
-        day={orderDropRankings.day}
-        prevDay={orderDropRankings.prevDay}
-        currentOrders={orderDropRankings.currentOrders}
-        previousOrders={orderDropRankings.previousOrders}
-        orderDeltaPct={orderDropRankings.orderDeltaPct}
-        countries={orderDropRankings.countries}
-        ads={orderDropRankings.ads}
-        context={orderDropRankings.context}
+        variant="daggers"
+        day={todayOrderMovers.daggers.day}
+        prevDay={todayOrderMovers.daggers.prevDay}
+        currentOrders={todayOrderMovers.daggers.currentOrders}
+        previousOrders={todayOrderMovers.daggers.previousOrders}
+        orderDeltaPct={todayOrderMovers.daggers.orderDeltaPct}
+        countries={todayOrderMovers.daggers.countries}
+        ads={todayOrderMovers.daggers.ads}
+        sameTimePreviousDay={todayOrderMovers.sameTimePreviousDay}
+      />
+    ) : null,
+    orderLift: todayOrderMovers?.rockets ? (
+      <OrderDropRankings
+        variant="rockets"
+        day={todayOrderMovers.rockets.day}
+        prevDay={todayOrderMovers.rockets.prevDay}
+        currentOrders={todayOrderMovers.rockets.currentOrders}
+        previousOrders={todayOrderMovers.rockets.previousOrders}
+        orderDeltaPct={todayOrderMovers.rockets.orderDeltaPct}
+        countries={todayOrderMovers.rockets.countries}
+        ads={todayOrderMovers.rockets.ads}
+        sameTimePreviousDay={todayOrderMovers.sameTimePreviousDay}
       />
     ) : null,
     revenue: <RevenueChart rows={trendDayRows} />,
@@ -2914,7 +2960,7 @@ function App() {
     ),
   };
   const dashboardGroups = [
-    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'orderDrop', 'revenue', 'mobileTops'] },
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'orderDrop', 'orderLift', 'revenue', 'mobileTops'] },
     { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'emailCampaign', 'leaders', 'edits', 'decision'] },
     { key: 'launch', label: 'Launch', icon: Rocket, ids: ['usa', 'delivery'] },
     { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['salesBench', 'product', 'country'] },
