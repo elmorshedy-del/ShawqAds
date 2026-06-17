@@ -2,18 +2,28 @@ function orderKey(line) {
   return String(line.order_id || line.order_name || '').trim();
 }
 
+const reportingTimeFormatters = new Map();
+
+function reportingTimeFormatter(timeZone) {
+  const key = timeZone || 'UTC';
+  if (!reportingTimeFormatters.has(key)) {
+    reportingTimeFormatters.set(key, new Intl.DateTimeFormat('en-US', {
+      timeZone: key,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }));
+  }
+  return reportingTimeFormatters.get(key);
+}
+
 function secondsIntoReportingDay(iso, timeZone) {
   if (!iso) return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hourCycle: 'h23',
-    })
+    reportingTimeFormatter(timeZone)
       .formatToParts(date)
       .filter((part) => part.type !== 'literal')
       .map((part) => [part.type, Number(part.value)]),
