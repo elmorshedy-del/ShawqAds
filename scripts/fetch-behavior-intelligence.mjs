@@ -5,6 +5,7 @@ import { productTaxonomyForName } from '../src/lib/productMapping.js';
 import { normalizePagePath } from '../src/lib/pagePath.js';
 import { dwellAnalysisMeta, rollupDwellPages } from '../src/lib/dwellStats.js';
 import { mergeBehaviorSnapshot } from '../src/lib/behaviorPersistence.js';
+import { behaviorSnapshotPath, sessionEventsPath as defaultSessionEventsPath } from '../src/lib/dataPaths.js';
 
 const envPaths = [process.env.ENV_FILE, path.resolve('.env')].filter(Boolean);
 for (const envPath of envPaths) {
@@ -26,7 +27,7 @@ const metaAccount = (process.env.SHAWQ_META_AD_ACCOUNT_ID || process.env.META_AD
 const metaGraphVersion = process.env.META_GRAPH_VERSION || 'v20.0';
 const requestedSince = process.env.BEHAVIOR_SINCE || process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
 const requestedUntil = process.env.BEHAVIOR_UNTIL || process.env.UNTIL || '';
-const sessionEventsPath = process.env.SESSION_EVENTS_PATH || path.resolve('data/session-events.ndjson');
+const sessionEventsPath = process.env.SESSION_EVENTS_PATH || defaultSessionEventsPath(path.resolve('.'));
 
 function dateInTimezone(date = new Date(), timeZone = 'UTC') {
   return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
@@ -723,7 +724,7 @@ const dwellPages = rollupDwellPages(fullSessionAgg.pageFacts);
 const dwellMeta = dwellAnalysisMeta(fullSessionAgg.pageFacts);
 const journeys = journeyRollup(fullSessionAgg.journeyRows);
 
-const outPath = path.resolve('public/data/behavior-intelligence.json');
+const outPath = process.env.BEHAVIOR_SNAPSHOT_PATH || behaviorSnapshotPath(path.resolve('.'));
 const previous = readJson(outPath, null);
 let out = {
   source: 'Shopify abandoned checkouts + Meta demographics + first-party session events',
