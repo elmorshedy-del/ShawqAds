@@ -64,7 +64,7 @@ async function runBehaviorRefreshFromSessionEvents() {
   try {
     do {
       sessionBehaviorRefreshPending = false;
-      const result = await runScript('fetch:behavior');
+      const result = await runScript('fetch:behavior', behaviorBackfillEnv());
       if (result.code !== 0) console.warn(result.output || 'fetch:behavior failed after session event');
     } while (sessionBehaviorRefreshPending);
   } catch (error) {
@@ -173,6 +173,15 @@ function isSessionEventAuthorized(req, url) {
 function shopifyBackfillEnv(extra = {}) {
   return {
     SHOPIFY_BACKFILL_START_DATE: SHOPIFY_HISTORICAL_SINCE,
+    ...extra,
+  };
+}
+
+function behaviorBackfillEnv(extra = {}) {
+  const launchSince = process.env.BEHAVIOR_SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
+  return {
+    BACKFILL_START_DATE: process.env.BACKFILL_START_DATE || launchSince,
+    BEHAVIOR_SINCE: launchSince,
     ...extra,
   };
 }
@@ -430,6 +439,22 @@ function behaviorNeedsSessionRefresh(behaviorFile) {
     const behavior = JSON.parse(fs.readFileSync(behaviorFile, 'utf8'));
     const cachedCount = Number(behavior?.extraction?.session_events?.count || 0);
     return status.count > cachedCount;
+  } catch {
+    return true;
+  }
+}
+
+function behaviorNeedsRefresh(behaviorFile) {
+  if (!fs.existsSync(behaviorFile)) return true;
+  if (behaviorNeedsSessionRefresh(behaviorFile)) return true;
+  try {
+    const behavior = JSON.parse(fs.readFileSync(behaviorFile, 'utf8'));
+    const until = behavior?.period?.until || '';
+    const today = dateInTimezone(new Date(), shopifyReportingTimezone);
+    if (today && until && until < today) return true;
+    const since = behavior?.period?.since || '';
+    const launchSince = process.env.BEHAVIOR_SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
+    return Boolean(since && launchSince && since > launchSince);
   } catch {
     return true;
   }
@@ -1315,9 +1340,11 @@ async function serveData(req, res, name, script) {
     return;
   }
 
-  const sessionStale = script === 'fetch:behavior' && !force && behaviorNeedsSessionRefresh(file);
-  if (force || !fs.existsSync(file) || sessionStale) {
-    const env = dateEnvFromUrl(url);
+  const behaviorStale = script === 'fetch:behavior' && !force && behaviorNeedsRefresh(file);
+  if (force || !fs.existsSync(file) || behaviorStale) {
+    const env = script === 'fetch:behavior'
+      ? behaviorBackfillEnv(dateEnvFromUrl(url))
+      : dateEnvFromUrl(url);
     const result = script === 'fetch:shopify'
       ? await runShopifyFetch(env)
       : await runScript(script, env);
@@ -1342,7 +1369,9 @@ async function warmData() {
     jobs.push(runShopifyFetch());
   }
   const results = jobs.length ? await Promise.all(jobs) : [];
-  if (process.env.SHAWQ_META_ACCESS_TOKEN || process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN) results.push(await runScript('fetch:behavior'));
+  if (process.env.SHAWQ_META_ACCESS_TOKEN || process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN) {
+    results.push(await runScript('fetch:behavior', behaviorBackfillEnv()));
+  }
   results.forEach((r) => { if (r.code !== 0) console.warn(r.output); });
 }
 

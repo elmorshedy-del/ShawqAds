@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { productTaxonomyForName } from '../src/lib/productMapping.js';
 import { normalizePagePath } from '../src/lib/pagePath.js';
 import { dwellAnalysisMeta, rollupDwellPages } from '../src/lib/dwellStats.js';
+import { mergeBehaviorSnapshot } from '../src/lib/behaviorPersistence.js';
 
 const envPaths = [process.env.ENV_FILE, path.resolve('.env')].filter(Boolean);
 for (const envPath of envPaths) {
@@ -722,7 +723,9 @@ const dwellPages = rollupDwellPages(fullSessionAgg.pageFacts);
 const dwellMeta = dwellAnalysisMeta(fullSessionAgg.pageFacts);
 const journeys = journeyRollup(fullSessionAgg.journeyRows);
 
-const out = {
+const outPath = path.resolve('public/data/behavior-intelligence.json');
+const previous = readJson(outPath, null);
+let out = {
   source: 'Shopify abandoned checkouts + Meta demographics + first-party session events',
   generated_at: new Date().toISOString(),
   period: {
@@ -796,17 +799,14 @@ const out = {
   },
 };
 
-const outPath = path.resolve('public/data/behavior-intelligence.json');
-const previous = readJson(outPath, null);
-if (previous?.page_facts?.length > out.page_facts.length && rawSessionEvents.length >= previous.page_facts.length) {
-  console.warn(`Preserving ${previous.page_facts.length} cached page_facts (rebuilt ${out.page_facts.length} from ingest)`);
-  out.page_facts = previous.page_facts;
-  out.journey_rows = previous.journey_rows || out.journey_rows;
-  out.dwell_pages = rollupDwellPages(out.page_facts);
-  out.dwell_analysis = dwellAnalysisMeta(out.page_facts);
-  out.journeys = journeyRollup(out.journey_rows);
+out = mergeBehaviorSnapshot(previous, out, { since, until });
+out.dwell_pages = rollupDwellPages(out.page_facts);
+out.dwell_analysis = dwellAnalysisMeta(out.page_facts);
+out.journeys = journeyRollup(out.journey_rows);
+if (previous && (out.page_facts.length > fullSessionAgg.pageFacts.length || out.facts.length > facts.length)) {
+  console.warn(`Merged behavior snapshot: facts ${facts.length}→${out.facts.length}, page_facts ${fullSessionAgg.pageFacts.length}→${out.page_facts.length}, journey_rows ${fullSessionAgg.journeyRows.length}→${out.journey_rows.length}`);
 }
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
-console.log(`Wrote behavior intelligence: ${checkoutProducts.rows.length} checkout products, ${paymentProducts.rows.length} payment products, ${dwellPages.length} dwell pages to ${outPath}`);
+console.log(`Wrote behavior intelligence: ${checkoutProducts.rows.length} checkout products, ${paymentProducts.rows.length} payment products, ${out.dwell_pages.length} dwell pages to ${outPath}`);
 console.log(`Coverage: abandoned_checkouts=${abandonedResult.ok ? abandonedResult.rows.length : 'failed'} meta_demographics=${metaDemographics.ok ? metaDemographics.rows.length : 'failed'} meta_payment=${metaPayment.ok ? metaPayment.rows.length : 'failed'} session_events=${allSessionEvents.length} (${sessionEvents.length} in window)`);
