@@ -19,20 +19,29 @@ interface BehaviorStep {
 }
 interface BehaviorData {
   period?: { since?: string; until?: string };
+  coverage?: {
+    developing_day?: boolean;
+    cached_until?: string;
+    reporting_today?: string;
+    requested_until?: string;
+    cache_lags_calendar?: boolean;
+  };
   extraction?: Record<string, any>;
   matrix?: { checkout?: BehaviorStep; submit_payment?: BehaviorStep };
   dwell_pages?: any[];
   journeys?: { steps?: any[] };
 }
 
+function rateLabel(value: any, { exposed }: { exposed?: number } = {}) {
+  if (exposed === 0) return "n/a";
+  if (value == null || !Number.isFinite(Number(value))) return "n/a";
+  return `${Math.round(Number(value) * 100)}%`;
+}
+
 function countryFlag(code?: string) {
   const cc = String(code || "").trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(cc)) return "•";
   return [...cc].map((char) => String.fromCodePoint(127397 + char.charCodeAt(0))).join("");
-}
-
-function rateLabel(value: any) {
-  return Number.isFinite(Number(value)) ? `${Math.round(Number(value || 0) * 100)}%` : "n/a";
 }
 
 function ratePoints(value: any) {
@@ -130,6 +139,24 @@ function EmptyBlock({ title, text, dense }: { title: string; text: string; dense
     >
       <p className="text-xs font-semibold">{title}</p>
       <p className="mt-1 text-[0.65rem] leading-relaxed text-muted-foreground">{text}</p>
+    </div>
+  );
+}
+
+function BehaviorDevelopingBanner({ behavior }: { behavior: BehaviorData }) {
+  const coverage = behavior?.coverage;
+  if (!coverage?.developing_day) return null;
+  const cachedUntil = coverage.cached_until || "";
+  return (
+    <div className="rounded-xl border border-brand/30 bg-brand-soft/40 px-4 py-3 text-xs text-foreground">
+      <p className="font-semibold">Today&apos;s behavior window is still developing</p>
+      <p className="mt-1 leading-relaxed text-muted-foreground">
+        The Istanbul reporting day just rolled over, but the behavior snapshot has not refreshed for{" "}
+        {coverage.reporting_today || "today"} yet
+        {cachedUntil ? ` (last aggregates through ${cachedUntil})` : ""}.
+        Checkout friction, dwell, and journeys stay n/a here until abandoned-checkout and session-pixel rollups catch up —
+        not 0% abandon.
+      </p>
     </div>
   );
 }
@@ -238,7 +265,7 @@ function StepCell({ row, label, global }: { row: any; label: string; global?: { 
   }
   const vs = Number(row.vs_site_pp || 0);
   const excess = Math.max(0, Number(row.excess_abandons || 0));
-  const siteRate = rateLabel(global?.rate || 0);
+  const siteRate = rateLabel(global?.rate, { exposed: global?.exposed });
   return (
     <div className="rounded-lg border border-border bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
@@ -284,6 +311,7 @@ function StepCell({ row, label, global }: { row: any; label: string; global?: { 
 }
 
 function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
+  const developingDay = Boolean(behavior?.coverage?.developing_day);
   const checkoutRows = behavior?.matrix?.checkout?.products || [];
   const paymentRows = behavior?.matrix?.submit_payment?.products || [];
   const checkoutByKey = new Map(checkoutRows.map((row: any) => [row.key, row]));
@@ -387,8 +415,12 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
         </div>
       ) : (
         <EmptyBlock
-          title="No abandonment rows in this date window yet"
-          text="Checkout abandonments come from Shopify abandoned checkouts. Submit-payment rows come from Meta AddPaymentInfo now, with exact session-level rows added when the customer-events pixel sends payment_info_submitted."
+          title={developingDay ? "Today's friction aggregates are still building" : "No abandonment rows in this date window yet"}
+          text={
+            developingDay
+              ? "Behavior JSON refreshes after Shopify/Meta extracts and session-pixel rollups. Switch to Since launch for full-window context, or check back after the next behavior refresh."
+              : "Checkout abandonments come from Shopify abandoned checkouts. Submit-payment rows come from Meta AddPaymentInfo now, with exact session-level rows added when the customer-events pixel sends payment_info_submitted."
+          }
         />
       )}
     </div>
@@ -698,6 +730,7 @@ export function BehaviorAnalytics({
             </p>
           </div>
 
+          <BehaviorDevelopingBanner behavior={behavior} />
           <SessionIngestBanner behavior={behavior} />
           <ExtractionStatus behavior={behavior} />
           <ProductMatrix behavior={behavior} />

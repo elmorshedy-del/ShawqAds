@@ -23,6 +23,8 @@
     "test:order-locality": "node scripts/order-locality-test.mjs",
     "test:page-path": "node scripts/page-path-test.mjs",
     "test:dwell-stats": "node scripts/dwell-stats-test.mjs",
+    "test:order-movers": "node scripts/order-drop-rankings-test.mjs",
+    "test:behavior-developing": "node scripts/behavior-developing-day-test.mjs",
     "memory:maintain": "agent-memory maintain --since main",
     "memory:graph": "agent-memory graph build",
     "memory:worklog": "agent-memory worklog checkpoint",

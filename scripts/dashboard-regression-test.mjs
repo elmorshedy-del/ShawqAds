@@ -102,6 +102,24 @@ assertIncludes(
 
 assertIncludes(
   app,
+  'behaviorCoverageMeta',
+  'Behavior filtering must detect developing-day cache lag instead of showing misleading 0% abandon rates.'
+);
+
+assertIncludes(
+  app,
+  'behaviorPanelRangeLabel',
+  'Behavior range label must disclose when cached aggregates trail the Istanbul reporting day.'
+);
+
+assertIncludes(
+  fs.readFileSync(new URL('../src/components/dashboard/BehaviorAnalytics.tsx', import.meta.url), 'utf8'),
+  'BehaviorDevelopingBanner',
+  'Behavior tab must explain the developing-day empty state at Istanbul day rollover.'
+);
+
+assertIncludes(
+  app,
   'onScopeChange={setEmailPanelScope}',
   'Email campaign panel must expose a scope toggle.'
 );
