@@ -84,6 +84,7 @@ assert(classifyTrafficSource({ href: '/?utm_source=google&utm_medium=cpc' }) ===
 assert(classifyTrafficSource({ referrer: 'https://www.bing.com/search?q=keffiyeh' }) === 'other_search', 'bing organic is other_search');
 assert(classifyTrafficSource({ referrer: 'https://l.instagram.com/' }) === 'social', 'instagram referral is social');
 assert(classifyTrafficSource({ href: '/?utm_source=instagram&utm_medium=paid_social' }) === 'meta_ads', 'instagram paid_social is meta');
+assert(classifyTrafficSource({ href: '/?utm_source=instagram&utm_medium=social' }) === 'social', 'instagram organic social is social, not paid');
 assert(classifyTrafficSource({ href: '/?fbclid=abc' }) === 'meta_ads', 'fbclid is meta');
 assert(classifyTrafficSource({ referrer: 'https://shawq.co/collections/tops' }) === 'direct', 'internal referrer is direct');
 assert(classifyTrafficSource({}) === 'direct', 'no signal is direct');

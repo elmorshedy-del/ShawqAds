@@ -43,7 +43,9 @@ export function classifyTrafficSource({ href = '', referrer = '' } = {}) {
 
   // Paid takes precedence over the referring host.
   if (googleAdsClick || (utmSource.includes('google') && paidMedium)) return 'google_ads';
-  if (metaClick || (/facebook|instagram|meta/.test(utmSource) && (paidMedium || utmMedium.includes('social')))) {
+  // Meta ADS = a paid click only (fbclid, or a Meta source with a paid medium). A Meta source with
+  // utm_medium=social is ORGANIC social and falls through to the social bucket below.
+  if (metaClick || (/facebook|instagram|meta/.test(utmSource) && paidMedium)) {
     return 'meta_ads';
   }
   if (paidMedium) return 'other_paid';

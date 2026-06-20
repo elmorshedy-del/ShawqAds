@@ -614,7 +614,11 @@ function SearchReach({
   if (!posts.length) return null;
   const overallShare = Number(data?.google_search_share || 0);
   const overallPct =
-    overallShare > 0 ? `${(overallShare * 100).toFixed(overallShare < 0.1 ? 1 : 0)}%` : "0%";
+    overallShare <= 0
+      ? "0%"
+      : overallShare * 100 < 0.1
+        ? "< 0.1%"
+        : `${(overallShare * 100).toFixed(overallShare < 0.1 ? 1 : 0)}%`;
   return (
     <div className="rounded-xl border border-border bg-surface-2/40 p-4">
       <div className="flex items-baseline justify-between gap-2">
@@ -634,7 +638,7 @@ function SearchReach({
           const share = Number(post.google_search_share || 0);
           const width = sessions > 0 ? Math.min(100, Math.max(4, share * 100)) : 0;
           return (
-            <div key={normalizePagePath(post.path)}>
+            <div key={post.path}>
               <div className="mb-1 flex items-baseline justify-between gap-3">
                 <span className="min-w-0 flex-1 break-words text-xs font-medium" title={post.label}>
                   {post.label}
