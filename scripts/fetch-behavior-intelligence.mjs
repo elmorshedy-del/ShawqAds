@@ -570,7 +570,7 @@ function rollupFacts(facts, step, dimension) {
       subtype: fact.subtype || 'Unknown',
       image_url: fact.image_url || '',
       country_code: fact.country_code || '',
-      country: fact.country || countryName(fact.country_code || ''),
+      country: /^[A-Z]{2}$/i.test(fact.country_code || '') ? countryName(fact.country_code) : (fact.country || countryName(fact.country_code || '')),
       exposed: 0,
       abandoned: 0,
       completed: 0,
@@ -793,6 +793,32 @@ function journeyRollup(journeyRows = []) {
   return { totals, steps, paths };
 }
 
+// Canonical product titles by id, from the storefront's default locale (English for ShawQ).
+// Order/checkout line-item titles are stored in the buyer's locale, so the friction matrix would
+// otherwise show e.g. the Italian "Gonna in denim Kuffiyah incisa" instead of the real product name.
+async function getStorefrontProductTitles() {
+  const titles = new Map();
+  if (!shopifyStore) return titles;
+  try {
+    for (let page = 1; page <= 8; page += 1) {
+      const url = `https://${shopifyStore}/products.json?limit=250&page=${page}`;
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!res.ok) break;
+      const products = (JSON.parse(await res.text()).products) || [];
+      if (!products.length) break;
+      for (const product of products) {
+        if (product && product.id != null && product.title) {
+          titles.set(String(product.id), String(product.title).trim());
+        }
+      }
+      if (products.length < 250) break;
+    }
+  } catch (error) {
+    console.warn(`Could not fetch storefront product titles: ${error.message}`);
+  }
+  return titles;
+}
+
 const shopMetadata = await getShopMetadata();
 const metaMetadata = await getMetaMetadata();
 const shopifyTimezone = process.env.SHAWQ_SHOPIFY_REPORTING_TIMEZONE || process.env.SHOPIFY_REPORTING_TIMEZONE || shopMetadata.iana_timezone || 'Europe/Istanbul';
@@ -842,6 +868,14 @@ const checkoutProducts = rollupFacts(facts, 'checkout', 'product');
 const checkoutCountries = rollupFacts(facts, 'checkout', 'country');
 const paymentProducts = rollupFacts(facts, 'submit_payment', 'product');
 const paymentCountries = rollupFacts(facts, 'submit_payment', 'country');
+// Replace localized line-item titles with the canonical storefront title in the friction matrix.
+const productTitleById = await getStorefrontProductTitles();
+for (const bucket of [checkoutProducts, paymentProducts]) {
+  for (const row of bucket.rows || []) {
+    const canonical = row.product_id ? productTitleById.get(String(row.product_id)) : null;
+    if (canonical) row.product = canonical;
+  }
+}
 const demographics = demographicsRollup(metaDemographics.rows || []);
 const dwellPages = rollupDwellPages(fullSessionAgg.pageFacts);
 const dwellMeta = dwellAnalysisMeta(fullSessionAgg.pageFacts);
