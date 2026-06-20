@@ -807,6 +807,11 @@ if (previous && (out.page_facts.length > fullSessionAgg.pageFacts.length || out.
   console.warn(`Merged behavior snapshot: facts ${facts.length}→${out.facts.length}, page_facts ${fullSessionAgg.pageFacts.length}→${out.page_facts.length}, journey_rows ${fullSessionAgg.journeyRows.length}→${out.journey_rows.length}`);
 }
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
-fs.writeFileSync(outPath, JSON.stringify(out, null, 2));
+// Atomic write: serveData streams this file while a background refresh may be running, so
+// write to a temp file and rename into place (rename is atomic on the same filesystem) to
+// avoid serving a truncated/partial JSON snapshot during the write.
+const tmpOutPath = `${outPath}.tmp`;
+fs.writeFileSync(tmpOutPath, JSON.stringify(out, null, 2));
+fs.renameSync(tmpOutPath, outPath);
 console.log(`Wrote behavior intelligence: ${checkoutProducts.rows.length} checkout products, ${paymentProducts.rows.length} payment products, ${out.dwell_pages.length} dwell pages to ${outPath}`);
 console.log(`Coverage: abandoned_checkouts=${abandonedResult.ok ? abandonedResult.rows.length : 'failed'} meta_demographics=${metaDemographics.ok ? metaDemographics.rows.length : 'failed'} meta_payment=${metaPayment.ok ? metaPayment.rows.length : 'failed'} session_events=${allSessionEvents.length} (${sessionEvents.length} in window)`);

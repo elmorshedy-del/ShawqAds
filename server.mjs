@@ -66,12 +66,15 @@ let metaLiveInFlight = { key: '', promise: null };
 let metaAccountCache = { fetchedAt: 0, payload: null };
 const fxCache = new Map();
 
-const SESSION_BEHAVIOR_REFRESH_MS = Number(process.env.SESSION_BEHAVIOR_REFRESH_MS || 15000);
+// Behavior regeneration is expensive (Meta + Shopify + full session-event log). Cap how
+// often the background refresh actually runs so constant pixel traffic can't peg it.
+const BEHAVIOR_REFRESH_MIN_INTERVAL_MS = Number(process.env.BEHAVIOR_REFRESH_MIN_INTERVAL_MS || 180000);
+let lastBehaviorRefreshAt = 0;
 let sessionBehaviorRefreshTimer = null;
 let sessionBehaviorRefreshInFlight = false;
 let sessionBehaviorRefreshPending = false;
 
-async function runBehaviorRefreshFromSessionEvents() {
+async function runBehaviorRefresh() {
   if (sessionBehaviorRefreshInFlight) {
     sessionBehaviorRefreshPending = true;
     return;
@@ -81,21 +84,37 @@ async function runBehaviorRefreshFromSessionEvents() {
     do {
       sessionBehaviorRefreshPending = false;
       const result = await runScript('fetch:behavior', behaviorBackfillEnv());
-      if (result.code !== 0) console.warn(result.output || 'fetch:behavior failed after session event');
+      if (result.code !== 0) console.warn(result.output || 'fetch:behavior background refresh failed');
     } while (sessionBehaviorRefreshPending);
   } catch (error) {
-    console.warn('behavior refresh after session event failed:', error.message);
+    console.warn('behavior background refresh failed:', error.message);
   } finally {
     sessionBehaviorRefreshInFlight = false;
   }
 }
 
-function scheduleBehaviorRefreshFromSessionEvents() {
-  if (sessionBehaviorRefreshTimer) clearTimeout(sessionBehaviorRefreshTimer);
-  sessionBehaviorRefreshTimer = setTimeout(() => {
-    void runBehaviorRefreshFromSessionEvents();
-  }, SESSION_BEHAVIOR_REFRESH_MS);
-  sessionBehaviorRefreshTimer.unref?.();
+// Request a throttled, non-blocking behavior refresh. Safe to call on every pixel event
+// and every behavior GET: while a refresh is in flight, later calls set the pending flag so
+// one more run follows; within the min-interval quiet period exactly ONE trailing refresh is
+// armed for when the period expires. The timer is set ONCE and never reset by subsequent
+// calls, so continuous polling/events cannot starve it (the bug a resettable debounce had).
+function requestBehaviorRefresh() {
+  if (sessionBehaviorRefreshInFlight) {
+    sessionBehaviorRefreshPending = true;
+    return;
+  }
+  const timeSinceLast = lastBehaviorRefreshAt ? Date.now() - lastBehaviorRefreshAt : Infinity;
+  if (timeSinceLast < BEHAVIOR_REFRESH_MIN_INTERVAL_MS) {
+    if (!sessionBehaviorRefreshTimer) {
+      sessionBehaviorRefreshTimer = setTimeout(() => {
+        sessionBehaviorRefreshTimer = null;
+        void runBehaviorRefresh();
+      }, BEHAVIOR_REFRESH_MIN_INTERVAL_MS - timeSinceLast);
+      sessionBehaviorRefreshTimer.unref?.();
+    }
+    return;
+  }
+  void runBehaviorRefresh();
 }
 
 // Live orders map: location resolver + webhook-sourced purchase store.
@@ -156,7 +175,10 @@ function runScript(script, extraEnv = {}) {
       // Persist asynchronously without blocking runScript resolution: serveData
       // serves behavior data from the public path, so the client need not wait
       // for the volume copy. persistBehaviorToVolume handles its own errors.
-      if (code === 0 && script === 'fetch:behavior') void persistBehaviorToVolume();
+      if (code === 0 && script === 'fetch:behavior') {
+        lastBehaviorRefreshAt = Date.now();
+        void persistBehaviorToVolume();
+      }
       resolve({ code, output });
     });
   });
@@ -563,7 +585,7 @@ async function recordSessionEvent(req, res, url) {
     }
     fs.mkdirSync(path.dirname(sessionEventsPath), { recursive: true });
     fs.appendFileSync(sessionEventsPath, `${JSON.stringify(event)}\n`);
-    scheduleBehaviorRefreshFromSessionEvents();
+    requestBehaviorRefresh();
     send(res, 200, JSON.stringify({ ok: true }));
   } catch (error) {
     send(res, 400, JSON.stringify({ ok: false, error: error.message }));
@@ -1381,6 +1403,21 @@ async function fetchLatestShopifySale() {
   };
 }
 
+function streamJsonFile(res, file) {
+  if (!fs.existsSync(file)) {
+    send(res, 404, JSON.stringify({ ok: false, error: 'file not found' }));
+    return;
+  }
+  res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+  const stream = fs.createReadStream(file);
+  // Without an error listener a mid-read failure throws and crashes the process.
+  stream.on('error', (err) => {
+    console.error('Error streaming data file:', file, err.message);
+    res.destroy(err);
+  });
+  stream.pipe(res);
+}
+
 async function serveData(req, res, name, script) {
   const file = publicDataPath(name);
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
@@ -1400,6 +1437,19 @@ async function serveData(req, res, name, script) {
   }
 
   const behaviorStale = script === 'fetch:behavior' && !force && behaviorNeedsRefresh(file);
+
+  // Behavior: never block the HTTP response on a full regeneration (it hits Meta +
+  // Shopify and parses the entire session-event log, which can take minutes). When a
+  // snapshot already exists (restored from the durable volume / committed seed), stream
+  // it immediately and kick off a throttled background refresh; the dashboard polls and
+  // picks up fresh data on the next cycle. This prevents the Behaviour tab from hanging
+  // (and appearing to reset) while a rebuild is in flight.
+  if (script === 'fetch:behavior' && !force && fs.existsSync(file)) {
+    if (behaviorStale) requestBehaviorRefresh();
+    streamJsonFile(res, file);
+    return;
+  }
+
   if (force || !fs.existsSync(file) || behaviorStale) {
     const env = script === 'fetch:behavior'
       ? behaviorBackfillEnv(dateEnvFromUrl(url))
@@ -1416,8 +1466,7 @@ async function serveData(req, res, name, script) {
     }
   }
 
-  res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-  fs.createReadStream(file).pipe(res);
+  streamJsonFile(res, file);
 }
 
 async function warmData() {
