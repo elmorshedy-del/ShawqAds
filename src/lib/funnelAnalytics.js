@@ -1,144 +1,248 @@
 /* Funnel conversion analytics for the dashboard's Funnel tab.
  *
- * Two step-conversion rates are derived from Meta funnel actions:
- *   - IC/ATC      = checkout_initiated / add_to_cart   (add-to-carts that start checkout)
- *   - Purchase/IC = purchases / checkout_initiated     (checkouts that convert to a sale)
+ * Two step-conversion signals:
+ *   - IC/ATC      = checkout_initiated / add_to_cart    (both from Meta)
+ *   - Purchase/IC = Shopify orders / checkout_initiated  (purchases from Shopify = ground
+ *                   truth; IC from Meta). Account uses total Shopify orders; per-campaign
+ *                   uses orders attributed to the campaign (direct UTM + country-dominant
+ *                   fallback), deduped to distinct orders.
  *
- * Rates are VOLUME-WEIGHTED (sum of numerator / sum of denominator), so the account line
- * is the true blended conversion rather than a misleading mean-of-campaign-rates. Each
- * series is smoothed with a trailing window (numerator and denominator summed separately,
- * then divided) so day-to-day noise doesn't obscure the trend. Output is produced for the
- * whole account and per campaign, for every day since the campaign launch date.
+ * METHODOLOGY — why the rates are indexed rather than shown raw:
+ * Meta's ATC and IC are counted on different, independently-modeled attribution bases, so
+ * the raw IC/ATC ratio is not a true conditional probability and can exceed 100%. Mixing
+ * Meta IC with Shopify orders adds another cross-source scale mismatch. Both effects are,
+ * to first order, a stable MULTIPLICATIVE bias b on the ratio. We therefore:
+ *   1. Smooth with a trailing window (sum numerator & denominator separately, then divide).
+ *   2. Stabilize small samples with Empirical-Bayes shrinkage toward the account base rate:
+ *        shrunk = (N + kappa*B) / (D + kappa)
+ *      where B is the account pooled rate (fraction) and kappa a pseudo-count prior.
+ *   3. Ground to a base of 100 by INDEXING to the account's launch-window pooled rate:
+ *        index = (shrunk / B) * 100
+ *      The unknown multiplicative bias b cancels in shrunk/B, so the index reflects the
+ *      true RELATIVE conversion. 100 = the launch baseline; campaigns are indexed to the
+ *      same account base, so they are directly comparable (110 = 10% above baseline).
+ * The raw (uncorrected) rate is preserved alongside each index for transparency.
  */
 
 const sum = (arr) => (arr || []).reduce((acc, v) => acc + (Number(v) || 0), 0);
 const round1 = (v) => (v == null || !Number.isFinite(v) ? null : Math.round(v * 10) / 10);
-const ratePct = (num, den) => (den > 0 ? (num / den) * 100 : null);
+const norm = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
-function emptyDaily(n) {
+function medianPositive(values) {
+  const arr = (values || []).map(Number).filter((v) => Number.isFinite(v) && v > 0).sort((a, b) => a - b);
+  if (!arr.length) return 0;
+  const mid = Math.floor(arr.length / 2);
+  return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+}
+
+function trailingSums(daily, window) {
+  const n = daily.length;
+  const out = new Array(n).fill(0);
+  for (let i = 0; i < n; i += 1) {
+    let s = 0;
+    for (let j = Math.max(0, i - window + 1); j <= i; j += 1) s += daily[j] || 0;
+    out[i] = s;
+  }
+  return out;
+}
+
+// Build an indexed, shrinkage-stabilized metric for the account + each campaign.
+function buildIndexedMetric({ dates, accountNum, accountDen, campaigns, window, minDenominator, maxCampaignLines, kappa }) {
+  const pooledNum = sum(accountNum);
+  const pooledDen = sum(accountDen);
+  const base = pooledDen > 0 ? pooledNum / pooledDen : null; // fraction
+  const floorDen = Math.max(5, Math.round(minDenominator / 5));
+  const k = kappa == null ? Math.max(minDenominator, medianPositive(accountDen)) : kappa;
+
+  // index series for one entity given its daily numerator/denominator
+  function series(numDaily, denDaily) {
+    const N = trailingSums(numDaily, window);
+    const D = trailingSums(denDaily, window);
+    const idx = new Array(dates.length).fill(null);
+    const raw = new Array(dates.length).fill(null);
+    for (let i = 0; i < dates.length; i += 1) {
+      if (D[i] < floorDen || base == null || base <= 0) continue;
+      raw[i] = round1((N[i] / D[i]) * 100);
+      const shrunk = (N[i] + k * base) / (D[i] + k);
+      idx[i] = round1((shrunk / base) * 100);
+    }
+    return { idx, raw, trailingDen: D };
+  }
+
+  const accountSeries = series(accountNum, accountDen);
+
+  const ranked = (campaigns || [])
+    .map((c) => ({ id: c.id, name: c.name, totalDen: sum(c.den), totalNum: sum(c.num), s: series(c.num, c.den) }))
+    .filter((c) => c.totalDen >= minDenominator)
+    .sort((a, b) => b.totalDen - a.totalDen)
+    .slice(0, maxCampaignLines);
+
+  const points = dates.map((date, i) => {
+    const row = { date, account: accountSeries.idx[i], account__raw: accountSeries.raw[i] };
+    for (const c of ranked) {
+      row[c.id] = c.s.idx[i];
+      row[`${c.id}__raw`] = c.s.raw[i];
+    }
+    return row;
+  });
+
+  let firstIdx = -1;
+  let lastIdx = -1;
+  for (let i = 0; i < dates.length; i += 1) {
+    if (accountSeries.idx[i] != null) {
+      if (firstIdx < 0) firstIdx = i;
+      lastIdx = i;
+    }
+  }
+  const currentIndex = lastIdx >= 0 ? accountSeries.idx[lastIdx] : null;
+  const launchIndex = firstIdx >= 0 ? accountSeries.idx[firstIdx] : null;
+
   return {
-    add_to_cart: new Array(n).fill(0),
-    checkout_initiated: new Array(n).fill(0),
-    purchases: new Array(n).fill(0),
+    points,
+    campaigns: ranked.map((c) => ({ id: c.id, name: c.name })),
+    summary: {
+      currentIndex,
+      launchIndex,
+      deltaVsBase: currentIndex != null ? round1(currentIndex - 100) : null,
+      deltaSinceLaunch: currentIndex != null && launchIndex != null ? round1(currentIndex - launchIndex) : null,
+      currentRaw: lastIdx >= 0 ? accountSeries.raw[lastIdx] : null,
+      baseRate: round1(base == null ? null : base * 100),
+      totalNum: pooledNum,
+      totalDen: pooledDen,
+    },
   };
 }
 
-// Trailing-window conversion rate: for each day, sum the numerator and denominator over
-// the trailing `window` days and divide. Returns the per-day rate[] plus the trailing
-// denominator den[] (used to decide which points are statistically stable).
-function trailing(numDaily, denDaily, window) {
-  const n = numDaily.length;
-  const rate = new Array(n).fill(null);
-  const den = new Array(n).fill(0);
-  for (let i = 0; i < n; i += 1) {
-    let numSum = 0;
-    let denSum = 0;
-    for (let j = Math.max(0, i - window + 1); j <= i; j += 1) {
-      numSum += numDaily[j] || 0;
-      denSum += denDaily[j] || 0;
+// Attribute Shopify order_lines to campaigns (direct UTM/hint + country-dominant fallback),
+// deduped to distinct orders, returned as per-campaign daily order counts aligned to `dates`.
+function attributeOrders(orderLines, metaRows, dates, idx) {
+  // Known campaigns + normalized-name -> id map.
+  const knownIds = new Set();
+  const nameToId = new Map();
+  for (const r of metaRows || []) {
+    if (!r) continue;
+    if (r.campaign_id) {
+      knownIds.add(String(r.campaign_id));
+      if (r.campaign_name) nameToId.set(norm(r.campaign_name), String(r.campaign_id));
     }
-    den[i] = denSum;
-    rate[i] = ratePct(numSum, denSum);
   }
-  return { rate, den };
+  // Country -> dominant campaign by spend (ambiguous if top share < 0.7).
+  const byCountry = new Map();
+  for (const r of metaRows || []) {
+    if (!r || !r.country_code || !r.campaign_id) continue;
+    const m = byCountry.get(r.country_code) || new Map();
+    m.set(String(r.campaign_id), (m.get(String(r.campaign_id)) || 0) + (Number(r.spend_usd) || 0));
+    byCountry.set(r.country_code, m);
+  }
+  const dominantByCountry = new Map();
+  for (const [country, m] of byCountry.entries()) {
+    const list = [...m.entries()].sort((a, b) => b[1] - a[1]);
+    const total = list.reduce((s, [, v]) => s + v, 0);
+    const [topId, topSpend] = list[0] || [];
+    if (topId) dominantByCountry.set(country, { id: topId, ambiguous: !total || topSpend / total < 0.7 });
+  }
+
+  function campaignForLine(line) {
+    const a = line.attribution || {};
+    const hintId = a.match_hints?.campaign_id ? String(a.match_hints.campaign_id) : '';
+    if (hintId && knownIds.has(hintId)) return hintId;
+    const hintName = norm(a.match_hints?.campaign_name || a.campaign_hint || a.utm?.utm_campaign);
+    if (hintName && nameToId.has(hintName)) return nameToId.get(hintName);
+    const dom = dominantByCountry.get(line.country_code);
+    if (dom && !dom.ambiguous) return dom.id;
+    return null;
+  }
+
+  // campaign id -> { ordersByDate: Map(date -> Set(orderKey)) }
+  const perCampaign = new Map();
+  for (const line of orderLines || []) {
+    if (!line) continue;
+    const d = line.date;
+    if (!d || idx.get(d) === undefined) continue;
+    const campId = campaignForLine(line);
+    if (!campId) continue;
+    const orderKey = String(line.order_id || line.order_name || `${d}:${line.product || ''}`);
+    let c = perCampaign.get(campId);
+    if (!c) { c = new Map(); perCampaign.set(campId, c); }
+    let set = c.get(d);
+    if (!set) { set = new Set(); c.set(d, set); }
+    set.add(orderKey);
+  }
+
+  const out = new Map();
+  for (const [campId, byDate] of perCampaign.entries()) {
+    const daily = new Array(dates.length).fill(0);
+    for (const [d, set] of byDate.entries()) daily[idx.get(d)] = set.size;
+    out.set(campId, daily);
+  }
+  return out;
 }
 
-const METRICS = {
-  icAtc: { num: 'checkout_initiated', den: 'add_to_cart' },
-  purchaseIc: { num: 'purchases', den: 'checkout_initiated' },
-};
-
-export function buildFunnelAnalytics(rows, {
+export function buildFunnelAnalytics(inputs = {}, {
   launchDate = '2026-06-03',
   window = 7,
   minDenominator = 25,
   maxCampaignLines = 8,
+  kappa = null,
 } = {}) {
-  const dates = [...new Set((rows || [])
-    .map((r) => r && r.date)
-    .filter((d) => d && (!launchDate || d >= launchDate)))].sort();
+  const metaRows = inputs.metaRows || [];
+  const shopifyDaily = inputs.shopifyDaily || [];
+  const orderLines = inputs.orderLines || [];
+
+  const dates = [...new Set([
+    ...metaRows.map((r) => r && r.date),
+    ...shopifyDaily.map((r) => r && r.date),
+  ].filter((d) => d && (!launchDate || d >= launchDate)))].sort();
   const idx = new Map(dates.map((d, i) => [d, i]));
   const n = dates.length;
 
-  const account = emptyDaily(n);
-  const campaigns = new Map();
-
-  for (const r of rows || []) {
+  // Meta per-campaign daily ATC / IC; account = sums.
+  const accAtc = new Array(n).fill(0);
+  const accIc = new Array(n).fill(0);
+  const campMap = new Map(); // id -> { id, name, atc[], ic[] }
+  for (const r of metaRows) {
     const d = r && r.date;
-    if (!d || (launchDate && d < launchDate)) continue;
+    if (!d || idx.get(d) === undefined) continue;
     const i = idx.get(d);
-    if (i === undefined) continue;
     const atc = Number(r.add_to_cart) || 0;
     const ic = Number(r.checkout_initiated) || 0;
-    const pur = Number(r.purchases) || 0;
-    account.add_to_cart[i] += atc;
-    account.checkout_initiated[i] += ic;
-    account.purchases[i] += pur;
+    accAtc[i] += atc;
+    accIc[i] += ic;
     const id = String(r.campaign_id || r.campaign_name || 'unknown');
-    let c = campaigns.get(id);
-    if (!c) {
-      c = { id, name: r.campaign_name || r.campaign_id || 'Unknown campaign', ...emptyDaily(n) };
-      campaigns.set(id, c);
-    }
+    let c = campMap.get(id);
+    if (!c) { c = { id, name: r.campaign_name || r.campaign_id || 'Unknown campaign', atc: new Array(n).fill(0), ic: new Array(n).fill(0) }; campMap.set(id, c); }
     if (r.campaign_name) c.name = r.campaign_name;
-    c.add_to_cart[i] += atc;
-    c.checkout_initiated[i] += ic;
-    c.purchases[i] += pur;
+    c.atc[i] += atc;
+    c.ic[i] += ic;
   }
 
-  function buildMetric(numKey, denKey) {
-    const acc = trailing(account[numKey], account[denKey], window);
-    const ranked = [...campaigns.values()]
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        totalNum: sum(c[numKey]),
-        totalDen: sum(c[denKey]),
-        t: trailing(c[numKey], c[denKey], window),
-      }))
-      .filter((c) => c.totalDen >= minDenominator)
-      .sort((a, b) => b.totalDen - a.totalDen)
-      .slice(0, maxCampaignLines);
-
-    const points = dates.map((date, i) => {
-      const row = { date, account: round1(acc.rate[i]) };
-      for (const c of ranked) row[c.id] = round1(c.t.rate[i]);
-      return row;
-    });
-
-    let firstStable = -1;
-    let lastStable = -1;
-    for (let i = 0; i < n; i += 1) {
-      if (acc.den[i] >= minDenominator && acc.rate[i] != null) {
-        if (firstStable < 0) firstStable = i;
-        lastStable = i;
-      }
-    }
-    const current = lastStable >= 0 ? acc.rate[lastStable] : null;
-    const launch = firstStable >= 0 ? acc.rate[firstStable] : null;
-    const totalNum = sum(account[numKey]);
-    const totalDen = sum(account[denKey]);
-
-    return {
-      points,
-      campaigns: ranked.map((c) => ({ id: c.id, name: c.name })),
-      summary: {
-        current: round1(current),
-        launch: round1(launch),
-        deltaPp: current != null && launch != null ? round1(current - launch) : null,
-        cumulative: round1(ratePct(totalNum, totalDen)),
-        totalNum,
-        totalDen,
-      },
-    };
+  // Account daily Shopify orders (ground truth, all channels) + per-campaign attributed orders.
+  const accOrders = new Array(n).fill(0);
+  for (const r of shopifyDaily) {
+    const d = r && r.date;
+    if (!d || idx.get(d) === undefined) continue;
+    accOrders[idx.get(d)] += Number(r.orders) || 0;
   }
+  const campOrders = attributeOrders(orderLines, metaRows, dates, idx);
+
+  const icAtcCampaigns = [...campMap.values()].map((c) => ({ id: c.id, name: c.name, num: c.ic, den: c.atc }));
+  const purchaseCampaigns = [...campMap.values()].map((c) => ({
+    id: c.id,
+    name: c.name,
+    num: campOrders.get(c.id) || new Array(n).fill(0),
+    den: c.ic,
+  }));
+
+  const opts = { dates, window, minDenominator, maxCampaignLines, kappa };
+  const icAtc = buildIndexedMetric({ ...opts, accountNum: accIc, accountDen: accAtc, campaigns: icAtcCampaigns });
+  const purchaseIc = buildIndexedMetric({ ...opts, accountNum: accOrders, accountDen: accIc, campaigns: purchaseCampaigns });
 
   return {
     dates,
     window,
     launchDate,
-    icAtc: buildMetric(METRICS.icAtc.num, METRICS.icAtc.den),
-    purchaseIc: buildMetric(METRICS.purchaseIc.num, METRICS.purchaseIc.den),
-    hasData: n > 0 && (sum(account.add_to_cart) + sum(account.checkout_initiated)) > 0,
+    icAtc,
+    purchaseIc,
+    hasData: n > 0 && (sum(accAtc) + sum(accIc)) > 0,
   };
 }
