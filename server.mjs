@@ -66,7 +66,6 @@ let metaLiveInFlight = { key: '', promise: null };
 let metaAccountCache = { fetchedAt: 0, payload: null };
 const fxCache = new Map();
 
-const SESSION_BEHAVIOR_REFRESH_MS = Number(process.env.SESSION_BEHAVIOR_REFRESH_MS || 15000);
 // Behavior regeneration is expensive (Meta + Shopify + full session-event log). Cap how
 // often the background refresh actually runs so constant pixel traffic can't peg it.
 const BEHAVIOR_REFRESH_MIN_INTERVAL_MS = Number(process.env.BEHAVIOR_REFRESH_MIN_INTERVAL_MS || 180000);
@@ -75,32 +74,47 @@ let sessionBehaviorRefreshTimer = null;
 let sessionBehaviorRefreshInFlight = false;
 let sessionBehaviorRefreshPending = false;
 
-async function runBehaviorRefreshFromSessionEvents() {
+async function runBehaviorRefresh() {
   if (sessionBehaviorRefreshInFlight) {
     sessionBehaviorRefreshPending = true;
     return;
   }
-  if (lastBehaviorRefreshAt && Date.now() - lastBehaviorRefreshAt < BEHAVIOR_REFRESH_MIN_INTERVAL_MS) return;
   sessionBehaviorRefreshInFlight = true;
   try {
     do {
       sessionBehaviorRefreshPending = false;
       const result = await runScript('fetch:behavior', behaviorBackfillEnv());
-      if (result.code !== 0) console.warn(result.output || 'fetch:behavior failed after session event');
+      if (result.code !== 0) console.warn(result.output || 'fetch:behavior background refresh failed');
     } while (sessionBehaviorRefreshPending);
   } catch (error) {
-    console.warn('behavior refresh after session event failed:', error.message);
+    console.warn('behavior background refresh failed:', error.message);
   } finally {
     sessionBehaviorRefreshInFlight = false;
   }
 }
 
-function scheduleBehaviorRefreshFromSessionEvents() {
-  if (sessionBehaviorRefreshTimer) clearTimeout(sessionBehaviorRefreshTimer);
-  sessionBehaviorRefreshTimer = setTimeout(() => {
-    void runBehaviorRefreshFromSessionEvents();
-  }, SESSION_BEHAVIOR_REFRESH_MS);
-  sessionBehaviorRefreshTimer.unref?.();
+// Request a throttled, non-blocking behavior refresh. Safe to call on every pixel event
+// and every behavior GET: while a refresh is in flight, later calls set the pending flag so
+// one more run follows; within the min-interval quiet period exactly ONE trailing refresh is
+// armed for when the period expires. The timer is set ONCE and never reset by subsequent
+// calls, so continuous polling/events cannot starve it (the bug a resettable debounce had).
+function requestBehaviorRefresh() {
+  if (sessionBehaviorRefreshInFlight) {
+    sessionBehaviorRefreshPending = true;
+    return;
+  }
+  const timeSinceLast = lastBehaviorRefreshAt ? Date.now() - lastBehaviorRefreshAt : Infinity;
+  if (timeSinceLast < BEHAVIOR_REFRESH_MIN_INTERVAL_MS) {
+    if (!sessionBehaviorRefreshTimer) {
+      sessionBehaviorRefreshTimer = setTimeout(() => {
+        sessionBehaviorRefreshTimer = null;
+        void runBehaviorRefresh();
+      }, BEHAVIOR_REFRESH_MIN_INTERVAL_MS - timeSinceLast);
+      sessionBehaviorRefreshTimer.unref?.();
+    }
+    return;
+  }
+  void runBehaviorRefresh();
 }
 
 // Live orders map: location resolver + webhook-sourced purchase store.
@@ -571,7 +585,7 @@ async function recordSessionEvent(req, res, url) {
     }
     fs.mkdirSync(path.dirname(sessionEventsPath), { recursive: true });
     fs.appendFileSync(sessionEventsPath, `${JSON.stringify(event)}\n`);
-    scheduleBehaviorRefreshFromSessionEvents();
+    requestBehaviorRefresh();
     send(res, 200, JSON.stringify({ ok: true }));
   } catch (error) {
     send(res, 400, JSON.stringify({ ok: false, error: error.message }));
@@ -1416,7 +1430,7 @@ async function serveData(req, res, name, script) {
   // picks up fresh data on the next cycle. This prevents the Behaviour tab from hanging
   // (and appearing to reset) while a rebuild is in flight.
   if (script === 'fetch:behavior' && !force && fs.existsSync(file)) {
-    if (behaviorStale) scheduleBehaviorRefreshFromSessionEvents();
+    if (behaviorStale) requestBehaviorRefresh();
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
     fs.createReadStream(file).pipe(res);
     return;
