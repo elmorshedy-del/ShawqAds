@@ -195,10 +195,14 @@ export function buildFunnelAnalytics(inputs = {}, {
   const metaRows = inputs.metaRows || [];
   const orderLines = inputs.orderLines || [];
 
-  const dates = [...new Set([
-    ...metaRows.map((r) => r && r.date),
-    ...orderLines.map((r) => r && r.date),
-  ].filter((d) => d && (!launchDate || d >= launchDate)))].sort();
+  const dateSet = new Set();
+  for (const r of metaRows) {
+    if (r && r.date && (!launchDate || r.date >= launchDate)) dateSet.add(r.date);
+  }
+  for (const r of orderLines) {
+    if (r && r.date && (!launchDate || r.date >= launchDate)) dateSet.add(r.date);
+  }
+  const dates = [...dateSet].sort();
   const idx = new Map(dates.map((d, i) => [d, i]));
   const n = dates.length;
 
