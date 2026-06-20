@@ -33,6 +33,10 @@ assert(normalizePagePath('/ar/') === '/', 'locale-only path is the homepage');
 assert(normalizePagePath('/') === '/', 'root stays root');
 assert(normalizePagePath('/products/skirt/') === '/products/skirt', 'collapses trailing slash');
 assert(normalizePagePath('/products/ar-blend-top') === '/products/ar-blend-top', 'does not strip a non-locale route segment');
+assert(
+  normalizePagePath('/Products/Kuffiyah-Engraved-Denim-Skirt?Ad_Id=5') === '/products/kuffiyah-engraved-denim-skirt',
+  'case-insensitive page identity',
+);
 
 // Brand & mission pages: curated allowlist of the REAL About Us + Donations pages only.
 assert(isBrandPage('/pages/about-us-2') === true, 'about-us-2 is the real About Us');

@@ -41,7 +41,10 @@ export function normalizePagePath(href = '') {
   if (pathname.length > 1 && pathname.endsWith('/')) {
     pathname = pathname.replace(/\/+$/, '') || '/';
   }
-  return (pathname || '/').slice(0, 200);
+  // Case-insensitive identity: Shopify routes are case-insensitive, and percent-encoded octets are
+  // case-insensitive per RFC 3986, so decoding for labels (decodeURIComponent) is unaffected. This
+  // keeps map keys, prefix checks, and the brand allowlist lookup robust to URL casing.
+  return (pathname || '/').toLowerCase().slice(0, 200);
 }
 
 function titleWords(value = '') {
