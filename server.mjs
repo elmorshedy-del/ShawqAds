@@ -1403,6 +1403,17 @@ async function fetchLatestShopifySale() {
   };
 }
 
+function streamJsonFile(res, file) {
+  res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+  const stream = fs.createReadStream(file);
+  // Without an error listener a mid-read failure throws and crashes the process.
+  stream.on('error', (err) => {
+    console.error('Error streaming data file:', file, err.message);
+    res.destroy(err);
+  });
+  stream.pipe(res);
+}
+
 async function serveData(req, res, name, script) {
   const file = publicDataPath(name);
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
@@ -1431,8 +1442,7 @@ async function serveData(req, res, name, script) {
   // (and appearing to reset) while a rebuild is in flight.
   if (script === 'fetch:behavior' && !force && fs.existsSync(file)) {
     if (behaviorStale) requestBehaviorRefresh();
-    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-    fs.createReadStream(file).pipe(res);
+    streamJsonFile(res, file);
     return;
   }
 
@@ -1452,8 +1462,7 @@ async function serveData(req, res, name, script) {
     }
   }
 
-  res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-  fs.createReadStream(file).pipe(res);
+  streamJsonFile(res, file);
 }
 
 async function warmData() {
