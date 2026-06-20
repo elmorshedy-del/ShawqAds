@@ -148,8 +148,8 @@ function runScript(script, extraEnv = {}) {
     let output = '';
     child.stdout.on('data', (d) => { output += d.toString(); });
     child.stderr.on('data', (d) => { output += d.toString(); });
-    child.on('close', (code) => {
-      if (code === 0 && script === 'fetch:behavior') persistBehaviorToVolume();
+    child.on('close', async (code) => {
+      if (code === 0 && script === 'fetch:behavior') await persistBehaviorToVolume();
       resolve({ code, output });
     });
   });
@@ -183,10 +183,10 @@ function restoreBehaviorFromVolume() {
   }
 }
 
-function persistBehaviorToVolume() {
+async function persistBehaviorToVolume() {
   if (!behaviorPersistEnabled) return;
   try {
-    if (fs.existsSync(behaviorPublicPath)) fs.copyFileSync(behaviorPublicPath, behaviorVolumePath);
+    if (fs.existsSync(behaviorPublicPath)) await fs.promises.copyFile(behaviorPublicPath, behaviorVolumePath);
   } catch (error) {
     console.warn('persistBehaviorToVolume failed:', error.message);
   }
