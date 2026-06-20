@@ -49,14 +49,19 @@ assert(isBrandPage('/pages/about') === false, 'no keyword matching');
 assert(isBrandPage('/products/kuffiyah-engraved-denim-skirt') === false, 'product is never brand');
 assert(isBrandPage('/fr/products/ghalabany-al-shawq-t-shirt') === false, 'locale product is never brand');
 assert(isBrandPage('/collections/palestine-culture-inspired') === false, 'collection is never brand');
-assert(isBrandPage('/blogs/shawq-journal') === false, 'blog is never brand');
+assert(isBrandPage('/blogs/shawq-journal') === true, 'Shawq Journal blog index is brand');
+assert(isBrandPage('/blogs/shawq-journal/keffiyeh-thread-of-resistance') === true, 'Shawq Journal post is brand');
+assert(isBrandPage('/fr/blogs/shawq-journal/keffiyeh-thread-of-resistance') === true, 'locale Shawq Journal post is brand');
+assert(isBrandPage('/blogs/news/sale-announcement') === false, 'other blogs are not brand');
 assert(isBrandPage('/') === false, 'home is not brand');
-assert(Object.keys(BRAND_MISSION_PAGES).length === 2, 'exactly two curated brand pages');
+assert(Object.keys(BRAND_MISSION_PAGES).length === 2, 'exactly two curated exact-match brand pages');
 
 // Brand display names = the names used on the website.
 assert(brandPageName('/pages/about-us-2') === 'About Us', 'about us website name');
 assert(brandPageName('/fr/pages/copy-of-donations') === 'Our Donations and Impact', 'donations website name (locale united)');
 assert(brandPageName('/products/skirt') === null, 'non-brand has no brand name');
+assert(brandPageName('/blogs/shawq-journal') === 'Shawq Journal', 'blog index name');
+assert(brandPageName('/blogs/shawq-journal/keffiyeh-thread-of-resistance') === 'Shawq Journal · Keffiyeh Thread Of Resistance', 'blog post name');
 
 // Page categories.
 assert(pageCategory('/') === 'home', 'home');
@@ -68,6 +73,7 @@ assert(pageCategory('/cart') === 'checkout', 'cart counts as checkout');
 assert(pageCategory('/pages/copy-of-donations') === 'brand', 'real donations is brand');
 assert(pageCategory('/pages/donations') === 'other', 'orphaned donations is other');
 assert(pageCategory('/pages/contact') === 'other', 'contact is other');
-assert(pageCategory('/blogs/news/olive-tree') === 'blog', 'blog is blog');
+assert(pageCategory('/blogs/news/olive-tree') === 'blog', 'other blog is blog');
+assert(pageCategory('/blogs/shawq-journal/keffiyeh-thread-of-resistance') === 'brand', 'Shawq Journal post is brand');
 
 console.log('behavior tiers + page identity + brand allowlist checks passed');
