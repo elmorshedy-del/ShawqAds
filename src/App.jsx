@@ -1,6 +1,6 @@
 import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { Activity, BarChart3, BellRing, CalendarDays, GitBranch, LayoutDashboard, RefreshCw, Rocket, Search, ShoppingBag, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
+import { Activity, BarChart3, BellRing, CalendarDays, Filter, GitBranch, LayoutDashboard, RefreshCw, Rocket, Search, ShoppingBag, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
 import { compact, money, pct, slug } from './lib/format.js';
 import { buildCampaignAttribution } from './lib/campaignAttribution.js';
 import {
@@ -10,6 +10,7 @@ import {
   buildMonthProjection,
 } from './lib/businessKpiInsights.js';
 import { buildShopifyHistoricalDaily } from './lib/historicalInsights.js';
+import { buildFunnelAnalytics } from './lib/funnelAnalytics.js';
 import {
   formatDwellSeconds,
   journeyStepInsight,
@@ -42,6 +43,7 @@ import { OrderDropRankings } from './components/dashboard/OrderDropRankings';
 import { buildOrderMoverRankings } from './lib/orderDropRankings.js';
 import { buildEmailCampaignSummary, buildEmailCampaignFromPurchases } from './lib/emailCampaignSummary.js';
 import { HistoricalInsights } from './components/dashboard/HistoricalInsights';
+import { FunnelAnalytics } from './components/dashboard/FunnelAnalytics';
 import {
   behaviorCachedUntil,
   behaviorCoverageMeta,
@@ -2785,6 +2787,12 @@ function App() {
   // numbers on the cards instead of always reflecting the live reporting day.
   const kpiRecordAsOfDay = activeDateRange?.until || reportingToday;
   const kpiRecords = useMemo(() => buildKpiRecordMap(allBusinessRows, kpiRecordAsOfDay), [allBusinessRows, kpiRecordAsOfDay]);
+  // Funnel conversion (IC/ATC, Purchase/IC) is always measured since the campaign
+  // launch, independent of the date picker, from per-campaign daily Meta funnel actions.
+  const funnelData = useMemo(
+    () => buildFunnelAnalytics(baseData.ad_country_daily || [], { launchDate: CAMPAIGN_LAUNCH_DATE }),
+    [baseData],
+  );
   const kpiProjection = (key) => buildKpiProjectionDisplay(monthProjection, key);
   const kpiRecord = (key) => buildKpiRecordDisplay(kpiRecords, key);
   const trendDayRows = adapt.toDayRows(allBusinessRows).filter(
@@ -3024,9 +3032,11 @@ function App() {
         timezone={REPORTING_TIMEZONE}
       />
     ),
+    funnel: <FunnelAnalytics data={funnelData} />,
   };
   const dashboardGroups = [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'orderDrop', 'orderLift', 'revenue', 'mobileTops'] },
+    { key: 'funnel', label: 'Funnel', icon: Filter, ids: ['funnel'] },
     { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'emailCampaign', 'leaders', 'edits', 'decision'] },
     { key: 'launch', label: 'Launch', icon: Rocket, ids: ['usa', 'delivery'] },
     { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['salesBench', 'product', 'country'] },
