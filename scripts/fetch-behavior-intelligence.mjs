@@ -766,7 +766,7 @@ function buildMostVisited(pageFacts = [], { limit = 8 } = {}) {
       });
     }
   }
-  const brand = [...brandByPath.values()].sort((a, b) => b.views - a.views || b.sessions - a.sessions);
+  const brand = [...brandByPath.values()].sort((a, b) => b.views - a.views || b.sessions - a.sessions || String(a.path).localeCompare(String(b.path)));
 
   // Collective reach: the share of ALL page views across the site that land on brand & mission pages.
   const totalViews = rows.reduce((sum, row) => sum + Number(row.views || 0), 0);

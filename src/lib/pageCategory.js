@@ -57,7 +57,8 @@ export function brandPageName(path = '') {
   if (BRAND_MISSION_PAGES[p]) return BRAND_MISSION_PAGES[p];
   if (p === SHAWQ_BLOG_PREFIX) return 'Shawq Journal';
   if (p.startsWith(`${SHAWQ_BLOG_PREFIX}/`)) {
-    return `Shawq Journal · ${humanizeSlug(p.slice(`${SHAWQ_BLOG_PREFIX}/`.length))}`;
+    const title = humanizeSlug(p.slice(`${SHAWQ_BLOG_PREFIX}/`.length));
+    return title ? `Shawq Journal · ${title}` : 'Shawq Journal';
   }
   return null;
 }

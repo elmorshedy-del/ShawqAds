@@ -552,7 +552,9 @@ function MostVisitedPages({
   const maxTop = top.reduce((m: number, r: any) => Math.max(m, Number(r.views || 0)), 0);
   const maxBrand = brand.reduce((m: number, r: any) => Math.max(m, Number(r.views || 0)), 0);
   const brandShare = Number(data?.brand_share || 0);
-  const brandPct = brandShare > 0 ? `${(brandShare * 100).toFixed(brandShare < 0.1 ? 1 : 0)}%` : null;
+  const brandPct = brandShare > 0
+    ? (brandShare * 100 < 0.1 ? "< 0.1%" : `${(brandShare * 100).toFixed(brandShare < 0.1 ? 1 : 0)}%`)
+    : null;
   return (
     <div className="rounded-xl border border-border bg-surface-2/40 p-4">
       <p className="text-sm font-semibold">Most-visited pages</p>
