@@ -38,7 +38,11 @@ const dataDir = process.env.DATA_DIR
   || (process.env.RAILWAY_VOLUME_MOUNT_PATH
     ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'shawq-data')
     : path.join(__dirname, 'data'));
-try { fs.mkdirSync(dataDir, { recursive: true }); } catch {}
+try {
+  fs.mkdirSync(dataDir, { recursive: true });
+} catch (error) {
+  console.warn(`Failed to create data directory at ${dataDir}:`, error.message);
+}
 const sessionEventsPath = process.env.SESSION_EVENTS_PATH || path.join(dataDir, 'session-events.ndjson');
 // Child scripts (e.g. `npm run fetch:behavior`) must read the same NDJSON path.
 process.env.SESSION_EVENTS_PATH = sessionEventsPath;
@@ -148,8 +152,11 @@ function runScript(script, extraEnv = {}) {
     let output = '';
     child.stdout.on('data', (d) => { output += d.toString(); });
     child.stderr.on('data', (d) => { output += d.toString(); });
-    child.on('close', async (code) => {
-      if (code === 0 && script === 'fetch:behavior') await persistBehaviorToVolume();
+    child.on('close', (code) => {
+      // Persist asynchronously without blocking runScript resolution: serveData
+      // serves behavior data from the public path, so the client need not wait
+      // for the volume copy. persistBehaviorToVolume handles its own errors.
+      if (code === 0 && script === 'fetch:behavior') void persistBehaviorToVolume();
       resolve({ code, output });
     });
   });
@@ -186,9 +193,10 @@ function restoreBehaviorFromVolume() {
 async function persistBehaviorToVolume() {
   if (!behaviorPersistEnabled) return;
   try {
-    if (fs.existsSync(behaviorPublicPath)) await fs.promises.copyFile(behaviorPublicPath, behaviorVolumePath);
+    await fs.promises.copyFile(behaviorPublicPath, behaviorVolumePath);
   } catch (error) {
-    console.warn('persistBehaviorToVolume failed:', error.message);
+    // ENOENT just means the snapshot hasn't been written yet — not an error worth logging.
+    if (error.code !== 'ENOENT') console.warn('persistBehaviorToVolume failed:', error.message);
   }
 }
 
