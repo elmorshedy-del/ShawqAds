@@ -74,6 +74,10 @@ export function pagePathLabel(path = '') {
     const slug = decodeURIComponent(pathname.slice('/pages/'.length));
     return titleWords(slug);
   }
+  if (pathname.startsWith('/policies/')) {
+    const slug = decodeURIComponent(pathname.slice('/policies/'.length));
+    return `Policy · ${titleWords(slug)}`;
+  }
   if (pathname.startsWith('/blogs/')) {
     const slug = decodeURIComponent(pathname.replace(/^\/blogs\//, ''));
     return `Blog · ${titleWords(slug)}`;
