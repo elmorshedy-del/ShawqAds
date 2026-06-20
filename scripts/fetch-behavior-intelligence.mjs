@@ -747,29 +747,37 @@ function buildMostVisited(pageFacts = [], { limit = 8 } = {}) {
 
   const rows = [...byPath.values()].map(finalizeRow).sort((a, b) => b.views - a.views || b.sessions - a.sessions);
 
-  // Brand & mission = the curated real pages only (About Us, Donations), always surfaced with their
-  // website names — even if commerce pages out-rank them or they have no views in this window. Locale
-  // and ad-param variants already rolled up to the canonical path via normalizePagePath().
-  const byCanonical = new Map(rows.map((row) => [row.path, row]));
-  const brand = Object.entries(BRAND_MISSION_PAGES).map(([path, name]) => {
-    const row = byCanonical.get(path);
-    if (row) return { ...row, label: name, is_brand: true };
-    return {
-      path,
-      label: name,
-      category: 'brand',
-      is_brand: true,
-      views: 0,
-      sessions: 0,
-      top_countries: [],
-      distinctive: false,
-      distinctive_countries: [],
-    };
-  });
+  // Brand & mission = the curated About Us + Donations pages AND the Shawq Journal blog (index +
+  // posts), always surfacing the two curated pages even at zero views. Locale/ad-param variants have
+  // already rolled up to the canonical path via normalizePagePath().
+  const brandByPath = new Map(rows.filter((row) => row.is_brand).map((row) => [row.path, row]));
+  for (const [path, name] of Object.entries(BRAND_MISSION_PAGES)) {
+    if (!brandByPath.has(path)) {
+      brandByPath.set(path, {
+        path,
+        label: name,
+        category: 'brand',
+        is_brand: true,
+        views: 0,
+        sessions: 0,
+        top_countries: [],
+        distinctive: false,
+        distinctive_countries: [],
+      });
+    }
+  }
+  const brand = [...brandByPath.values()].sort((a, b) => b.views - a.views || b.sessions - a.sessions || String(a.path).localeCompare(String(b.path)));
+
+  // Collective reach: the share of ALL page views across the site that land on brand & mission pages.
+  const totalViews = rows.reduce((sum, row) => sum + Number(row.views || 0), 0);
+  const brandViews = brand.reduce((sum, row) => sum + Number(row.views || 0), 0);
 
   return {
     top: rows.slice(0, limit),
     brand,
+    brand_views: brandViews,
+    total_views: totalViews,
+    brand_share: totalViews > 0 ? brandViews / totalViews : 0,
   };
 }
 

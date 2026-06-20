@@ -542,11 +542,19 @@ function PageBar({ row, max }: { row: any; max: number }) {
   );
 }
 
-function MostVisitedPages({ data }: { data?: { top?: any[]; brand?: any[] } }) {
+function MostVisitedPages({
+  data,
+}: {
+  data?: { top?: any[]; brand?: any[]; brand_share?: number; brand_views?: number; total_views?: number };
+}) {
   const top = data?.top || [];
   const brand = data?.brand || [];
   const maxTop = top.reduce((m: number, r: any) => Math.max(m, Number(r.views || 0)), 0);
   const maxBrand = brand.reduce((m: number, r: any) => Math.max(m, Number(r.views || 0)), 0);
+  const brandShare = Number(data?.brand_share || 0);
+  const brandPct = brandShare > 0
+    ? (brandShare * 100 < 0.1 ? "< 0.1%" : `${(brandShare * 100).toFixed(brandShare < 0.1 ? 1 : 0)}%`)
+    : null;
   return (
     <div className="rounded-xl border border-border bg-surface-2/40 p-4">
       <p className="text-sm font-semibold">Most-visited pages</p>
@@ -563,12 +571,22 @@ function MostVisitedPages({ data }: { data?: { top?: any[]; brand?: any[] } }) {
         )}
       </div>
       <div className="mt-4 border-t border-border/70 pt-3">
-        <p className="flex items-center gap-1.5 text-xs font-semibold">
-          <Heart className="h-3.5 w-3.5 text-brand" />
-          {BRAND_PAGES_LABEL}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="flex items-center gap-1.5 text-xs font-semibold">
+            <Heart className="h-3.5 w-3.5 text-brand" />
+            {BRAND_PAGES_LABEL}
+          </p>
+          {brandPct ? (
+            <span
+              className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-[0.6rem] font-semibold tabular-nums text-brand"
+              title={`${compact(Number(data?.brand_views || 0))} of ${compact(Number(data?.total_views || 0))} page views across the site land on brand & mission pages`}
+            >
+              {brandPct} of all visits
+            </span>
+          ) : null}
+        </div>
         <p className="mt-0.5 text-[0.6rem] leading-relaxed text-muted-foreground">
-          Always shown — the real About Us and Donations pages, even when commerce pages out-rank them.
+          Always shown — the real About Us and Donations pages and the Shawq Journal, even when commerce pages out-rank them.
         </p>
         <div className="mt-2 space-y-3">
           {brand.length ? (
