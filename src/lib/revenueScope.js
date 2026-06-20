@@ -18,21 +18,25 @@ export function buildEmailDailyIndex(orderLines) {
   for (const line of orderLines || []) {
     if (!line || !line.date || !isEmailLine(line)) continue;
     let e = byDate.get(line.date);
-    if (!e) { e = { revenue_usd: 0, units: 0, orderSet: new Set() }; byDate.set(line.date, e); }
+    if (!e) {
+      e = { revenue_usd: 0, units: 0, orderSet: new Set() };
+      byDate.set(line.date, e);
+    }
     e.revenue_usd += Number(line.line_revenue_usd) || 0;
     e.units += Number(line.quantity) || 0;
     const k = orderKey(line);
     if (k) e.orderSet.add(k);
   }
-  const out = new Map();
-  for (const [date, e] of byDate.entries()) {
-    out.set(date, { revenue_usd: e.revenue_usd, units: e.units, orders: e.orderSet.size });
+  // Finalize distinct-order counts in place (avoids allocating a second map).
+  for (const e of byDate.values()) {
+    e.orders = e.orderSet.size;
+    delete e.orderSet;
   }
-  return out;
+  return byDate;
 }
 
 export function applyRevenueScope(dailyRows, scope, emailIndex) {
-  if (scope !== 'shopify' || !emailIndex || emailIndex.size === 0) return dailyRows || [];
+  if (scope !== 'shopify' || !emailIndex || typeof emailIndex.get !== 'function' || emailIndex.size === 0) return dailyRows || [];
   return (dailyRows || []).map((row) => {
     const e = row && emailIndex.get(row.date);
     if (!e) return row;
