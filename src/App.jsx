@@ -1101,6 +1101,17 @@ function businessPeriodDelta(rows, key, activeRange) {
     const comparisonRows = isDevelopingDay ? scaleBusinessRows(previousRows, elapsedReportingDayShare()) : previousRows;
     return periodDeltaFromRows(currentRows, comparisonRows, key, isDevelopingDay ? 'vs same time previous day' : days === 1 ? 'vs previous day' : 'vs previous period');
   }
+  // Day-rollover guard: just after Istanbul midnight the immediate prior day can be
+  // missing from cache, which would otherwise produce a misleading 0% delta. Fall
+  // back to the latest complete day on record, scaled to the elapsed share of today.
+  if (isDevelopingDay) {
+    const priorComplete = sorted.filter((row) => (row.date || '') < activeRange.until);
+    const lastComplete = priorComplete[priorComplete.length - 1];
+    if (lastComplete) {
+      const comparisonRows = scaleBusinessRows([lastComplete], elapsedReportingDayShare());
+      return periodDeltaFromRows(currentRows, comparisonRows, key, 'vs same time, latest day');
+    }
+  }
   return periodDeltaFromRows(currentRows, [], key, 'no prior period');
 }
 
@@ -2770,7 +2781,10 @@ function App() {
     () => buildMonthProjection(allBusinessRows, { today: reportingToday, elapsedShare: elapsedReportingDayShare() }),
     [allBusinessRows, reportingToday],
   );
-  const kpiRecords = useMemo(() => buildKpiRecordMap(allBusinessRows, reportingToday), [allBusinessRows, reportingToday]);
+  // Record badges follow the selected date window (its end day) so they match the
+  // numbers on the cards instead of always reflecting the live reporting day.
+  const kpiRecordAsOfDay = activeDateRange?.until || reportingToday;
+  const kpiRecords = useMemo(() => buildKpiRecordMap(allBusinessRows, kpiRecordAsOfDay), [allBusinessRows, kpiRecordAsOfDay]);
   const kpiProjection = (key) => buildKpiProjectionDisplay(monthProjection, key);
   const kpiRecord = (key) => buildKpiRecordDisplay(kpiRecords, key);
   const trendDayRows = adapt.toDayRows(allBusinessRows).filter(

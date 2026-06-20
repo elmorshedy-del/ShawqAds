@@ -43,4 +43,20 @@ const weekOnlyRows = [
 const weekRecord = detectKpiRecord(weekOnlyRows, 'revenue_usd', { today: '2026-06-14' });
 assert(weekRecord?.scope === 'week' && weekRecord?.kind === 'week-high', 'Week-only highs still show when not all-time');
 
+// Intraday all-time high must require strictly beating the prior max — a tie is
+// not a new record (AGENTS.md: intraday ATH uses > not >=, celebrate on strictBeat).
+const intradayTieRows = [
+  { date: '2026-06-10', revenue_usd: 1000, spend_usd: 100, orders: 10, units: 10 },
+  { date: '2026-06-11', revenue_usd: 1000, spend_usd: 100, orders: 10, units: 10 },
+];
+const intradayTie = detectKpiRecord(intradayTieRows, 'revenue_usd', { today: '2026-06-11', intraday: true });
+assert(!(intradayTie?.intraday && intradayTie?.kind === 'all-high'), 'A tie must not fire a new intraday all-time high (strict > required)');
+
+const intradayBeatRows = [
+  { date: '2026-06-10', revenue_usd: 1000, spend_usd: 100, orders: 10, units: 10 },
+  { date: '2026-06-11', revenue_usd: 1500, spend_usd: 100, orders: 10, units: 10 },
+];
+const intradayBeat = detectKpiRecord(intradayBeatRows, 'revenue_usd', { today: '2026-06-11', intraday: true });
+assert(intradayBeat?.intraday === true && intradayBeat?.kind === 'all-high', 'A strict new high must fire the intraday all-time high');
+
 console.log('business KPI insights checks passed');
