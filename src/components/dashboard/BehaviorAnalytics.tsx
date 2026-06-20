@@ -43,7 +43,8 @@ interface BehaviorData {
   extraction?: Record<string, any>;
   matrix?: { checkout?: BehaviorStep; submit_payment?: BehaviorStep };
   dwell_pages?: any[];
-  most_visited_pages?: { top?: any[]; brand?: any[] };
+  most_visited_pages?: { top?: any[]; brand?: any[]; brand_share?: number; brand_views?: number; total_views?: number };
+  search_reach?: { posts?: any[]; total_sessions?: number; google_search_sessions?: number; google_search_share?: number };
   journeys?: { steps?: any[] };
 }
 
@@ -604,6 +605,58 @@ function MostVisitedPages({
   );
 }
 
+function SearchReach({
+  data,
+}: {
+  data?: { posts?: any[]; total_sessions?: number; google_search_sessions?: number; google_search_share?: number };
+}) {
+  const posts = data?.posts || [];
+  if (!posts.length) return null;
+  const overallShare = Number(data?.google_search_share || 0);
+  const overallPct =
+    overallShare > 0 ? `${(overallShare * 100).toFixed(overallShare < 0.1 ? 1 : 0)}%` : "0%";
+  return (
+    <div className="rounded-xl border border-border bg-surface-2/40 p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold">Shawq Journal · search reach</p>
+        <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-[0.6rem] font-semibold tabular-nums text-brand">
+          {overallPct} from Google search
+        </span>
+      </div>
+      <p className="mt-0.5 text-[0.65rem] leading-relaxed text-muted-foreground">
+        Where blog visits arrive from — organic Google search means the SEO play (e.g. the keffiyah post) is working.
+        Counts visits since the updated pixel started sending the referrer.
+      </p>
+      <div className="mt-3 space-y-3">
+        {posts.map((post: any) => {
+          const sessions = Number(post.sessions || 0);
+          const google = Number(post.google_search_sessions || 0);
+          const share = Number(post.google_search_share || 0);
+          const width = sessions > 0 ? Math.min(100, Math.max(4, share * 100)) : 0;
+          return (
+            <div key={normalizePagePath(post.path)}>
+              <div className="mb-1 flex items-baseline justify-between gap-3">
+                <span className="min-w-0 flex-1 break-words text-xs font-medium" title={post.label}>
+                  {post.label}
+                </span>
+                <span className="shrink-0 text-[0.65rem] tabular-nums text-muted-foreground">
+                  {compact(google)}/{compact(sessions)} visits
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+                <div className="h-full rounded-full bg-brand" style={{ width: `${width}%` }} />
+              </div>
+              <p className="mt-1 text-[0.65rem] text-muted-foreground">
+                {sessions > 0 ? `${Math.round(share * 100)}% from Google search` : "No visits yet"}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function dwellRead(page: any) {
   const nonBuyer = Number(page.non_purchaser_median_dwell_seconds || 0);
   const buyer = Number(page.purchaser_median_dwell_seconds || 0);
@@ -916,6 +969,7 @@ export function BehaviorAnalytics({
               subtitle="Most-visited pages this window, with brand &amp; mission pages always surfaced."
             />
             <MostVisitedPages data={behavior?.most_visited_pages} />
+            <SearchReach data={behavior?.search_reach} />
           </div>
 
           {/* 5 — How long & which path */}
