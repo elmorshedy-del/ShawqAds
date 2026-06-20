@@ -76,6 +76,13 @@ function shawqPath(event) {
   return String(event?.context?.document?.location?.href || '').slice(0, 500);
 }
 
+// Referrer of the page the visitor arrived on. For the landing page this is the EXTERNAL referrer
+// (e.g. https://www.google.com/) — the only reliable signal for organic search traffic, which has
+// no UTM/click-id. Used by the dashboard to attribute Shawq Journal / keffiyah-blog reach to search.
+function shawqReferrer(event) {
+  return String(event?.context?.document?.referrer || '').slice(0, 500);
+}
+
 function shawqPayload(event, override = {}) {
   return {
     event_name: override.event_name || event?.name || '',
@@ -85,6 +92,7 @@ function shawqPayload(event, override = {}) {
     session_id: `${event?.clientId || 'anon'}:${String(event?.timestamp || '').slice(0, 10)}`,
     timestamp: override.timestamp || event?.timestamp || new Date().toISOString(),
     path: override.path || shawqPath(event),
+    referrer: override.referrer !== undefined ? override.referrer : shawqReferrer(event),
     country_code: shawqCountry(event),
     line_items: override.line_items || shawqLineItems(event),
     checkout: event?.data?.checkout ? {

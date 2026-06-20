@@ -6,6 +6,7 @@ import {
   BRAND_MISSION_PAGES,
 } from '../src/lib/pageCategory.js';
 import { normalizePagePath } from '../src/lib/pagePath.js';
+import { classifyTrafficSource } from '../src/lib/trafficSource.js';
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -76,4 +77,15 @@ assert(pageCategory('/pages/contact') === 'other', 'contact is other');
 assert(pageCategory('/blogs/news/olive-tree') === 'blog', 'other blog is blog');
 assert(pageCategory('/blogs/shawq-journal/keffiyeh-thread-of-resistance') === 'brand', 'Shawq Journal post is brand');
 
-console.log('behavior tiers + page identity + brand allowlist checks passed');
+// Traffic-source classification (Shawq Journal / keffiyah search reach).
+assert(classifyTrafficSource({ referrer: 'https://www.google.com/' }) === 'google_search', 'organic Google is google_search');
+assert(classifyTrafficSource({ referrer: 'https://www.google.com/', href: '/blogs/shawq-journal/keffiyeh-thread-of-resistance?gclid=1' }) === 'google_search', 'Google referrer is organic search even with a stray param (no Google Ads; UTM/gclid not relied on)');
+assert(classifyTrafficSource({ referrer: 'https://www.bing.com/search?q=keffiyeh' }) === 'other_search', 'bing organic is other_search');
+assert(classifyTrafficSource({ referrer: 'https://l.instagram.com/' }) === 'social', 'instagram referral is social');
+assert(classifyTrafficSource({ href: '/?utm_source=instagram&utm_medium=paid_social' }) === 'meta_ads', 'instagram paid_social is meta');
+assert(classifyTrafficSource({ href: '/?utm_source=instagram&utm_medium=social' }) === 'social', 'instagram organic social is social, not paid');
+assert(classifyTrafficSource({ href: '/?fbclid=abc' }) === 'meta_ads', 'fbclid is meta');
+assert(classifyTrafficSource({ referrer: 'https://shawq.co/collections/tops' }) === 'direct', 'internal referrer is direct');
+assert(classifyTrafficSource({}) === 'direct', 'no signal is direct');
+
+console.log('behavior tiers + page identity + brand allowlist + traffic source checks passed');

@@ -3,7 +3,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { productTaxonomyForName } from '../src/lib/productMapping.js';
 import { normalizePagePath, pagePathLabel } from '../src/lib/pagePath.js';
-import { isBrandPage, pageCategory, brandPageName, BRAND_MISSION_PAGES } from '../src/lib/pageCategory.js';
+import { isBrandPage, pageCategory, brandPageName, BRAND_MISSION_PAGES, SHAWQ_BLOG_PREFIX } from '../src/lib/pageCategory.js';
+import { classifyTrafficSource } from '../src/lib/trafficSource.js';
 import { dwellAnalysisMeta, rollupDwellPages } from '../src/lib/dwellStats.js';
 import { mergeBehaviorSnapshot } from '../src/lib/behaviorPersistence.js';
 
@@ -269,6 +270,16 @@ function eventPath(raw = {}) {
   return normalizePagePath(href);
 }
 
+// Full landing href (with query) — kept un-normalized so utm_/gclid params survive for source
+// classification (normalizePagePath drops the query).
+function rawHref(raw = {}) {
+  return String(raw.path || raw.url || raw.page_url || raw.context?.document?.location?.href || raw.payload?.context?.document?.location?.href || raw.payload?.url || '').slice(0, 500);
+}
+
+function eventReferrer(raw = {}) {
+  return String(raw.referrer || raw.context?.document?.referrer || raw.payload?.context?.document?.referrer || raw.payload?.referrer || '').slice(0, 500);
+}
+
 function eventSessionKey(raw = {}) {
   return hashId(raw.session_id || raw.client_id || raw.clientId || raw.payload?.clientId || raw.payload?.client_id || raw.id || raw.payload?.id || '');
 }
@@ -309,6 +320,8 @@ function normalizeSessionEvents(rawRows = [], timezone) {
       event_name: rawEventName(raw),
       session_hash: eventSessionKey(raw),
       path: eventPath(raw),
+      href: rawHref(raw),
+      referrer: eventReferrer(raw),
       country_code: country.country_code,
       country: country.country,
       line_items: lineItemsFromEvent(raw),
@@ -328,6 +341,10 @@ function aggregateSessionFacts(events = []) {
   const journeyRows = [];
   for (const [sessionHash, list] of bySession.entries()) {
     list.sort((a, b) => new Date(a.ts) - new Date(b.ts));
+    // Entry traffic source = the earliest event's landing href + referrer (organic search needs the
+    // referrer). It is the same for the whole session and is stamped on each pageview below.
+    const entryEvent = list[0] || {};
+    const trafficSource = classifyTrafficSource({ href: entryEvent.href, referrer: entryEvent.referrer });
     const purchaseIndex = list.findIndex((event) => /checkout_completed|purchase/i.test(event.event_name));
     const purchased = purchaseIndex >= 0;
     const purchaseTime = purchased ? new Date(list[purchaseIndex].ts).getTime() : 0;
@@ -387,6 +404,7 @@ function aggregateSessionFacts(events = []) {
         dwell_seconds: dwell,
         purchased,
         session_hash: sessionHash,
+        traffic_source: trafficSource,
       });
     }
     const sequence = [];
@@ -781,6 +799,58 @@ function buildMostVisited(pageFacts = [], { limit = 8 } = {}) {
   };
 }
 
+// Where Shawq Journal readers come from — answers "is the keffiyah blog pulling Google SEARCH
+// traffic?". Per blog page: unique sessions split by entry traffic source, with Google organic
+// search highlighted. Sessions (not page views) are the unit, since a visit is one arrival.
+function buildSearchReach(pageFacts = [], { limit = 10 } = {}) {
+  const byPath = new Map();
+  const overall = { sessions: new Set(), google: new Set() };
+  for (const fact of pageFacts || []) {
+    if (!fact || !fact.path) continue;
+    const path = normalizePagePath(fact.path);
+    if (!(path === SHAWQ_BLOG_PREFIX || path.startsWith(`${SHAWQ_BLOG_PREFIX}/`))) continue;
+    const sessionHash = String(fact.session_hash || '');
+    if (!sessionHash) continue;
+    const source = fact.traffic_source || 'direct';
+    let row = byPath.get(path);
+    if (!row) {
+      row = { path, label: brandPageName(path) || pagePathLabel(path), sessions: new Set(), sourceSessions: new Map() };
+      byPath.set(path, row);
+    }
+    row.sessions.add(sessionHash);
+    if (!row.sourceSessions.has(source)) row.sourceSessions.set(source, new Set());
+    row.sourceSessions.get(source).add(sessionHash);
+    overall.sessions.add(sessionHash);
+    if (source === 'google_search') overall.google.add(sessionHash);
+  }
+  const posts = [...byPath.values()].map((row) => {
+    const sessions = row.sessions.size;
+    const sources = Object.fromEntries([...row.sourceSessions.entries()].map(([key, set]) => [key, set.size]));
+    const googleSearch = sources.google_search || 0;
+    return {
+      path: row.path,
+      label: row.label,
+      sessions,
+      sources,
+      google_search_sessions: googleSearch,
+      google_search_share: sessions > 0 ? googleSearch / sessions : 0,
+    };
+  }).sort(
+    (a, b) =>
+      b.google_search_sessions - a.google_search_sessions
+      || b.sessions - a.sessions
+      || String(a.path).localeCompare(String(b.path)),
+  ).slice(0, limit);
+  const totalSessions = overall.sessions.size;
+  const googleSessions = overall.google.size;
+  return {
+    posts,
+    total_sessions: totalSessions,
+    google_search_sessions: googleSessions,
+    google_search_share: totalSessions > 0 ? googleSessions / totalSessions : 0,
+  };
+}
+
 function journeyRollup(journeyRows = []) {
   const totals = { purchasers: 0, non_purchasers: 0 };
   const pageMap = new Map();
@@ -901,6 +971,7 @@ const dwellPages = rollupDwellPages(fullSessionAgg.pageFacts);
 const dwellMeta = dwellAnalysisMeta(fullSessionAgg.pageFacts);
 const journeys = journeyRollup(fullSessionAgg.journeyRows);
 const mostVisited = buildMostVisited(fullSessionAgg.pageFacts);
+const searchReach = buildSearchReach(fullSessionAgg.pageFacts);
 
 const outPath = path.resolve('public/data/behavior-intelligence.json');
 const previous = readJson(outPath, null);
@@ -971,6 +1042,7 @@ let out = {
   },
   dwell_pages: dwellPages,
   most_visited_pages: mostVisited,
+  search_reach: searchReach,
   journeys,
   pixel_contract: {
     endpoint: '/api/session-events',
@@ -984,6 +1056,7 @@ out.dwell_pages = rollupDwellPages(out.page_facts);
 out.dwell_analysis = dwellAnalysisMeta(out.page_facts);
 out.journeys = journeyRollup(out.journey_rows);
 out.most_visited_pages = buildMostVisited(out.page_facts);
+out.search_reach = buildSearchReach(out.page_facts);
 if (previous && (out.page_facts.length > fullSessionAgg.pageFacts.length || out.facts.length > facts.length)) {
   console.warn(`Merged behavior snapshot: facts ${facts.length}→${out.facts.length}, page_facts ${fullSessionAgg.pageFacts.length}→${out.page_facts.length}, journey_rows ${fullSessionAgg.journeyRows.length}→${out.journey_rows.length}`);
 }
