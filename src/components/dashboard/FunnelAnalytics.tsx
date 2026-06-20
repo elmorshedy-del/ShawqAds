@@ -2,6 +2,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -23,10 +24,12 @@ interface Campaign {
 }
 
 interface MetricSummary {
-  current: number | null;
-  launch: number | null;
-  deltaPp: number | null;
-  cumulative: number | null;
+  currentIndex: number | null;
+  launchIndex: number | null;
+  deltaVsBase: number | null;
+  deltaSinceLaunch: number | null;
+  currentRaw: number | null;
+  baseRate: number | null;
   totalNum: number;
   totalDen: number;
 }
@@ -46,8 +49,10 @@ export interface FunnelData {
   hasData: boolean;
 }
 
+const idxLabel = (v: number | null | undefined) =>
+  v == null || !Number.isFinite(v) ? "—" : `${Math.round(v)}`;
 const pctLabel = (v: number | null | undefined) =>
-  v == null || !Number.isFinite(v) ? "—" : `${v.toFixed(1)}%`;
+  v == null || !Number.isFinite(v) ? "—" : `${Math.round(v)}%`;
 const mmdd = (d: string) => (d && d.length >= 10 ? d.slice(5) : d);
 
 function SummaryCard({
@@ -63,9 +68,9 @@ function SummaryCard({
   explainer: string;
   summary: MetricSummary;
 }) {
-  const { current, launch, deltaPp } = summary;
-  const flat = !deltaPp;
-  const up = (deltaPp ?? 0) > 0;
+  const { currentIndex, deltaVsBase, baseRate, currentRaw } = summary;
+  const flat = !deltaVsBase;
+  const up = (deltaVsBase ?? 0) > 0;
   return (
     <div className="panel p-5">
       <div className="flex items-center justify-between gap-3">
@@ -76,9 +81,9 @@ function SummaryCard({
       </div>
       <div className="mt-3 flex items-end gap-3">
         <span className="font-display text-4xl font-semibold tracking-tight tabular-nums" style={{ color: accent }}>
-          {pctLabel(current)}
+          {idxLabel(currentIndex)}
         </span>
-        {deltaPp != null ? (
+        {deltaVsBase != null ? (
           <span
             className={cn(
               "mb-1.5 inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-semibold tabular-nums",
@@ -87,19 +92,22 @@ function SummaryCard({
           >
             {flat ? null : up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
             {up ? "+" : ""}
-            {deltaPp} pts
+            {Math.round(deltaVsBase)} vs base
           </span>
         ) : null}
       </div>
       <p className="mt-2 text-sm text-muted-foreground">{explainer}</p>
-      {launch != null && current != null ? (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Since launch{" "}
-          <span className="font-medium tabular-nums text-foreground">{pctLabel(launch)}</span>
-          {" → "}
-          <span className="font-medium tabular-nums text-foreground">{pctLabel(current)}</span>
-        </p>
-      ) : null}
+      <p className="mt-3 text-xs text-muted-foreground">
+        100 = launch baseline · base rate{" "}
+        <span className="font-medium tabular-nums text-foreground">{pctLabel(baseRate)}</span>
+        {currentRaw != null ? (
+          <>
+            {" · now "}
+            <span className="font-medium tabular-nums text-foreground">{pctLabel(currentRaw)}</span>
+            {" raw"}
+          </>
+        ) : null}
+      </p>
     </div>
   );
 }
@@ -108,6 +116,7 @@ interface FunnelTooltipPayloadItem {
   dataKey: string;
   value: number | null;
   color?: string;
+  payload?: Record<string, number | string | null>;
 }
 
 interface FunnelTooltipProps {
@@ -123,18 +132,22 @@ function FunnelTooltip({ active, payload, label, nameById, colorById, accent }: 
   if (!active || !payload?.length) return null;
   const items = payload
     .filter((p) => p.value != null)
-    .map((p) => ({
-      key: p.dataKey,
-      isAccount: p.dataKey === "account",
-      name: p.dataKey === "account" ? "Account (all campaigns)" : nameById[p.dataKey] || p.dataKey,
-      color: p.dataKey === "account" ? accent : colorById[p.dataKey] || p.color,
-      value: Number(p.value),
-    }))
-    .sort((a, b) => (b.isAccount ? 1 : 0) - (a.isAccount ? 1 : 0) || b.value - a.value);
+    .map((p) => {
+      const raw = p.payload ? (p.payload[`${p.dataKey}__raw`] as number | null) : null;
+      return {
+        key: p.dataKey,
+        isAccount: p.dataKey === "account",
+        name: p.dataKey === "account" ? "Account (all campaigns)" : nameById[p.dataKey] || p.dataKey,
+        color: p.dataKey === "account" ? accent : colorById[p.dataKey] || p.color,
+        index: Number(p.value),
+        raw,
+      };
+    })
+    .sort((a, b) => (b.isAccount ? 1 : 0) - (a.isAccount ? 1 : 0) || b.index - a.index);
   if (!items.length) return null;
   return (
-    <div className="panel min-w-[200px] px-3.5 py-3 text-xs shadow-[var(--shadow-elegant)]">
-      <p className="mb-2 font-semibold text-foreground">{mmdd(label)}</p>
+    <div className="panel min-w-[220px] px-3.5 py-3 text-xs shadow-[var(--shadow-elegant)]">
+      <p className="mb-2 font-semibold text-foreground">{mmdd(label || "")}</p>
       <div className="space-y-1.5">
         {items.map((it) => (
           <div key={it.key} className="flex items-center justify-between gap-6">
@@ -143,7 +156,8 @@ function FunnelTooltip({ active, payload, label, nameById, colorById, accent }: 
               {it.name}
             </span>
             <span className={cn("font-semibold tabular-nums text-foreground", it.isAccount && "text-brand")}>
-              {it.value.toFixed(1)}%
+              {Math.round(it.index)}
+              {it.raw != null ? <span className="font-normal text-muted-foreground"> · {Math.round(it.raw)}% raw</span> : null}
             </span>
           </div>
         ))}
@@ -180,7 +194,7 @@ function FunnelChart({
           <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
         </div>
         <span className="font-display text-2xl font-semibold tabular-nums" style={{ color: accent }}>
-          {pctLabel(metric.summary.current)}
+          {idxLabel(metric.summary.currentIndex)}
         </span>
       </div>
 
@@ -201,14 +215,20 @@ function FunnelChart({
               <YAxis
                 tickLine={false}
                 axisLine={false}
-                width={46}
+                width={40}
                 domain={[0, "auto"]}
                 tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }}
-                tickFormatter={(v) => `${v}%`}
               />
               <Tooltip
                 content={<FunnelTooltip nameById={nameById} colorById={colorById} accent={accent} />}
                 cursor={{ stroke: "var(--color-border)", strokeWidth: 1 }}
+              />
+              <ReferenceLine
+                y={100}
+                stroke="var(--color-muted-foreground)"
+                strokeDasharray="4 5"
+                strokeOpacity={0.6}
+                label={{ value: "baseline 100", position: "insideTopRight", fill: "var(--color-muted-foreground)", fontSize: 10 }}
               />
               {campaigns.map((c) => (
                 <Line
@@ -271,8 +291,7 @@ export function FunnelAnalytics({ data }: { data: FunnelData }) {
         </span>
         <p className="font-display text-base font-semibold">Conversion funnel</p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          Waiting for Meta funnel actions (add-to-cart, checkout, purchase) since the June 3 launch.
-          Rates appear here once the campaigns report add-to-cart and checkout events.
+          Waiting for Meta funnel actions (add-to-cart, checkout) and Shopify orders since the June 3 launch.
         </p>
       </div>
     );
@@ -288,9 +307,11 @@ export function FunnelAnalytics({ data }: { data: FunnelData }) {
           <h2 className="font-display text-lg font-semibold tracking-tight">Conversion funnel</h2>
         </div>
         <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
-          How shoppers move from add-to-cart → checkout → purchase, since the June 3 campaign launch.
-          The account line is volume-weighted across all campaigns, and every rate is a {win}-day rolling
-          average so daily noise doesn't bury the trend. Higher is better on both steps.
+          Add-to-cart → checkout → purchase since the June 3 launch. Because Meta counts ATC and checkout on
+          different attribution bases (the raw ratio can exceed 100%), each rate is shown as an <strong>index grounded
+          to the launch baseline = 100</strong> — bias-normalized, volume-weighted across campaigns, {win}-day rolling
+          and shrinkage-stabilized. Above 100 = converting better than launch. Purchases come from Shopify orders
+          (account = all orders; per-campaign = attributed). Raw % is in each tooltip.
         </p>
       </div>
 
@@ -299,14 +320,14 @@ export function FunnelAnalytics({ data }: { data: FunnelData }) {
           accent="var(--color-brand)"
           badge="IC / ATC"
           title="Checkout start rate"
-          explainer="Share of add-to-carts that go on to begin checkout."
+          explainer="Add-to-carts that go on to begin checkout, indexed to launch."
           summary={data.icAtc.summary}
         />
         <SummaryCard
           accent="var(--color-positive)"
           badge="Purchase / IC"
           title="Purchase rate"
-          explainer="Share of started checkouts that convert to a purchase."
+          explainer="Started checkouts that convert to a Shopify order, indexed to launch."
           summary={data.purchaseIc.summary}
         />
       </div>
@@ -314,13 +335,13 @@ export function FunnelAnalytics({ data }: { data: FunnelData }) {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <FunnelChart
           title="Checkout start rate"
-          subtitle={`IC / ATC · ${win}-day rolling · since launch`}
+          subtitle={`IC / ATC · indexed to launch (100) · ${win}-day rolling`}
           accent="var(--color-brand)"
           metric={data.icAtc}
         />
         <FunnelChart
           title="Purchase rate"
-          subtitle={`Purchase / IC · ${win}-day rolling · since launch`}
+          subtitle={`Shopify orders / IC · indexed to launch (100) · ${win}-day rolling`}
           accent="var(--color-positive)"
           metric={data.purchaseIc}
         />

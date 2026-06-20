@@ -2790,8 +2790,15 @@ function App() {
   // Funnel conversion (IC/ATC, Purchase/IC) is always measured since the campaign
   // launch, independent of the date picker, from per-campaign daily Meta funnel actions.
   const funnelData = useMemo(
-    () => buildFunnelAnalytics(baseData.ad_country_daily || [], { launchDate: CAMPAIGN_LAUNCH_DATE }),
-    [baseData],
+    () => buildFunnelAnalytics(
+      {
+        metaRows: baseData.ad_country_daily || [],
+        shopifyDaily: baseProductData.daily || [],
+        orderLines: baseProductData.order_lines || [],
+      },
+      { launchDate: CAMPAIGN_LAUNCH_DATE },
+    ),
+    [baseData, baseProductData],
   );
   const kpiProjection = (key) => buildKpiProjectionDisplay(monthProjection, key);
   const kpiRecord = (key) => buildKpiRecordDisplay(kpiRecords, key);

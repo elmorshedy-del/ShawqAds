@@ -3,52 +3,63 @@ import { buildFunnelAnalytics } from '../src/lib/funnelAnalytics.js';
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+const near = (a, b, eps = 0.05) => a != null && Math.abs(a - b) <= eps;
 
-const A = { campaign_id: 'A', campaign_name: 'Scaling_US_ASC' };
-const B = { campaign_id: 'B', campaign_name: 'Tiny_Test' };
-
-const rows = [
-  // Pre-launch row must be excluded entirely.
-  { date: '2026-06-02', ...A, add_to_cart: 100, checkout_initiated: 100, purchases: 100 },
-  { date: '2026-06-03', ...A, add_to_cart: 10, checkout_initiated: 5, purchases: 2 },
-  { date: '2026-06-03', ...B, add_to_cart: 2, checkout_initiated: 1, purchases: 0 },
-  { date: '2026-06-04', ...A, add_to_cart: 10, checkout_initiated: 7, purchases: 3 },
-  { date: '2026-06-04', ...B, add_to_cart: 1, checkout_initiated: 0, purchases: 0 },
-  { date: '2026-06-05', ...A, add_to_cart: 20, checkout_initiated: 10, purchases: 5 },
+const metaRows = [
+  // pre-launch row must be excluded
+  { date: '2026-06-02', campaign_id: 'A', campaign_name: 'Scaling_US', country_code: 'US', spend_usd: 9, add_to_cart: 999, checkout_initiated: 999, purchases: 999 },
+  // Meta purchases are deliberately huge (99/day) to prove Purchase/IC ignores Meta purchases.
+  { date: '2026-06-03', campaign_id: 'A', campaign_name: 'Scaling_US', country_code: 'US', spend_usd: 50, add_to_cart: 10, checkout_initiated: 12, purchases: 99 },
+  { date: '2026-06-04', campaign_id: 'A', campaign_name: 'Scaling_US', country_code: 'US', spend_usd: 50, add_to_cart: 10, checkout_initiated: 7, purchases: 99 },
+  { date: '2026-06-05', campaign_id: 'A', campaign_name: 'Scaling_US', country_code: 'US', spend_usd: 50, add_to_cart: 20, checkout_initiated: 10, purchases: 99 },
+];
+const shopifyDaily = [
+  { date: '2026-06-02', orders: 50 },
+  { date: '2026-06-03', orders: 3 },
+  { date: '2026-06-04', orders: 2 },
+  { date: '2026-06-05', orders: 5 },
+];
+const orderLines = [
+  // Same order O1, two lines -> must dedupe to ONE order for campaign A on 06-04 (direct hint).
+  { date: '2026-06-04', order_id: 'O1', country_code: 'US', product: 'x', attribution: { match_hints: { campaign_id: 'A' } } },
+  { date: '2026-06-04', order_id: 'O1', country_code: 'US', product: 'y', attribution: { match_hints: { campaign_id: 'A' } } },
+  // No hint -> country-dominant fallback (US -> A) on 06-05.
+  { date: '2026-06-05', order_id: 'O2', country_code: 'US', product: 'z', attribution: {} },
 ];
 
-const data = buildFunnelAnalytics(rows, { window: 7, minDenominator: 5 });
+const data = buildFunnelAnalytics({ metaRows, shopifyDaily, orderLines }, { window: 7, minDenominator: 2, kappa: 0 });
 
 assert(data.hasData === true, 'hasData should be true');
 assert(JSON.stringify(data.dates) === JSON.stringify(['2026-06-03', '2026-06-04', '2026-06-05']),
-  `pre-launch date must be excluded, got ${JSON.stringify(data.dates)}`);
+  `pre-launch must be excluded, got ${JSON.stringify(data.dates)}`);
 
-// IC/ATC account = volume-weighted, trailing. Day totals ATC 12/11/20, IC 6/7/10.
+// IC/ATC: raw >100% preserved, but grounded to an index (base = pooled 29/40 = 72.5%).
 const ic = data.icAtc;
-assert(ic.points[0].account === 50, `IC/ATC day0 expected 50, got ${ic.points[0].account}`);
-assert(ic.points[1].account === 56.5, `IC/ATC day1 expected 56.5, got ${ic.points[1].account}`);
-assert(ic.points[2].account === 53.5, `IC/ATC day2 expected 53.5, got ${ic.points[2].account}`);
-assert(ic.summary.cumulative === 53.5, `IC/ATC cumulative expected 53.5, got ${ic.summary.cumulative}`);
-assert(ic.summary.current === 53.5 && ic.summary.launch === 50 && ic.summary.deltaPp === 3.5,
+assert(ic.summary.baseRate === 72.5, `IC/ATC base rate expected 72.5, got ${ic.summary.baseRate}`);
+assert(ic.points[0].account__raw === 120, `IC/ATC day0 raw expected 120% (the >100 artifact), got ${ic.points[0].account__raw}`);
+assert(ic.points[0].account === 165.5, `IC/ATC day0 index expected 165.5, got ${ic.points[0].account}`);
+assert(ic.points[2].account === 100, `IC/ATC day2 index should equal base (100), got ${ic.points[2].account}`);
+assert(ic.summary.currentIndex === 100 && ic.summary.deltaVsBase === 0,
   `IC/ATC summary wrong: ${JSON.stringify(ic.summary)}`);
 
-// Low-volume campaign B (ATC total 3 < 5) must be filtered out; only A remains.
-assert(ic.campaigns.length === 1 && ic.campaigns[0].id === 'A',
-  `IC/ATC should keep only campaign A, got ${JSON.stringify(ic.campaigns)}`);
-assert(ic.points[2].A === 55, `Campaign A IC/ATC day2 expected 55, got ${ic.points[2].A}`);
-
-// Purchase/IC account. Day totals IC 6/7/10, purchases 2/3/5.
+// Purchase/IC: numerator is SHOPIFY orders (10 total), not Meta purchases (297 total).
 const pic = data.purchaseIc;
-assert(pic.points[0].account === 33.3, `Purchase/IC day0 expected 33.3, got ${pic.points[0].account}`);
-assert(pic.summary.current === 43.5 && pic.summary.launch === 33.3,
-  `Purchase/IC summary wrong: ${JSON.stringify(pic.summary)}`);
+assert(pic.summary.baseRate === 34.5, `Purchase/IC base must be Shopify-based ~34.5%, got ${pic.summary.baseRate} (Meta would be ~1024%)`);
+assert(pic.points[0].account === 72.5 && pic.points[0].account__raw === 25,
+  `Purchase/IC day0 expected index 72.5 / raw 25, got ${JSON.stringify([pic.points[0].account, pic.points[0].account__raw])}`);
 
-// Divide-by-zero: a single all-zero day yields no data and null rate, not NaN/Infinity.
-const empty = buildFunnelAnalytics(
-  [{ date: '2026-06-03', campaign_id: 'X', campaign_name: 'X', add_to_cart: 0, checkout_initiated: 0, purchases: 0 }],
-  { window: 7, minDenominator: 5 },
-);
-assert(empty.hasData === false, 'all-zero day should report hasData false');
-assert(empty.icAtc.points[0].account === null, 'all-zero day IC/ATC should be null, not NaN');
+// Per-campaign attributed orders: O1 (deduped to 1) + O2 (country fallback) = 2 orders for A by day2.
+assert(pic.campaigns.some((c) => c.id === 'A'), 'Purchase/IC should include campaign A');
+assert(pic.points[2].A === 20, `Campaign A Purchase/IC day2 index expected 20 (2 deduped orders / cumulative IC, indexed); got ${pic.points[2].A}`);
+
+// Empirical-Bayes shrinkage: a large kappa pulls the day0 index from 165.5 toward the base (100).
+const shrunk = buildFunnelAnalytics({ metaRows, shopifyDaily, orderLines }, { window: 7, minDenominator: 2, kappa: 100 });
+const s0 = shrunk.icAtc.points[0].account;
+assert(s0 > 100 && s0 < 165.5, `Shrinkage should pull day0 index toward 100 (between 100 and 165.5), got ${s0}`);
+
+// Divide-by-zero safety.
+const empty = buildFunnelAnalytics({ metaRows: [{ date: '2026-06-03', campaign_id: 'X', add_to_cart: 0, checkout_initiated: 0 }], shopifyDaily: [], orderLines: [] }, { window: 7 });
+assert(empty.hasData === false, 'all-zero meta should report hasData false');
+assert(empty.icAtc.points[0].account == null, 'all-zero day index should be null, not NaN');
 
 console.log('funnel analytics checks passed');
