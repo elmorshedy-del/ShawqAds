@@ -55,6 +55,15 @@ function titleWords(value = '') {
     .join(' ');
 }
 
+// Slugs can contain malformed percent-encoding; never let a bad URL crash the dashboard.
+function safeDecode(value = '') {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export function pagePathLabel(path = '') {
   const normalized = normalizePagePath(path);
   const pathname = normalized.split('?')[0] || '/';
@@ -63,19 +72,23 @@ export function pagePathLabel(path = '') {
   if (pathname === '/cart') return 'Cart';
   if (pathname.startsWith('/checkout')) return 'Checkout';
   if (pathname.startsWith('/collections/')) {
-    const slug = decodeURIComponent(pathname.slice('/collections/'.length));
+    const slug = safeDecode(pathname.slice('/collections/'.length));
     return `Collection · ${titleWords(slug)}`;
   }
   if (pathname.startsWith('/products/')) {
-    const slug = decodeURIComponent(pathname.slice('/products/'.length));
+    const slug = safeDecode(pathname.slice('/products/'.length));
     return titleWords(slug);
   }
   if (pathname.startsWith('/pages/')) {
-    const slug = decodeURIComponent(pathname.slice('/pages/'.length));
+    const slug = safeDecode(pathname.slice('/pages/'.length));
     return titleWords(slug);
   }
+  if (pathname.startsWith('/policies/')) {
+    const slug = safeDecode(pathname.slice('/policies/'.length));
+    return `Policy · ${titleWords(slug)}`;
+  }
   if (pathname.startsWith('/blogs/')) {
-    const slug = decodeURIComponent(pathname.replace(/^\/blogs\//, ''));
+    const slug = safeDecode(pathname.replace(/^\/blogs\//, ''));
     return `Blog · ${titleWords(slug)}`;
   }
   return pathname;

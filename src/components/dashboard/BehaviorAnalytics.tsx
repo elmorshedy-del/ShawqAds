@@ -22,7 +22,7 @@ import {
   MIN_COMPARABLE_SESSIONS,
   SAMPLE_TIER_LEGEND,
 } from "@/lib/sampleTiers";
-import { BRAND_PAGES_LABEL } from "@/lib/pageCategory";
+import { BRAND_PAGES_LABEL, brandPageName } from "@/lib/pageCategory";
 import { PanelScopeToggle, type PanelScope } from "@/components/dashboard/PanelScopeToggle";
 
 interface BehaviorStep {
@@ -361,7 +361,7 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
                     </span>
                   )}
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{main.product || "Unknown product"}</p>
+                    <p className="break-words text-sm font-semibold">{main.product || "Unknown product"}</p>
                     <p className="truncate text-xs text-muted-foreground">
                       {main.family || "Other"} · {main.subtype || "Unknown"}
                     </p>
@@ -508,11 +508,12 @@ function PageBar({ row, max }: { row: any; max: number }) {
   const views = Number(row.views || 0);
   const width = max > 0 ? Math.min(100, Math.max(6, (views / max) * 100)) : 6;
   const distinctive = Array.isArray(row.distinctive_countries) ? row.distinctive_countries : [];
+  const label = brandPageName(row.path) || row.label;
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between gap-3">
-        <span className="truncate text-xs font-medium" title={row.label}>
-          {row.label}
+        <span className="min-w-0 flex-1 break-words text-xs font-medium" title={label}>
+          {label}
         </span>
         <span className="shrink-0 text-[0.65rem] tabular-nums text-muted-foreground">
           {compact(views)} views · {compact(Number(row.sessions || 0))} sessions
@@ -567,7 +568,7 @@ function MostVisitedPages({ data }: { data?: { top?: any[]; brand?: any[] } }) {
           {BRAND_PAGES_LABEL}
         </p>
         <p className="mt-0.5 text-[0.6rem] leading-relaxed text-muted-foreground">
-          Always shown — About, Impact, Donations, and the Shawq story, even when commerce pages out-rank them.
+          Always shown — the real About Us and Donations pages, even when commerce pages out-rank them.
         </p>
         <div className="mt-2 space-y-3">
           {brand.length ? (
@@ -625,11 +626,11 @@ function DwellPages({ pages }: { pages: any[] }) {
             const buyerSessions = Number(page.purchaser_sessions || 0);
             const sessions = Number(page.sessions || 0);
             const width = maxDwell > 0 ? Math.min(100, Math.max(8, (dwell / maxDwell) * 100)) : 8;
-            const label = pagePathLabel(page.path);
+            const label = brandPageName(page.path) || pagePathLabel(page.path);
             return (
               <div key={normalizePagePath(page.path)}>
                 <div className="mb-1 flex items-baseline justify-between gap-3">
-                  <span className="truncate text-xs font-medium" title={label}>
+                  <span className="min-w-0 flex-1 break-words text-xs font-medium" title={label}>
                     {label}
                   </span>
                   <span className="shrink-0 text-xs font-semibold tabular-nums">
@@ -708,7 +709,7 @@ function JourneyColumn({
                 {row.step}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium">{pagePathLabel(row.path)}</p>
+                <p className="break-words text-xs font-medium">{brandPageName(row.path) || pagePathLabel(row.path)}</p>
                 <p className="text-[0.6rem] leading-relaxed text-muted-foreground">{render(row)}</p>
               </div>
             </div>
