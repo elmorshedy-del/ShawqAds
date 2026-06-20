@@ -1404,6 +1404,10 @@ async function fetchLatestShopifySale() {
 }
 
 function streamJsonFile(res, file) {
+  if (!fs.existsSync(file)) {
+    send(res, 404, JSON.stringify({ ok: false, error: 'file not found' }));
+    return;
+  }
   res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   const stream = fs.createReadStream(file);
   // Without an error listener a mid-read failure throws and crashes the process.
