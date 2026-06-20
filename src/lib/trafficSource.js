@@ -1,9 +1,9 @@
 /* Classify a session's ENTRY traffic source from its landing URL + document.referrer.
  *
  * Purpose: answer "is the Shawq Journal (especially the keffiyah post) pulling Google SEARCH
- * traffic?" Organic search carries no UTM/click-id, so document.referrer is the only signal — the
- * customer-events pixel must send it. Paid clicks (gclid / fbclid / utm_medium=cpc) take precedence
- * over the referring host so an ad click from a search engine isn't miscounted as organic.
+ * traffic?" ShawQ runs NO Google Ads, so Google traffic is organic search, identified purely by the
+ * REFERRER host — we deliberately do not rely on UTM/gclid for Google. Meta (paid social) ads DO run,
+ * so an fbclid or a Meta source with a paid medium is classified as meta_ads.
  */
 
 function safeUrl(value) {
@@ -22,7 +22,6 @@ function hostOf(value) {
 export const TRAFFIC_SOURCE_LABELS = Object.freeze({
   google_search: 'Google search',
   other_search: 'Other search',
-  google_ads: 'Google Ads',
   meta_ads: 'Meta ads',
   other_paid: 'Other paid',
   social: 'Social',
@@ -37,28 +36,16 @@ export function classifyTrafficSource({ href = '', referrer = '' } = {}) {
   const utmMedium = get('utm_medium').toLowerCase();
   const refHost = hostOf(referrer);
 
-  const googleAdsClick = Boolean(get('gclid') || get('gbraid') || get('wbraid'));
-  const metaClick = Boolean(get('fbclid'));
+  // Search is identified by the REFERRER host only. ShawQ runs no Google Ads, so a Google referrer
+  // is always organic search — we deliberately do not rely on UTM/gclid for Google attribution.
+  if (/(^|\.)google\./.test(refHost)) return 'google_search';
+  if (/(^|\.)(bing|duckduckgo|yahoo|ecosia|brave|baidu|yandex|qwant)\./.test(refHost)) return 'other_search';
+
+  // Meta paid social (ShawQ does run Meta ads): an fbclid, or a Meta source with a paid medium.
   const paidMedium = /(cpc|ppc|paid|display|cpm)/.test(utmMedium);
+  if (get('fbclid') || (/facebook|instagram|meta/.test(utmSource) && paidMedium)) return 'meta_ads';
 
-  // Paid takes precedence over the referring host.
-  if (googleAdsClick || (utmSource.includes('google') && paidMedium)) return 'google_ads';
-  // Meta ADS = a paid click only (fbclid, or a Meta source with a paid medium). A Meta source with
-  // utm_medium=social is ORGANIC social and falls through to the social bucket below.
-  if (metaClick || (/facebook|instagram|meta/.test(utmSource) && paidMedium)) {
-    return 'meta_ads';
-  }
-  if (paidMedium) return 'other_paid';
-
-  // Organic search — the Shawq Journal / keffiyah SEO goal.
-  if (/(^|\.)google\./.test(refHost) || (utmSource.includes('google') && (utmMedium === 'organic' || !utmMedium))) {
-    return 'google_search';
-  }
-  if (/(^|\.)(bing|duckduckgo|yahoo|ecosia|brave|baidu|yandex|qwant)\./.test(refHost) || utmMedium === 'organic') {
-    return 'other_search';
-  }
-
-  // Social / referral / direct.
+  // Organic social, other paid, referral, direct.
   if (
     /(^|\.)(instagram|facebook|tiktok|pinterest|snapchat|youtube|linkedin|reddit|twitter)\./.test(refHost)
     || refHost === 't.co'
@@ -66,6 +53,7 @@ export function classifyTrafficSource({ href = '', referrer = '' } = {}) {
   ) {
     return 'social';
   }
+  if (paidMedium) return 'other_paid';
   if (refHost && !refHost.includes('shawq') && !refHost.includes('myshopify')) return 'referral';
   return 'direct';
 }
