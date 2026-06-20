@@ -355,7 +355,8 @@ function aggregateSessionFacts(events = []) {
     for (let i = 0; i < pageViews.length; i += 1) {
       const current = pageViews[i];
       const currentTime = new Date(current.ts).getTime();
-      const after = laterEvents.filter((event) => event.t > currentTime).sort((a, b) => a.t - b.t);
+      // laterEvents preserves `list`'s chronological order, so `after` is already ascending by time.
+      const after = laterEvents.filter((event) => event.t > currentTime);
       // The page ends when the visitor navigates away or the tab is hidden/closed.
       const leaveEvent = after.find((event) => /page_viewed|page_view|visibility_hidden|session_end/i.test(event.event_name));
       if (!leaveEvent) continue; // still on the page / last event in session: dwell unknown, skip
@@ -652,7 +653,10 @@ function dwellRollup(pageFacts = []) {
 function buildMostVisited(pageFacts = [], { limit = 8 } = {}) {
   const byPath = new Map();
   for (const fact of pageFacts || []) {
-    const path = normalizePagePath(fact && fact.path);
+    // Skip null facts (crash guard) and facts with no path — an empty path must not be
+    // silently folded into the homepage ('/') and inflate its view count.
+    if (!fact || !fact.path) continue;
+    const path = normalizePagePath(fact.path);
     if (!path) continue;
     let row = byPath.get(path);
     if (!row) {

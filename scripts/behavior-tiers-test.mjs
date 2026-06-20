@@ -19,6 +19,7 @@ assert(isBrandPage('/pages/donations') === true, 'donations is brand');
 assert(isBrandPage('/pages/shawq-story') === true, 'shawq is brand');
 assert(isBrandPage('/products/shawq-tatreez-top') === false, 'product is never brand even with keyword');
 assert(isBrandPage('/collections/impact-drop') === false, 'collection is never brand even with keyword');
+assert(isBrandPage('/blogs/news/our-story-from-gaza') === false, 'blog post is never brand even with keyword');
 assert(isBrandPage('/') === false, 'home is not brand');
 
 // Page categories.
@@ -29,5 +30,6 @@ assert(pageCategory('/checkout') === 'checkout', 'checkout');
 assert(pageCategory('/cart') === 'checkout', 'cart counts as checkout');
 assert(pageCategory('/pages/donations') === 'brand', 'donations brand');
 assert(pageCategory('/pages/contact') === 'other', 'contact is other');
+assert(pageCategory('/blogs/news/our-story-from-gaza') === 'blog', 'brand-keyword blog is classified blog, not brand');
 
 console.log('behavior tiers + page category checks passed');

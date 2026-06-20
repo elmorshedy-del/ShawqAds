@@ -17,8 +17,16 @@ const BRAND_KEYWORDS = [
 
 export function isBrandPage(path = '') {
   const p = normalizePagePath(path).split('?')[0].toLowerCase();
-  // Never treat commerce surfaces as brand pages, even if a slug contains a keyword.
-  if (p.startsWith('/products/') || p.startsWith('/collections/') || p.startsWith('/checkout') || p === '/cart') {
+  // Never treat commerce or editorial surfaces as brand pages, even if a slug contains a keyword.
+  // Brand & mission pages are the storytelling pages (About, Impact, Donations, the Shawq story),
+  // which live under /pages — not products, collections, checkout, or blog posts.
+  if (
+    p.startsWith('/products/') ||
+    p.startsWith('/collections/') ||
+    p.startsWith('/checkout') ||
+    p === '/cart' ||
+    p.startsWith('/blogs/')
+  ) {
     return false;
   }
   return BRAND_KEYWORDS.some((kw) => p.includes(kw));
