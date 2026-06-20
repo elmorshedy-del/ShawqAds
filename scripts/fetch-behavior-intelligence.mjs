@@ -100,11 +100,22 @@ function dayFor(value, timeZone) {
   return dateInTimezone(new Date(value), timeZone);
 }
 
-function countryName(code) {
+// Cache the Intl.DisplayNames instance — countryName runs per fact in the rollups, and
+// instantiating DisplayNames on every call is expensive.
+const REGION_DISPLAY_NAMES = (() => {
   try {
-    return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code;
+    return new Intl.DisplayNames(['en'], { type: 'region' });
   } catch {
-    return code || 'Unknown';
+    return null;
+  }
+})();
+function countryName(code) {
+  const cc = String(code || '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(cc)) return code || 'Unknown';
+  try {
+    return (REGION_DISPLAY_NAMES ? REGION_DISPLAY_NAMES.of(cc) : cc) || cc;
+  } catch {
+    return cc || 'Unknown';
   }
 }
 
@@ -811,7 +822,8 @@ async function getStorefrontProductTitles() {
           titles.set(String(product.id), String(product.title).trim());
         }
       }
-      if (products.length < 250) break;
+      // Stop when a page returns nothing (handled at the top of the loop) rather than assuming a
+      // 250-row page — the storefront endpoint can cap page size, which would end pagination early.
     }
   } catch (error) {
     console.warn(`Could not fetch storefront product titles: ${error.message}`);
