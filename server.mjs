@@ -67,6 +67,10 @@ let metaAccountCache = { fetchedAt: 0, payload: null };
 const fxCache = new Map();
 
 const SESSION_BEHAVIOR_REFRESH_MS = Number(process.env.SESSION_BEHAVIOR_REFRESH_MS || 15000);
+// Behavior regeneration is expensive (Meta + Shopify + full session-event log). Cap how
+// often the background refresh actually runs so constant pixel traffic can't peg it.
+const BEHAVIOR_REFRESH_MIN_INTERVAL_MS = Number(process.env.BEHAVIOR_REFRESH_MIN_INTERVAL_MS || 180000);
+let lastBehaviorRefreshAt = 0;
 let sessionBehaviorRefreshTimer = null;
 let sessionBehaviorRefreshInFlight = false;
 let sessionBehaviorRefreshPending = false;
@@ -76,6 +80,7 @@ async function runBehaviorRefreshFromSessionEvents() {
     sessionBehaviorRefreshPending = true;
     return;
   }
+  if (lastBehaviorRefreshAt && Date.now() - lastBehaviorRefreshAt < BEHAVIOR_REFRESH_MIN_INTERVAL_MS) return;
   sessionBehaviorRefreshInFlight = true;
   try {
     do {
@@ -156,7 +161,10 @@ function runScript(script, extraEnv = {}) {
       // Persist asynchronously without blocking runScript resolution: serveData
       // serves behavior data from the public path, so the client need not wait
       // for the volume copy. persistBehaviorToVolume handles its own errors.
-      if (code === 0 && script === 'fetch:behavior') void persistBehaviorToVolume();
+      if (code === 0 && script === 'fetch:behavior') {
+        lastBehaviorRefreshAt = Date.now();
+        void persistBehaviorToVolume();
+      }
       resolve({ code, output });
     });
   });
@@ -1400,6 +1408,20 @@ async function serveData(req, res, name, script) {
   }
 
   const behaviorStale = script === 'fetch:behavior' && !force && behaviorNeedsRefresh(file);
+
+  // Behavior: never block the HTTP response on a full regeneration (it hits Meta +
+  // Shopify and parses the entire session-event log, which can take minutes). When a
+  // snapshot already exists (restored from the durable volume / committed seed), stream
+  // it immediately and kick off a throttled background refresh; the dashboard polls and
+  // picks up fresh data on the next cycle. This prevents the Behaviour tab from hanging
+  // (and appearing to reset) while a rebuild is in flight.
+  if (script === 'fetch:behavior' && !force && fs.existsSync(file)) {
+    if (behaviorStale) scheduleBehaviorRefreshFromSessionEvents();
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    fs.createReadStream(file).pipe(res);
+    return;
+  }
+
   if (force || !fs.existsSync(file) || behaviorStale) {
     const env = script === 'fetch:behavior'
       ? behaviorBackfillEnv(dateEnvFromUrl(url))
