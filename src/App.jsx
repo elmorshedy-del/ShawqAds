@@ -11,6 +11,7 @@ import {
 } from './lib/businessKpiInsights.js';
 import { buildShopifyHistoricalDaily } from './lib/historicalInsights.js';
 import { buildFunnelAnalytics } from './lib/funnelAnalytics.js';
+import { buildEmailDailyIndex, applyRevenueScope } from './lib/revenueScope.js';
 import {
   formatDwellSeconds,
   journeyStepInsight,
@@ -2443,6 +2444,7 @@ function App() {
   const [datePreset, setDatePreset] = useState('today');
   const [emailPanelScope, setEmailPanelScope] = useState('launch');
   const [behaviorPanelScope, setBehaviorPanelScope] = useState('launch');
+  const [businessRevenueScope, setBusinessRevenueScope] = useState('shopify_email');
   const [dateRange, setDateRange] = useState({ since: '', until: '' });
   const [customRange, setCustomRange] = useState({ since: '', until: '' });
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
@@ -2701,8 +2703,9 @@ function App() {
     const accountRows = allLoadedData.account_daily_metrics?.length ? allLoadedData.account_daily_metrics : accountDailyFromAdRows(allLoadedData.ad_country_daily || []);
     return accountRows.length ? accountRows : (allLoadedData.daily_metrics || aggregateRows(allLoadedData.adsets || []));
   }, [allLoadedData]);
-  const businessRows = useMemo(() => mergeBusinessRows(accountDaily, productData.daily || []), [accountDaily, productData]);
-  const allBusinessRows = useMemo(() => mergeBusinessRows(allLoadedAccountDaily, allLoadedProductDaily), [allLoadedAccountDaily, allLoadedProductDaily]);
+  const emailDailyIndex = useMemo(() => buildEmailDailyIndex(baseProductData?.order_lines || []), [baseProductData?.order_lines]);
+  const businessRows = useMemo(() => mergeBusinessRows(accountDaily, applyRevenueScope(productData.daily || [], businessRevenueScope, emailDailyIndex)), [accountDaily, productData, businessRevenueScope, emailDailyIndex]);
+  const allBusinessRows = useMemo(() => mergeBusinessRows(allLoadedAccountDaily, applyRevenueScope(allLoadedProductDaily, businessRevenueScope, emailDailyIndex)), [allLoadedAccountDaily, allLoadedProductDaily, businessRevenueScope, emailDailyIndex]);
   const business = businessStats(businessRows);
   const businessDeltas = useMemo(() => ({
     revenue: businessPeriodDelta(allBusinessRows, 'revenue_usd', activeDateRange),
@@ -2936,13 +2939,31 @@ function App() {
       />
     ),
     kpis: (
-      <section className="grid grid-cols-2 gap-4 xl:grid-cols-6">
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Business performance</p>
+          <div className="inline-flex self-start rounded-full border border-border bg-surface-2 p-1 text-xs">
+            {[['shopify', 'Shopify'], ['shopify_email', 'Shopify + Email']].map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setBusinessRevenueScope(val)}
+                aria-pressed={businessRevenueScope === val}
+                className={`rounded-full px-3 py-1 font-medium transition-all ${businessRevenueScope === val ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-6">
         <KpiCard label="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} delta={businessDeltas.revenue.pct} series={adapt.sparkSeries(businessRows, 'revenue_usd', allBusinessRows)} accent="brand" projection={kpiProjection('revenue_usd')} record={kpiRecord('revenue_usd')} />
         <KpiCard label="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} delta={businessDeltas.sales.pct} series={adapt.sparkSeries(businessRows, 'orders', allBusinessRows)} accent="violet" projection={kpiProjection('orders')} record={kpiRecord('orders')} />
         <KpiCard label="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} delta={businessDeltas.aov.pct} series={adapt.sparkSeries(businessRows, 'aov', allBusinessRows)} accent="blue" projection={kpiProjection('aov')} record={kpiRecord('aov')} />
         <KpiCard label="Meta spend" value={money.format(business.spend_usd)} delta={businessDeltas.spend.pct} series={adapt.sparkSeries(businessRows, 'spend_usd', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('spend_usd')} record={kpiRecord('spend_usd')} />
         <KpiCard label="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} delta={businessDeltas.cac.pct} series={adapt.sparkSeries(businessRows, 'cac', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('cac')} record={kpiRecord('cac')} />
         <KpiCard label="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} delta={businessDeltas.roas.pct} series={adapt.sparkSeries(businessRows, 'roas', allBusinessRows)} accent="positive" projection={kpiProjection('roas')} record={kpiRecord('roas')} />
+        </div>
       </section>
     ),
     orderDrop: todayOrderMovers?.daggers ? (
