@@ -68,9 +68,9 @@ export function buildFunnelAnalytics(rows, {
     if (!d || (launchDate && d < launchDate)) continue;
     const i = idx.get(d);
     if (i === undefined) continue;
-    const atc = Number(r.add_to_cart || 0);
-    const ic = Number(r.checkout_initiated || 0);
-    const pur = Number(r.purchases || 0);
+    const atc = Number(r.add_to_cart) || 0;
+    const ic = Number(r.checkout_initiated) || 0;
+    const pur = Number(r.purchases) || 0;
     account.add_to_cart[i] += atc;
     account.checkout_initiated[i] += ic;
     account.purchases[i] += pur;

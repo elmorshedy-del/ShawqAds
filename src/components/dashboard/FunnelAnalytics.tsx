@@ -104,24 +104,39 @@ function SummaryCard({
   );
 }
 
-function FunnelTooltip({ active, payload, label, nameById, colorById, accent }: any) {
+interface FunnelTooltipPayloadItem {
+  dataKey: string;
+  value: number | null;
+  color?: string;
+}
+
+interface FunnelTooltipProps {
+  active?: boolean;
+  payload?: FunnelTooltipPayloadItem[];
+  label?: string;
+  nameById: Record<string, string>;
+  colorById: Record<string, string>;
+  accent: string;
+}
+
+function FunnelTooltip({ active, payload, label, nameById, colorById, accent }: FunnelTooltipProps) {
   if (!active || !payload?.length) return null;
   const items = payload
-    .filter((p: any) => p.value != null)
-    .map((p: any) => ({
+    .filter((p) => p.value != null)
+    .map((p) => ({
       key: p.dataKey,
       isAccount: p.dataKey === "account",
       name: p.dataKey === "account" ? "Account (all campaigns)" : nameById[p.dataKey] || p.dataKey,
       color: p.dataKey === "account" ? accent : colorById[p.dataKey] || p.color,
       value: Number(p.value),
     }))
-    .sort((a: any, b: any) => (b.isAccount ? 1 : 0) - (a.isAccount ? 1 : 0) || b.value - a.value);
+    .sort((a, b) => (b.isAccount ? 1 : 0) - (a.isAccount ? 1 : 0) || b.value - a.value);
   if (!items.length) return null;
   return (
     <div className="panel min-w-[200px] px-3.5 py-3 text-xs shadow-[var(--shadow-elegant)]">
       <p className="mb-2 font-semibold text-foreground">{mmdd(label)}</p>
       <div className="space-y-1.5">
-        {items.map((it: any) => (
+        {items.map((it) => (
           <div key={it.key} className="flex items-center justify-between gap-6">
             <span className="flex items-center gap-2 text-muted-foreground">
               <span className="h-2 w-2 rounded-full" style={{ background: it.color }} />
