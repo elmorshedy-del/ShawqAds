@@ -120,6 +120,7 @@ function attributeOrders(orderLines, metaRows, dates, idx) {
   const knownIds = new Set();
   const nameToId = new Map();
   for (const r of metaRows || []) {
+    if (!r) continue;
     if (r.campaign_id) {
       knownIds.add(String(r.campaign_id));
       if (r.campaign_name) nameToId.set(norm(r.campaign_name), String(r.campaign_id));
@@ -128,7 +129,7 @@ function attributeOrders(orderLines, metaRows, dates, idx) {
   // Country -> dominant campaign by spend (ambiguous if top share < 0.7).
   const byCountry = new Map();
   for (const r of metaRows || []) {
-    if (!r.country_code || !r.campaign_id) continue;
+    if (!r || !r.country_code || !r.campaign_id) continue;
     const m = byCountry.get(r.country_code) || new Map();
     m.set(String(r.campaign_id), (m.get(String(r.campaign_id)) || 0) + (Number(r.spend_usd) || 0));
     byCountry.set(r.country_code, m);
@@ -155,6 +156,7 @@ function attributeOrders(orderLines, metaRows, dates, idx) {
   // campaign id -> { ordersByDate: Map(date -> Set(orderKey)) }
   const perCampaign = new Map();
   for (const line of orderLines || []) {
+    if (!line) continue;
     const d = line.date;
     if (!d || idx.get(d) === undefined) continue;
     const campId = campaignForLine(line);
