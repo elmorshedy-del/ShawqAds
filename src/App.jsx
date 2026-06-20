@@ -2793,7 +2793,6 @@ function App() {
     () => buildFunnelAnalytics(
       {
         metaRows: baseData.ad_country_daily || [],
-        shopifyDaily: baseProductData.daily || [],
         orderLines: baseProductData.order_lines || [],
       },
       { launchDate: CAMPAIGN_LAUNCH_DATE },

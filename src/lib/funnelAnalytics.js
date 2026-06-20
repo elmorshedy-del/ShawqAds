@@ -3,9 +3,10 @@
  * Two step-conversion signals:
  *   - IC/ATC      = checkout_initiated / add_to_cart    (both from Meta)
  *   - Purchase/IC = Shopify orders / checkout_initiated  (purchases from Shopify = ground
- *                   truth; IC from Meta). Account uses total Shopify orders; per-campaign
- *                   uses orders attributed to the campaign (direct UTM + country-dominant
- *                   fallback), deduped to distinct orders.
+ *                   truth; IC from Meta). ONLY Shopify orders that carry Meta attribution to
+ *                   a campaign count (direct UTM/match_hints + country-dominant fallback),
+ *                   deduped to distinct orders. Account = all such ad-attributed orders
+ *                   (union across campaigns); per-campaign = its own attributed orders.
  *
  * METHODOLOGY — why the rates are indexed rather than shown raw:
  * Meta's ATC and IC are counted on different, independently-modeled attribution bases, so
@@ -155,6 +156,7 @@ function attributeOrders(orderLines, metaRows, dates, idx) {
 
   // campaign id -> { ordersByDate: Map(date -> Set(orderKey)) }
   const perCampaign = new Map();
+  const accountByDate = new Map(); // date -> Set(orderKey) attributed to ANY campaign
   for (const line of orderLines || []) {
     if (!line) continue;
     const d = line.date;
@@ -162,6 +164,9 @@ function attributeOrders(orderLines, metaRows, dates, idx) {
     const campId = campaignForLine(line);
     if (!campId) continue;
     const orderKey = String(line.order_id || line.order_name || `${d}:${line.product || ''}`);
+    let aset = accountByDate.get(d);
+    if (!aset) { aset = new Set(); accountByDate.set(d, aset); }
+    aset.add(orderKey);
     let c = perCampaign.get(campId);
     if (!c) { c = new Map(); perCampaign.set(campId, c); }
     let set = c.get(d);
@@ -169,13 +174,15 @@ function attributeOrders(orderLines, metaRows, dates, idx) {
     set.add(orderKey);
   }
 
-  const out = new Map();
+  const account = new Array(dates.length).fill(0);
+  for (const [d, set] of accountByDate.entries()) account[idx.get(d)] = set.size;
+  const perCampaignDaily = new Map();
   for (const [campId, byDate] of perCampaign.entries()) {
     const daily = new Array(dates.length).fill(0);
     for (const [d, set] of byDate.entries()) daily[idx.get(d)] = set.size;
-    out.set(campId, daily);
+    perCampaignDaily.set(campId, daily);
   }
-  return out;
+  return { account, perCampaign: perCampaignDaily };
 }
 
 export function buildFunnelAnalytics(inputs = {}, {
@@ -186,12 +193,11 @@ export function buildFunnelAnalytics(inputs = {}, {
   kappa = null,
 } = {}) {
   const metaRows = inputs.metaRows || [];
-  const shopifyDaily = inputs.shopifyDaily || [];
   const orderLines = inputs.orderLines || [];
 
   const dates = [...new Set([
     ...metaRows.map((r) => r && r.date),
-    ...shopifyDaily.map((r) => r && r.date),
+    ...orderLines.map((r) => r && r.date),
   ].filter((d) => d && (!launchDate || d >= launchDate)))].sort();
   const idx = new Map(dates.map((d, i) => [d, i]));
   const n = dates.length;
@@ -216,14 +222,11 @@ export function buildFunnelAnalytics(inputs = {}, {
     c.ic[i] += ic;
   }
 
-  // Account daily Shopify orders (ground truth, all channels) + per-campaign attributed orders.
-  const accOrders = new Array(n).fill(0);
-  for (const r of shopifyDaily) {
-    const d = r && r.date;
-    if (!d || idx.get(d) === undefined) continue;
-    accOrders[idx.get(d)] += Number(r.orders) || 0;
-  }
-  const campOrders = attributeOrders(orderLines, metaRows, dates, idx);
+  // Purchases = only Shopify orders that Meta attributes to a campaign (ad-driven).
+  // Account = distinct attributed orders across all campaigns; per-campaign = its own.
+  const attributed = attributeOrders(orderLines, metaRows, dates, idx);
+  const accOrders = attributed.account;
+  const campOrders = attributed.perCampaign;
 
   const icAtcCampaigns = [...campMap.values()].map((c) => ({ id: c.id, name: c.name, num: c.ic, den: c.atc }));
   const purchaseCampaigns = [...campMap.values()].map((c) => ({

@@ -310,8 +310,8 @@ export function FunnelAnalytics({ data }: { data: FunnelData }) {
           Add-to-cart → checkout → purchase since the June 3 launch. Because Meta counts ATC and checkout on
           different attribution bases (the raw ratio can exceed 100%), each rate is shown as an <strong>index grounded
           to the launch baseline = 100</strong> — bias-normalized, volume-weighted across campaigns, {win}-day rolling
-          and shrinkage-stabilized. Above 100 = converting better than launch. Purchases come from Shopify orders
-          (account = all orders; per-campaign = attributed). Raw % is in each tooltip.
+          and shrinkage-stabilized. Above 100 = converting better than launch. Purchases are Shopify orders
+          attributed to a Meta campaign (account = all ad-attributed orders; per-campaign = its own). Raw % is in each tooltip.
         </p>
       </div>
 
@@ -327,7 +327,7 @@ export function FunnelAnalytics({ data }: { data: FunnelData }) {
           accent="var(--color-positive)"
           badge="Purchase / IC"
           title="Purchase rate"
-          explainer="Started checkouts that convert to a Shopify order, indexed to launch."
+          explainer="Started checkouts that convert to an ad-attributed Shopify order, indexed to launch."
           summary={data.purchaseIc.summary}
         />
       </div>
