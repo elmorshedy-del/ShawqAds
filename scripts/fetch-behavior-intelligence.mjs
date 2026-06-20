@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { productTaxonomyForName } from '../src/lib/productMapping.js';
-import { normalizePagePath } from '../src/lib/pagePath.js';
+import { normalizePagePath, pagePathLabel } from '../src/lib/pagePath.js';
+import { isBrandPage, pageCategory } from '../src/lib/pageCategory.js';
 import { dwellAnalysisMeta, rollupDwellPages } from '../src/lib/dwellStats.js';
 import { mergeBehaviorSnapshot } from '../src/lib/behaviorPersistence.js';
 
@@ -346,21 +347,31 @@ function aggregateSessionFacts(events = []) {
       }
     }
 
+    const MAX_DWELL_SECONDS = Number(process.env.BEHAVIOR_MAX_DWELL_SECONDS || 600);
+    const laterEvents = list
+      .map((event) => ({ event_name: event.event_name, t: new Date(event.ts).getTime() }))
+      .filter((event) => Number.isFinite(event.t));
     const pageViews = list.filter((event) => /page_viewed|page_view/i.test(event.event_name));
     for (let i = 0; i < pageViews.length; i += 1) {
       const current = pageViews[i];
       const currentTime = new Date(current.ts).getTime();
-      const nextPage = pageViews[i + 1];
-      const nextPageTime = nextPage ? new Date(nextPage.ts).getTime() : Infinity;
-      const heartbeatOrEnd = list
-        .filter((event) => {
-          const ts = new Date(event.ts).getTime();
-          return ts > currentTime && ts < nextPageTime && /session_heartbeat|visibility_hidden|session_end/i.test(event.event_name);
-        })
-        .sort((a, b) => new Date(b.ts) - new Date(a.ts))[0];
-      const next = nextPage || heartbeatOrEnd;
-      const dwell = next ? Math.max(1, Math.min(1800, Math.round((new Date(next.ts) - new Date(current.ts)) / 1000))) : 0;
-      if (dwell > 0) pageFacts.push({ date: current.date, path: current.path, dwell_seconds: dwell, purchased, session_hash: sessionHash });
+      const after = laterEvents.filter((event) => event.t > currentTime).sort((a, b) => a.t - b.t);
+      // The page ends when the visitor navigates away or the tab is hidden/closed.
+      const leaveEvent = after.find((event) => /page_viewed|page_view|visibility_hidden|session_end/i.test(event.event_name));
+      if (!leaveEvent) continue; // still on the page / last event in session: dwell unknown, skip
+      let dwell = Math.round((leaveEvent.t - currentTime) / 1000);
+      if (dwell > MAX_DWELL_SECONDS) {
+        // A long gap means the visitor went idle or left the tab open — don't count it as
+        // reading time (the old code capped every such page to 30 min). Fall back to the
+        // last presence ping inside the engaged window, otherwise drop the page.
+        const lastPresence = after
+          .filter((event) => event.t - currentTime <= MAX_DWELL_SECONDS * 1000 && /heartbeat|visibility/i.test(event.event_name))
+          .pop();
+        if (!lastPresence) continue;
+        dwell = Math.round((lastPresence.t - currentTime) / 1000);
+      }
+      if (dwell < 1) continue;
+      pageFacts.push({ date: current.date, path: current.path, dwell_seconds: dwell, purchased, session_hash: sessionHash });
     }
     const sequence = [];
     for (const event of pageViews) {
@@ -638,6 +649,29 @@ function dwellRollup(pageFacts = []) {
   }).sort((a, b) => b.non_purchaser_median_dwell_seconds - a.non_purchaser_median_dwell_seconds || b.sessions - a.sessions).slice(0, 8);
 }
 
+function buildMostVisited(pageFacts = [], { limit = 8 } = {}) {
+  const byPath = new Map();
+  for (const fact of pageFacts || []) {
+    const path = normalizePagePath(fact && fact.path);
+    if (!path) continue;
+    let row = byPath.get(path);
+    if (!row) {
+      row = { path, label: pagePathLabel(path), category: pageCategory(path), is_brand: isBrandPage(path), views: 0, sessions: new Set() };
+      byPath.set(path, row);
+    }
+    row.views += 1;
+    if (fact.session_hash) row.sessions.add(String(fact.session_hash));
+  }
+  const rows = [...byPath.values()]
+    .map((row) => ({ path: row.path, label: row.label, category: row.category, is_brand: row.is_brand, views: row.views, sessions: row.sessions.size }))
+    .sort((a, b) => b.views - a.views || b.sessions - a.sessions);
+  return {
+    // Top pages by views, plus brand/mission pages always surfaced even if commerce pages out-rank them.
+    top: rows.slice(0, limit),
+    brand: rows.filter((row) => row.is_brand),
+  };
+}
+
 function journeyRollup(journeyRows = []) {
   const totals = { purchasers: 0, non_purchasers: 0 };
   const pageMap = new Map();
@@ -722,6 +756,7 @@ const demographics = demographicsRollup(metaDemographics.rows || []);
 const dwellPages = rollupDwellPages(fullSessionAgg.pageFacts);
 const dwellMeta = dwellAnalysisMeta(fullSessionAgg.pageFacts);
 const journeys = journeyRollup(fullSessionAgg.journeyRows);
+const mostVisited = buildMostVisited(fullSessionAgg.pageFacts);
 
 const outPath = path.resolve('public/data/behavior-intelligence.json');
 const previous = readJson(outPath, null);
@@ -791,6 +826,7 @@ let out = {
     submit_payment: { global: paymentProducts.global, products: paymentProducts.rows, countries: paymentCountries.rows, gender: demographics.submit_payment },
   },
   dwell_pages: dwellPages,
+  most_visited_pages: mostVisited,
   journeys,
   pixel_contract: {
     endpoint: '/api/session-events',
@@ -803,6 +839,7 @@ out = mergeBehaviorSnapshot(previous, out, { since, until, floorSince: requested
 out.dwell_pages = rollupDwellPages(out.page_facts);
 out.dwell_analysis = dwellAnalysisMeta(out.page_facts);
 out.journeys = journeyRollup(out.journey_rows);
+out.most_visited_pages = buildMostVisited(out.page_facts);
 if (previous && (out.page_facts.length > fullSessionAgg.pageFacts.length || out.facts.length > facts.length)) {
   console.warn(`Merged behavior snapshot: facts ${facts.length}→${out.facts.length}, page_facts ${fullSessionAgg.pageFacts.length}→${out.page_facts.length}, journey_rows ${fullSessionAgg.journeyRows.length}→${out.journey_rows.length}`);
 }

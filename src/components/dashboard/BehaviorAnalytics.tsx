@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, FlaskConical } from "lucide-react";
+import {
+  ChevronDown,
+  Clock,
+  Eye,
+  FlaskConical,
+  Globe,
+  Heart,
+  Package,
+  Users,
+} from "lucide-react";
 import { compact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -8,14 +17,19 @@ import {
   normalizePagePath,
   pagePathLabel,
 } from "@/lib/pagePath";
-import { dwellPageInsight } from "@/lib/dwellStats";
+import {
+  comparabilityTier,
+  MIN_COMPARABLE_SESSIONS,
+  SAMPLE_TIER_LEGEND,
+} from "@/lib/sampleTiers";
+import { BRAND_PAGES_LABEL } from "@/lib/pageCategory";
 import { PanelScopeToggle, type PanelScope } from "@/components/dashboard/PanelScopeToggle";
 
 interface BehaviorStep {
   products?: any[];
   countries?: any[];
   gender?: any[];
-  global?: { rate?: number };
+  global?: { rate?: number; exposed?: number; abandoned?: number };
 }
 interface BehaviorData {
   period?: { since?: string; until?: string };
@@ -29,13 +43,23 @@ interface BehaviorData {
   extraction?: Record<string, any>;
   matrix?: { checkout?: BehaviorStep; submit_payment?: BehaviorStep };
   dwell_pages?: any[];
+  most_visited_pages?: { top?: any[]; brand?: any[] };
   journeys?: { steps?: any[] };
 }
+
+// Time on a page is capped in the data layer (BEHAVIOR_MAX_DWELL_SECONDS, default 600s)
+// so a tab left open overnight cannot report "30 min" for every page.
+const DWELL_CAP_LABEL = "10 min";
 
 function rateLabel(value: any, { exposed }: { exposed?: number } = {}) {
   if (exposed === 0) return "n/a";
   if (value == null || !Number.isFinite(Number(value))) return "n/a";
   return `${Math.round(Number(value) * 100)}%`;
+}
+
+function observedRate(row: any) {
+  const exposed = Number(row?.exposed || 0);
+  return exposed ? Number(row?.abandoned || 0) / exposed : null;
 }
 
 function countryFlag(code?: string) {
@@ -51,82 +75,60 @@ function ratePoints(value: any) {
   return `${rounded >= 0 ? "+" : ""}${rounded} pts`;
 }
 
-function segmentExtremes(rows: any[], { minExposed = 5, take = 2 } = {}) {
-  const eligible = (rows || []).filter((row) => Number(row.exposed || 0) >= minExposed);
-  if (!eligible.length) return { worst: [], best: [] };
-  const sorted = [...eligible].sort(
-    (a, b) => Number(b.shrunk_rate || 0) - Number(a.shrunk_rate || 0),
-  );
-  return {
-    worst: sorted.slice(0, take),
-    best: sorted.slice(-take).reverse(),
-  };
-}
-
 function segmentKey(row: any) {
   return row.key || row.country_code || row.segment || "";
 }
 
-function FrictionLegend() {
+// Plain-language confidence pill driven by session count (no statistical symbols).
+function TierPill({ sessions }: { sessions?: number }) {
+  const n = Number(sessions || 0);
+  const tier = comparabilityTier(n);
+  const tone =
+    tier.rank >= 3
+      ? "bg-positive/10 text-positive"
+      : tier.rank === 2
+        ? "bg-brand-soft text-brand"
+        : tier.rank === 1
+          ? "bg-gold/10 text-gold"
+          : "bg-surface-2 text-muted-foreground";
   return (
-    <p className="mt-1 text-[0.65rem] leading-relaxed text-muted-foreground">
-      <span className="font-medium text-foreground">Abandon rate</span> — share who reached this step but did not finish.
-      {" "}
-      <span className="font-medium text-foreground">Adjusted rate</span> pulls thin data toward your site average so one
-      quiet day is not mistaken for a crisis.
-      {" "}
-      <span className="font-medium text-foreground">Pts vs avg</span> — how many percentage points above or below that
-      site average.
-      {" "}
-      <span className="font-medium text-foreground">Extra quits</span> — roughly how many more people left than you would
-      expect at the site rate.
-    </p>
+    <span
+      title={`${tier.label} — accuracy ${tier.accuracy} · ${compact(n)} sessions`}
+      className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium", tone)}
+    >
+      {tier.label}
+    </span>
   );
 }
 
-function ExtremeRow({
-  row,
-  type,
-  tone,
-}: {
-  row: any;
-  type: "country" | "gender";
-  tone: "worst" | "best";
-}) {
-  const vs = Number(row.vs_site_pp || 0);
-  const label =
-    type === "country"
-      ? row.country || row.country_code || "Unknown"
-      : row.segment || row.gender || "Unknown";
+function SampleTierLegend() {
   return (
-    <div className="flex items-start justify-between gap-2 rounded-lg border border-border/70 bg-surface px-2.5 py-2">
-      <span className="flex min-w-0 items-center gap-1.5 text-xs">
-        {type === "country" ? <span className="shrink-0">{countryFlag(row.country_code)}</span> : null}
-        <span className="truncate">{label}</span>
+    <p className="mt-1 text-[0.65rem] leading-relaxed text-muted-foreground">{SAMPLE_TIER_LEGEND}</p>
+  );
+}
+
+function SectionHeading({
+  icon: Icon,
+  title,
+  subtitle,
+}: {
+  icon: any;
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-soft text-brand">
+        <Icon className="h-3.5 w-3.5" />
       </span>
-      <div className="shrink-0 text-right">
-        <p
-          className={cn(
-            "text-xs font-semibold tabular-nums",
-            tone === "worst" ? "text-destructive" : "text-positive",
-          )}
-        >
-          {rateLabel(row.shrunk_rate)} abandon
-        </p>
-        <p className="text-[0.6rem] tabular-nums text-muted-foreground">
-          {row.abandoned}/{row.exposed} · {ratePoints(vs)} vs avg
-        </p>
+      <div className="min-w-0">
+        <h3 className="font-display text-sm font-semibold tracking-tight">{title}</h3>
+        {subtitle ? (
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{subtitle}</p>
+        ) : null}
       </div>
     </div>
   );
-}
-
-function confidenceChip(value?: string) {
-  const v = String(value || "").toLowerCase();
-  if (v.includes("high")) return "bg-positive/10 text-positive";
-  if (v.includes("med")) return "bg-gold/10 text-gold";
-  if (v.includes("low")) return "bg-destructive/10 text-destructive";
-  return "bg-surface-2 text-muted-foreground";
 }
 
 function EmptyBlock({ title, text, dense }: { title: string; text: string; dense?: boolean }) {
@@ -253,41 +255,36 @@ function ExtractionStatus({ behavior }: { behavior: BehaviorData }) {
   );
 }
 
-function StepCell({ row, label, global }: { row: any; label: string; global?: { rate?: number } }) {
+function StepCell({ row, label, siteRate }: { row: any; label: string; siteRate?: number }) {
   if (!row || !Number(row.exposed || 0)) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-surface-2/30 p-3">
         <p className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">{label}</p>
         <p className="mt-0.5 font-display text-sm font-semibold text-muted-foreground">n/a</p>
-        <p className="mt-0.5 text-[0.65rem] text-muted-foreground">No events reached this step yet</p>
+        <p className="mt-0.5 text-[0.65rem] text-muted-foreground">No sessions reached this step</p>
       </div>
     );
   }
-  const vs = Number(row.vs_site_pp || 0);
-  const excess = Math.max(0, Number(row.excess_abandons || 0));
-  const siteRate = rateLabel(global?.rate, { exposed: global?.exposed });
+  const exposed = Number(row.exposed || 0);
+  const abandoned = Number(row.abandoned || 0);
+  const rate = exposed ? abandoned / exposed : 0;
+  const site = Number(siteRate);
+  const vs = Number.isFinite(site) ? (rate - site) * 100 : 0;
+  const siteLabel = Number.isFinite(site) ? rateLabel(site) : "n/a";
   return (
     <div className="rounded-lg border border-border bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">{label}</p>
-        <span
-          className={cn(
-            "rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium",
-            confidenceChip(row.confidence),
-          )}
-          title="How much data backs this read — thin samples stay cautious"
-        >
-          {row.confidence}
-        </span>
+        <TierPill sessions={exposed} />
       </div>
       <p className="mt-0.5 font-display text-xl font-semibold tabular-nums tracking-tight">
-        {rateLabel(row.shrunk_rate)}
+        {rateLabel(rate)}
         <span className="ml-1 text-sm font-medium text-muted-foreground">abandon</span>
       </p>
       <p className="text-[0.65rem] leading-relaxed text-muted-foreground">
-        {row.abandoned} of {row.exposed} quit here · site avg {siteRate}
+        {abandoned} of {exposed} left here · site avg {siteLabel}
       </p>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
+      <div className="mt-1.5">
         <span
           title="Percentage points above or below your site-wide abandon rate at this step"
           className={cn(
@@ -297,14 +294,6 @@ function StepCell({ row, label, global }: { row: any; label: string; global?: { 
         >
           {ratePoints(vs)} vs avg
         </span>
-        {excess >= 0.5 ? (
-          <span
-            title="Estimated extra abandonments vs if this segment matched the site rate"
-            className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.6rem] tabular-nums text-muted-foreground"
-          >
-            ~{Math.round(excess)} extra quits
-          </span>
-        ) : null}
       </div>
     </div>
   );
@@ -314,42 +303,49 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
   const developingDay = Boolean(behavior?.coverage?.developing_day);
   const checkoutRows = behavior?.matrix?.checkout?.products || [];
   const paymentRows = behavior?.matrix?.submit_payment?.products || [];
+  const checkoutGlobal = behavior?.matrix?.checkout?.global?.rate;
+  const paymentGlobal = behavior?.matrix?.submit_payment?.global?.rate;
   const checkoutByKey = new Map(checkoutRows.map((row: any) => [row.key, row]));
   const paymentByKey = new Map(paymentRows.map((row: any) => [row.key, row]));
   const keys = [...new Set([...checkoutByKey.keys(), ...paymentByKey.keys()])];
-  const rows = keys
+
+  const merged = keys
     .map((key) => {
       const checkout = checkoutByKey.get(key);
       const payment = paymentByKey.get(key);
       const main = checkout || payment || {};
-      return {
-        key,
-        main,
-        checkout,
-        payment,
-        score:
-          Number(checkout?.excess_abandons || 0) + Number(payment?.excess_abandons || 0),
-      };
+      const checkoutExposed = Number(checkout?.exposed || 0);
+      const paymentExposed = Number(payment?.exposed || 0);
+      // Rank on the checkout step when it has a comparable sample; otherwise fall back to payment.
+      const useCheckout =
+        checkoutExposed >= MIN_COMPARABLE_SESSIONS || checkoutExposed >= paymentExposed;
+      const rate = useCheckout ? observedRate(checkout) : observedRate(payment);
+      const sample = Math.max(checkoutExposed, paymentExposed);
+      const comparable = sample >= MIN_COMPARABLE_SESSIONS;
+      return { key, main, checkout, payment, rate: rate ?? 0, sample, comparable };
     })
     .filter(
       ({ checkout, payment }) =>
-        Number(checkout?.abandoned || 0) > 0 || Number(payment?.abandoned || 0) > 0,
-    )
-    .sort(
-      (a, b) =>
-        b.score - a.score || Number(b.main.exposed || 0) - Number(a.main.exposed || 0),
-    )
-    .slice(0, 6);
+        Number(checkout?.exposed || 0) > 0 || Number(payment?.exposed || 0) > 0,
+    );
+
+  const comparableRows = merged
+    .filter((row) => row.comparable)
+    .sort((a, b) => a.rate - b.rate || b.sample - a.sample) // lowest abandon first
+    .slice(0, 8);
+  const setAside = merged.filter((row) => !row.comparable).length;
 
   return (
-    <div>
-      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-        Friction by product
-      </p>
-      <FrictionLegend />
-      {rows.length ? (
-        <div className="mt-3 space-y-3">
-          {rows.map(({ key, main, checkout, payment }) => (
+    <div className="space-y-3">
+      <SectionHeading
+        icon={Package}
+        title="Friction by product"
+        subtitle="Products with a comparable sample, ordered from lowest to highest abandonment. Checkout abandonment comes from Shopify; submit-payment from Meta AddPaymentInfo plus session-pixel rows."
+      />
+      <SampleTierLegend />
+      {comparableRows.length ? (
+        <div className="space-y-3">
+          {comparableRows.map(({ key, main, checkout, payment }) => (
             <div key={key} className="rounded-xl border border-border bg-surface-2/40 p-4">
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
                 <div className="flex items-center gap-3">
@@ -365,69 +361,86 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
                     </span>
                   )}
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">
-                      {main.product || "Unknown product"}
-                    </p>
+                    <p className="truncate text-sm font-semibold">{main.product || "Unknown product"}</p>
                     <p className="truncate text-xs text-muted-foreground">
                       {main.family || "Other"} · {main.subtype || "Unknown"}
                     </p>
                   </div>
                 </div>
-                <StepCell
-                  row={checkout}
-                  label="Checkout"
-                  global={behavior?.matrix?.checkout?.global}
-                />
-                <StepCell
-                  row={payment}
-                  label="Submit payment"
-                  global={behavior?.matrix?.submit_payment?.global}
-                />
-              </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {(checkout?.countries || payment?.countries || [])
-                  .slice(0, 3)
-                  .map((country: any) => (
-                    <span
-                      key={country.country_code}
-                      className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-0.5 text-[0.65rem]"
-                    >
-                      <span>{countryFlag(country.country_code)}</span>
-                      {country.country_code || "UNK"}
-                      <span className="tabular-nums text-muted-foreground">
-                        {rateLabel(
-                          Number(country.exposed)
-                            ? Number(country.abandoned || 0) / Number(country.exposed)
-                            : 0,
-                        )}{" "}
-                        · {country.abandoned}/{country.exposed}
-                      </span>
-                    </span>
-                  ))}
-                {!(checkout?.countries || payment?.countries || []).length ? (
-                  <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[0.65rem] text-muted-foreground">
-                    No country split yet
-                  </span>
-                ) : null}
+                <StepCell row={checkout} label="Checkout" siteRate={checkoutGlobal} />
+                <StepCell row={payment} label="Submit payment" siteRate={paymentGlobal} />
               </div>
             </div>
           ))}
         </div>
       ) : (
         <EmptyBlock
-          title={developingDay ? "Today's friction aggregates are still building" : "No abandonment rows in this date window yet"}
+          title={developingDay ? "Today's friction aggregates are still building" : "No products with a comparable sample yet"}
           text={
             developingDay
               ? "Behavior JSON refreshes after Shopify/Meta extracts and session-pixel rollups. Switch to Since launch for full-window context, or check back after the next behavior refresh."
-              : "Checkout abandonments come from Shopify abandoned checkouts. Submit-payment rows come from Meta AddPaymentInfo now, with exact session-level rows added when the customer-events pixel sends payment_info_submitted."
+              : `Products appear here once they reach ${MIN_COMPARABLE_SESSIONS} checkout sessions so the abandon rates can be compared fairly.`
           }
         />
       )}
+      {setAside > 0 ? (
+        <p className="text-[0.65rem] text-muted-foreground">
+          {setAside} {setAside === 1 ? "product" : "products"} set aside — fewer than {MIN_COMPARABLE_SESSIONS} sessions, so their rates are not comparable yet.
+        </p>
+      ) : null}
     </div>
   );
 }
 
-function SegmentPanel({
+function RankRow({
+  row,
+  type,
+  siteRate,
+  rank,
+}: {
+  row: any;
+  type: "country" | "gender";
+  siteRate?: number;
+  rank: number;
+}) {
+  const exposed = Number(row.exposed || 0);
+  const abandoned = Number(row.abandoned || 0);
+  const rate = exposed ? abandoned / exposed : 0;
+  const site = Number(siteRate);
+  const vs = Number.isFinite(site) ? (rate - site) * 100 : 0;
+  const label =
+    type === "country"
+      ? row.country || row.country_code || "Unknown"
+      : row.segment || row.gender || "Unknown";
+  const high = vs >= 0;
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-surface px-2.5 py-2">
+      <span className="flex min-w-0 items-center gap-2 text-xs">
+        <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">{rank}</span>
+        {type === "country" ? <span className="shrink-0">{countryFlag(row.country_code)}</span> : null}
+        <span className="truncate">{label}</span>
+      </span>
+      <div className="flex shrink-0 items-center gap-2 text-right">
+        <div>
+          <p
+            className={cn(
+              "text-xs font-semibold tabular-nums",
+              high ? "text-destructive" : "text-positive",
+            )}
+          >
+            {rateLabel(rate)} <span className="font-normal text-muted-foreground">abandon</span>
+          </p>
+          <p className="text-[0.6rem] tabular-nums text-muted-foreground">
+            {abandoned}/{exposed} · {ratePoints(vs)} vs avg
+          </p>
+        </div>
+        <TierPill sessions={exposed} />
+      </div>
+    </div>
+  );
+}
+
+function SegmentRanking({
   title,
   rows,
   type,
@@ -438,66 +451,132 @@ function SegmentPanel({
   type: "country" | "gender";
   siteRate?: number;
 }) {
-  const { worst, best } = segmentExtremes(rows, { minExposed: 5, take: 2 });
-  const bestRows = best.filter((row) => !worst.some((w) => segmentKey(w) === segmentKey(row)));
-  const hasExtremes = worst.length > 0 || bestRows.length > 0;
+  const all = rows || [];
+  const comparable = all.filter((row) => Number(row.exposed || 0) >= MIN_COMPARABLE_SESSIONS);
+  const ranked = [...comparable].sort((a, b) => {
+    const ra = observedRate(a) ?? 0;
+    const rb = observedRate(b) ?? 0;
+    return ra - rb; // best (fewest abandons) first
+  });
+  const setAside = all.length - comparable.length;
   const siteLabel = Number.isFinite(Number(siteRate)) ? rateLabel(siteRate) : null;
+  const noun = type === "country" ? "country" : "segment";
+  const nounPlural = type === "country" ? "countries" : "segments";
 
   return (
     <div className="rounded-xl border border-border bg-surface-2/40 p-4">
-      <p className="text-sm font-semibold">{title}</p>
-      <p className="text-[0.65rem] leading-relaxed text-muted-foreground">
-        {siteLabel ? `Site average ${siteLabel} abandon · ` : ""}
-        Highest and lowest segments — adjusted rate, not raw counts alone
-      </p>
-      <div className="mt-3 space-y-3">
-        {hasExtremes ? (
-          <>
-            {worst.length ? (
-              <div>
-                <p className="mb-1.5 text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-destructive">
-                  Most abandon
-                </p>
-                <div className="space-y-1.5">
-                  {worst.map((row: any) => (
-                    <ExtremeRow
-                      key={`worst-${type}-${row.key || row.country_code || row.segment}`}
-                      row={row}
-                      type={type}
-                      tone="worst"
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {bestRows.length ? (
-              <div>
-                <p className="mb-1.5 text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-positive">
-                  Smoothest
-                </p>
-                <div className="space-y-1.5">
-                  {bestRows.map((row: any) => (
-                    <ExtremeRow
-                      key={`best-${type}-${segmentKey(row)}`}
-                      row={row}
-                      type={type}
-                      tone="best"
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </>
-        ) : (
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold">{title}</p>
+        {siteLabel ? (
+          <span className="shrink-0 text-[0.65rem] tabular-nums text-muted-foreground">
+            Site avg {siteLabel}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-0.5 text-[0.65rem] text-muted-foreground">Ranked best (fewest abandons) to worst</p>
+      {ranked.length ? (
+        <div className="mt-3 space-y-1.5">
+          {ranked.map((row, index) => (
+            <RankRow
+              key={`${type}-${segmentKey(row) || index}`}
+              row={row}
+              type={type}
+              siteRate={siteRate}
+              rank={index + 1}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-3">
           <EmptyBlock
             dense
-            title="Not enough segment data yet"
-            text="Need a few exposed sessions per country or demographic before ranking highs and lows."
+            title="Not enough sessions to compare yet"
+            text={`${type === "country" ? "Countries" : "Segments"} appear here once they reach ${MIN_COMPARABLE_SESSIONS} sessions so the rates are comparable.`}
           />
-        )}
+        </div>
+      )}
+      {setAside > 0 ? (
+        <p className="mt-2 text-[0.6rem] text-muted-foreground">
+          {setAside} {setAside === 1 ? noun : nounPlural} set aside — fewer than {MIN_COMPARABLE_SESSIONS} sessions.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function PageBar({ row, max }: { row: any; max: number }) {
+  const views = Number(row.views || 0);
+  const width = max > 0 ? Math.min(100, Math.max(6, (views / max) * 100)) : 6;
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <span className="truncate text-xs font-medium" title={row.label}>
+          {row.label}
+        </span>
+        <span className="shrink-0 text-[0.65rem] tabular-nums text-muted-foreground">
+          {compact(views)} views · {compact(Number(row.sessions || 0))} sessions
+        </span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+        <div className="h-full rounded-full bg-brand" style={{ width: `${width}%` }} />
       </div>
     </div>
   );
+}
+
+function MostVisitedPages({ data }: { data?: { top?: any[]; brand?: any[] } }) {
+  const top = data?.top || [];
+  const brand = data?.brand || [];
+  const maxTop = top.reduce((m: number, r: any) => Math.max(m, Number(r.views || 0)), 0);
+  const maxBrand = brand.reduce((m: number, r: any) => Math.max(m, Number(r.views || 0)), 0);
+  return (
+    <div className="rounded-xl border border-border bg-surface-2/40 p-4">
+      <p className="text-sm font-semibold">Most-visited pages</p>
+      <p className="mt-0.5 text-[0.65rem] text-muted-foreground">Ranked by page views in this window</p>
+      <div className="mt-3 space-y-3">
+        {top.length ? (
+          top.map((row: any) => <PageBar key={`top-${normalizePagePath(row.path)}`} row={row} max={maxTop} />)
+        ) : (
+          <EmptyBlock
+            dense
+            title="No page views yet"
+            text="Pages appear here once the session pixel records page views."
+          />
+        )}
+      </div>
+      <div className="mt-4 border-t border-border/70 pt-3">
+        <p className="flex items-center gap-1.5 text-xs font-semibold">
+          <Heart className="h-3.5 w-3.5 text-brand" />
+          {BRAND_PAGES_LABEL}
+        </p>
+        <p className="mt-0.5 text-[0.6rem] leading-relaxed text-muted-foreground">
+          Always shown — About, Impact, Donations, and the Shawq story, even when commerce pages out-rank them.
+        </p>
+        <div className="mt-2 space-y-3">
+          {brand.length ? (
+            brand.map((row: any) => (
+              <PageBar key={`brand-${normalizePagePath(row.path)}`} row={row} max={maxBrand} />
+            ))
+          ) : (
+            <p className="rounded-lg bg-surface-2/60 px-2.5 py-2 text-[0.65rem] text-muted-foreground">
+              No brand &amp; mission page views in this window yet.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function dwellRead(page: any) {
+  const nonBuyer = Number(page.non_purchaser_median_dwell_seconds || 0);
+  const buyer = Number(page.purchaser_median_dwell_seconds || 0);
+  const buyerSessions = Number(page.purchaser_sessions || 0);
+  const gap = nonBuyer - buyer;
+  if (buyerSessions === 0) return "Only non-buyer visits so far";
+  if (gap > 20) return "Non-buyers linger longer here — worth a look";
+  if (gap < -20) return "Buyers spend more time here — a decision page";
+  return "Buyers and non-buyers spend similar time";
 }
 
 function DwellPages({ pages }: { pages: any[] }) {
@@ -508,11 +587,16 @@ function DwellPages({ pages }: { pages: any[] }) {
         Number(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0) > 0,
     )
     .slice(0, 6);
+  const maxDwell = visiblePages.reduce(
+    (m: number, p: any) =>
+      Math.max(m, Number(p.non_purchaser_median_dwell_seconds || p.median_dwell_seconds || 0)),
+    0,
+  );
   return (
     <div className="rounded-xl border border-border bg-surface-2/40 p-4">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-semibold">Where people get stuck</p>
-        <span className="text-[0.65rem] text-muted-foreground">Mann-Whitney on session medians · BH-adjusted p</span>
+        <p className="text-sm font-semibold">Time on page · buyers vs non-buyers</p>
+        <span className="shrink-0 text-[0.65rem] text-muted-foreground">Median per session · capped at {DWELL_CAP_LABEL}</span>
       </div>
       <div className="mt-3 space-y-3">
         {visiblePages.length ? (
@@ -522,9 +606,9 @@ function DwellPages({ pages }: { pages: any[] }) {
             );
             const buyerDwell = Number(page.purchaser_median_dwell_seconds || 0);
             const buyerSessions = Number(page.purchaser_sessions || 0);
-            const width = Math.min(100, Math.max(8, dwell / 6));
+            const sessions = Number(page.sessions || 0);
+            const width = maxDwell > 0 ? Math.min(100, Math.max(8, (dwell / maxDwell) * 100)) : 8;
             const label = pagePathLabel(page.path);
-            const insight = page.insight || dwellPageInsight(page);
             return (
               <div key={normalizePagePath(page.path)}>
                 <div className="mb-1 flex items-baseline justify-between gap-3">
@@ -538,25 +622,21 @@ function DwellPages({ pages }: { pages: any[] }) {
                 <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
                   <div className="h-full rounded-full bg-brand" style={{ width: `${width}%` }} />
                 </div>
-                <p className="mt-1 text-[0.65rem] font-medium text-foreground">{insight.headline}</p>
+                <p className="mt-1 text-[0.65rem] font-medium text-foreground">{dwellRead(page)}</p>
                 <p className="mt-0.5 text-[0.65rem] leading-relaxed text-muted-foreground">
-                  {insight.detail}
-                  {buyerSessions > 0 ? ` Buyer median: ${formatDwellSeconds(buyerDwell)}.` : ""}
+                  Non-buyers {formatDwellSeconds(dwell)}
+                  {buyerSessions > 0 ? ` · buyers ${formatDwellSeconds(buyerDwell)}` : ""}
+                  {" · based on "}
+                  {compact(sessions)} session{sessions === 1 ? "" : "s"}
                 </p>
-                {page.confidence ? (
-                  <p className="mt-1 text-[0.6rem] text-muted-foreground">
-                    {page.confidence}
-                    {page.p_value_adjusted != null ? ` · adjusted p=${Number(page.p_value_adjusted).toFixed(3)}` : ""}
-                  </p>
-                ) : null}
               </div>
             );
           })
         ) : (
           <EmptyBlock
             dense
-            title="No dwell rows yet"
-            text="The session pixel will calculate dwell once page-view sessions are populated."
+            title="No time-on-page data yet"
+            text="The session pixel calculates time on page once page-view sessions are populated."
           />
         )}
       </div>
@@ -671,6 +751,17 @@ export function BehaviorAnalytics({
   const paymentCountries = behavior?.matrix?.submit_payment?.countries || [];
   const checkoutGender = behavior?.matrix?.checkout?.gender || [];
   const paymentGender = behavior?.matrix?.submit_payment?.gender || [];
+  const checkoutGlobal = behavior?.matrix?.checkout?.global?.rate;
+  const paymentGlobal = behavior?.matrix?.submit_payment?.global?.rate;
+
+  // Age/gender breakdowns only surface when at least one cohort is comparable.
+  const checkoutGenderComparable = checkoutGender.some(
+    (row: any) => Number(row.exposed || 0) >= MIN_COMPARABLE_SESSIONS,
+  );
+  const paymentGenderComparable = paymentGender.some(
+    (row: any) => Number(row.exposed || 0) >= MIN_COMPARABLE_SESSIONS,
+  );
+  const showAudience = checkoutGenderComparable || paymentGenderComparable;
 
   return (
     <div className="panel overflow-hidden">
@@ -694,7 +785,7 @@ export function BehaviorAnalytics({
               </span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Session intelligence, abandonment, and journeys · collapsed by default
+              Product &amp; country friction, pages, dwell, and journeys · collapsed by default
             </p>
           </div>
         </div>
@@ -714,57 +805,90 @@ export function BehaviorAnalytics({
       </button>
 
       {open ? (
-        <div className="space-y-6 border-t border-border px-6 pb-6 pt-5">
+        <div className="space-y-7 border-t border-border px-6 pb-6 pt-5">
           {onScopeChange ? (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted-foreground">Date scope for session intelligence and journeys</p>
               <PanelScopeToggle scope={scope} onScopeChange={onScopeChange} className="sm:hidden" />
             </div>
           ) : null}
-          <div>
-            <h3 className="font-display text-sm font-semibold">Behavior friction matrix</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Checkout abandonment comes from Shopify abandoned checkouts + paid checkout exposures.
-              Submit-payment uses Meta AddPaymentInfo now; dwell and page journeys use first-party
-              session events.
-            </p>
-          </div>
 
           <BehaviorDevelopingBanner behavior={behavior} />
           <SessionIngestBanner behavior={behavior} />
           <ExtractionStatus behavior={behavior} />
+
+          {/* 1 — Where the money leaks: product-level friction */}
           <ProductMatrix behavior={behavior} />
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <SegmentPanel
-              title="Checkout countries"
-              rows={checkoutCountries}
-              type="country"
-              siteRate={behavior?.matrix?.checkout?.global?.rate}
+          {/* 2 — Where geographically: every comparable country ranked best → worst */}
+          <div className="space-y-3">
+            <SectionHeading
+              icon={Globe}
+              title="Drop-off by country"
+              subtitle="Every country with a comparable sample, ranked from fewest to most abandons at each step."
             />
-            <SegmentPanel
-              title="Submit-payment countries"
-              rows={paymentCountries}
-              type="country"
-              siteRate={behavior?.matrix?.submit_payment?.global?.rate}
-            />
-            <SegmentPanel
-              title="Checkout age / gender"
-              rows={checkoutGender}
-              type="gender"
-              siteRate={behavior?.matrix?.checkout?.global?.rate}
-            />
-            <SegmentPanel
-              title="Payment age / gender"
-              rows={paymentGender}
-              type="gender"
-              siteRate={behavior?.matrix?.submit_payment?.global?.rate}
-            />
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <SegmentRanking
+                title="Checkout"
+                rows={checkoutCountries}
+                type="country"
+                siteRate={checkoutGlobal}
+              />
+              <SegmentRanking
+                title="Submit payment"
+                rows={paymentCountries}
+                type="country"
+                siteRate={paymentGlobal}
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <DwellPages pages={behavior?.dwell_pages || []} />
-            <JourneyComparison journeys={behavior?.journeys || {}} />
+          {/* 3 — Who: age & gender, only when a cohort is comparable */}
+          {showAudience ? (
+            <div className="space-y-3">
+              <SectionHeading
+                icon={Users}
+                title="Audience · age &amp; gender"
+                subtitle="Shown only when a cohort has a comparable sample. Gender is Meta's aggregate reporting, not user-level."
+              />
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {checkoutGenderComparable ? (
+                  <SegmentRanking
+                    title="Checkout"
+                    rows={checkoutGender}
+                    type="gender"
+                    siteRate={checkoutGlobal}
+                  />
+                ) : null}
+                {paymentGenderComparable ? (
+                  <SegmentRanking
+                    title="Submit payment"
+                    rows={paymentGender}
+                    type="gender"
+                    siteRate={paymentGlobal}
+                  />
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {/* 4 — What they look at: most-visited pages + brand/mission reach */}
+          <div className="space-y-3">
+            <SectionHeading
+              icon={Eye}
+              title="Pages people visit"
+              subtitle="Most-visited pages this window, with brand &amp; mission pages always surfaced."
+            />
+            <MostVisitedPages data={behavior?.most_visited_pages} />
+          </div>
+
+          {/* 5 — How long & which path */}
+          <div className="space-y-3">
+            <SectionHeading icon={Clock} title="Time on page &amp; journeys" />
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <DwellPages pages={behavior?.dwell_pages || []} />
+              <JourneyComparison journeys={behavior?.journeys || {}} />
+            </div>
           </div>
         </div>
       ) : null}

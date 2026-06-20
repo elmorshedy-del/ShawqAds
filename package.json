@@ -28,6 +28,7 @@
     "test:order-movers": "node scripts/order-drop-rankings-test.mjs",
     "test:behavior-developing": "node scripts/behavior-developing-day-test.mjs",
     "test:behavior-persistence": "node scripts/behavior-persistence-test.mjs",
+    "test:behavior-tiers": "node scripts/behavior-tiers-test.mjs",
     "memory:maintain": "agent-memory maintain --since main",
     "memory:graph": "agent-memory graph build",
     "memory:worklog": "agent-memory worklog checkpoint",
