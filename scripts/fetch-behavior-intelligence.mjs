@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { productTaxonomyForName } from '../src/lib/productMapping.js';
 import { normalizePagePath, pagePathLabel } from '../src/lib/pagePath.js';
-import { isBrandPage, pageCategory } from '../src/lib/pageCategory.js';
+import { isBrandPage, pageCategory, brandPageName, BRAND_MISSION_PAGES } from '../src/lib/pageCategory.js';
 import { dwellAnalysisMeta, rollupDwellPages } from '../src/lib/dwellStats.js';
 import { mergeBehaviorSnapshot } from '../src/lib/behaviorPersistence.js';
 
@@ -347,32 +347,36 @@ function aggregateSessionFacts(events = []) {
       }
     }
 
-    const MAX_DWELL_SECONDS = Number(process.env.BEHAVIOR_MAX_DWELL_SECONDS || 600);
-    const laterEvents = list
-      .map((event) => ({ event_name: event.event_name, t: new Date(event.ts).getTime() }))
-      .filter((event) => Number.isFinite(event.t));
+    // Faithful "engaged time" per pageview: the page ends at the first moment the visitor leaves
+    // or the tab is hidden (page_viewed / visibility_hidden / session_end). We do NOT clamp real
+    // reading time to a fixed display cap. A pageview longer than ABANDONED_TAB_SECONDS is a
+    // backgrounded / abandoned tab, not reading, so it is dropped as an idle outlier and never
+    // enters the distribution. The per-page number reported downstream is a robust median, so the
+    // thin idle tail cannot distort it either — exactly where idle sessions belong on the curve.
+    const ABANDONED_TAB_SECONDS = Number(process.env.BEHAVIOR_ABANDONED_TAB_SECONDS || 1800);
+    const leaveTimes = list
+      .filter((event) => /page_viewed|page_view|visibility_hidden|session_end/i.test(event.event_name))
+      .map((event) => new Date(event.ts).getTime())
+      .filter((t) => Number.isFinite(t))
+      .sort((a, b) => a - b);
     const pageViews = list.filter((event) => /page_viewed|page_view/i.test(event.event_name));
     for (let i = 0; i < pageViews.length; i += 1) {
       const current = pageViews[i];
       const currentTime = new Date(current.ts).getTime();
-      // laterEvents preserves `list`'s chronological order, so `after` is already ascending by time.
-      const after = laterEvents.filter((event) => event.t > currentTime);
-      // The page ends when the visitor navigates away or the tab is hidden/closed.
-      const leaveEvent = after.find((event) => /page_viewed|page_view|visibility_hidden|session_end/i.test(event.event_name));
-      if (!leaveEvent) continue; // still on the page / last event in session: dwell unknown, skip
-      let dwell = Math.round((leaveEvent.t - currentTime) / 1000);
-      if (dwell > MAX_DWELL_SECONDS) {
-        // A long gap means the visitor went idle or left the tab open — don't count it as
-        // reading time (the old code capped every such page to 30 min). Fall back to the
-        // last presence ping inside the engaged window, otherwise drop the page.
-        const lastPresence = after
-          .filter((event) => event.t - currentTime <= MAX_DWELL_SECONDS * 1000 && /heartbeat|visibility/i.test(event.event_name))
-          .pop();
-        if (!lastPresence) continue;
-        dwell = Math.round((lastPresence.t - currentTime) / 1000);
-      }
+      const leaveTime = leaveTimes.find((t) => t > currentTime);
+      if (leaveTime == null) continue; // still on the page / last event in session: dwell unknown
+      const dwell = Math.round((leaveTime - currentTime) / 1000);
       if (dwell < 1) continue;
-      pageFacts.push({ date: current.date, path: current.path, dwell_seconds: dwell, purchased, session_hash: sessionHash });
+      if (dwell > ABANDONED_TAB_SECONDS) continue; // backgrounded / abandoned tab — idle outlier
+      pageFacts.push({
+        date: current.date,
+        path: current.path,
+        country_code: current.country_code,
+        country: current.country,
+        dwell_seconds: dwell,
+        purchased,
+        session_hash: sessionHash,
+      });
     }
     const sequence = [];
     for (const event of pageViews) {
@@ -650,8 +654,30 @@ function dwellRollup(pageFacts = []) {
   }).sort((a, b) => b.non_purchaser_median_dwell_seconds - a.non_purchaser_median_dwell_seconds || b.sessions - a.sessions).slice(0, 8);
 }
 
+// A page's country mix is "distinctive" when it is both concentrated and skewed away from the
+// storefront's overall country mix — the top country's share on this page is high AND materially
+// above that country's site-wide share. Most pages mirror the global mix and stay clean; only
+// standouts get annotated. Requires a comparable sample so thin pages don't over-claim.
+const COUNTRY_DISTINCTIVE_MIN_SESSIONS = 30;
+const COUNTRY_DISTINCTIVE_TOP_SHARE = 0.4;
+const COUNTRY_DISTINCTIVE_LIFT = 0.15;
+
+function topCountriesFor(countryCounts, totalViews, { take = 3 } = {}) {
+  return [...countryCounts.entries()]
+    .map(([code, views]) => ({
+      country_code: code,
+      country: countryName(code),
+      views,
+      share: totalViews > 0 ? views / totalViews : 0,
+    }))
+    .sort((a, b) => b.views - a.views || a.country_code.localeCompare(b.country_code))
+    .slice(0, take);
+}
+
 function buildMostVisited(pageFacts = [], { limit = 8 } = {}) {
   const byPath = new Map();
+  const siteCountry = new Map();
+  let siteCountryTotal = 0;
   for (const fact of pageFacts || []) {
     // Skip null facts (crash guard) and facts with no path — an empty path must not be
     // silently folded into the homepage ('/') and inflate its view count.
@@ -660,19 +686,79 @@ function buildMostVisited(pageFacts = [], { limit = 8 } = {}) {
     if (!path) continue;
     let row = byPath.get(path);
     if (!row) {
-      row = { path, label: pagePathLabel(path), category: pageCategory(path), is_brand: isBrandPage(path), views: 0, sessions: new Set() };
+      row = {
+        path,
+        label: brandPageName(path) || pagePathLabel(path),
+        category: pageCategory(path),
+        is_brand: isBrandPage(path),
+        views: 0,
+        sessions: new Set(),
+        countries: new Map(),
+      };
       byPath.set(path, row);
     }
     row.views += 1;
     if (fact.session_hash) row.sessions.add(String(fact.session_hash));
+    const code = String(fact.country_code || '').toUpperCase();
+    if (/^[A-Z]{2}$/.test(code)) {
+      row.countries.set(code, (row.countries.get(code) || 0) + 1);
+      siteCountry.set(code, (siteCountry.get(code) || 0) + 1);
+      siteCountryTotal += 1;
+    }
   }
-  const rows = [...byPath.values()]
-    .map((row) => ({ path: row.path, label: row.label, category: row.category, is_brand: row.is_brand, views: row.views, sessions: row.sessions.size }))
-    .sort((a, b) => b.views - a.views || b.sessions - a.sessions);
+
+  const siteShare = (code) => (siteCountryTotal > 0 ? (siteCountry.get(code) || 0) / siteCountryTotal : 0);
+
+  const finalizeRow = (row) => {
+    const sessions = row.sessions.size;
+    const countryViews = [...row.countries.values()].reduce((sum, n) => sum + n, 0);
+    const topCountries = topCountriesFor(row.countries, countryViews, { take: 3 });
+    const top = topCountries[0] || null;
+    const distinctive = Boolean(
+      top
+      && sessions >= COUNTRY_DISTINCTIVE_MIN_SESSIONS
+      && top.share >= COUNTRY_DISTINCTIVE_TOP_SHARE
+      && top.share - siteShare(top.country_code) >= COUNTRY_DISTINCTIVE_LIFT,
+    );
+    return {
+      path: row.path,
+      label: row.label,
+      category: row.category,
+      is_brand: row.is_brand,
+      views: row.views,
+      sessions,
+      top_countries: topCountries,
+      // Shown next to the page only when its mix genuinely stands out from the storefront baseline.
+      distinctive,
+      distinctive_countries: distinctive ? topCountries : [],
+    };
+  };
+
+  const rows = [...byPath.values()].map(finalizeRow).sort((a, b) => b.views - a.views || b.sessions - a.sessions);
+
+  // Brand & mission = the curated real pages only (About Us, Donations), always surfaced with their
+  // website names — even if commerce pages out-rank them or they have no views in this window. Locale
+  // and ad-param variants already rolled up to the canonical path via normalizePagePath().
+  const byCanonical = new Map(rows.map((row) => [row.path, row]));
+  const brand = Object.entries(BRAND_MISSION_PAGES).map(([path, name]) => {
+    const row = byCanonical.get(path);
+    if (row) return { ...row, label: name, is_brand: true };
+    return {
+      path,
+      label: name,
+      category: 'brand',
+      is_brand: true,
+      views: 0,
+      sessions: 0,
+      top_countries: [],
+      distinctive: false,
+      distinctive_countries: [],
+    };
+  });
+
   return {
-    // Top pages by views, plus brand/mission pages always surfaced even if commerce pages out-rank them.
     top: rows.slice(0, limit),
-    brand: rows.filter((row) => row.is_brand),
+    brand,
   };
 }
 
