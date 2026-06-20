@@ -507,6 +507,7 @@ function SegmentRanking({
 function PageBar({ row, max }: { row: any; max: number }) {
   const views = Number(row.views || 0);
   const width = max > 0 ? Math.min(100, Math.max(6, (views / max) * 100)) : 6;
+  const distinctive = Array.isArray(row.distinctive_countries) ? row.distinctive_countries : [];
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between gap-3">
@@ -520,6 +521,22 @@ function PageBar({ row, max }: { row: any; max: number }) {
       <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
         <div className="h-full rounded-full bg-brand" style={{ width: `${width}%` }} />
       </div>
+      {distinctive.length ? (
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <span className="text-[0.6rem] text-muted-foreground">Mostly from</span>
+          {distinctive.map((c: any) => (
+            <span
+              key={c.country_code}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-1.5 py-0.5 text-[0.6rem] tabular-nums"
+              title={`${c.country || c.country_code} · ${c.views} views`}
+            >
+              <span>{countryFlag(c.country_code)}</span>
+              {c.country_code}
+              <span className="text-muted-foreground">{Math.round(Number(c.share || 0) * 100)}%</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
