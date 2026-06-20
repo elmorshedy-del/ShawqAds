@@ -6,9 +6,15 @@ services:
     buildCommand: npm ci && npm run build:deploy
     startCommand: npm start
     healthCheckPath: /health
+    disk:
+      name: shawq-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22
+      - key: DATA_DIR
+        value: /var/data
       - key: SHAWQ_META_ACCESS_TOKEN
         sync: false
       - key: SHAWQ_META_AD_ACCOUNT_ID

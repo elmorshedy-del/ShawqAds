@@ -29,7 +29,19 @@ const distDir = path.join(__dirname, 'dist');
 const port = Number(process.env.PORT || 3000);
 const refreshKey = process.env.REFRESH_API_KEY || '';
 const sessionEventKey = process.env.SESSION_EVENT_INGEST_KEY || '';
-const sessionEventsPath = process.env.SESSION_EVENTS_PATH || path.join(__dirname, 'data', 'session-events.ndjson');
+// Durable data directory. On Railway attach a volume and set DATA_DIR (or rely on
+// the auto-set RAILWAY_VOLUME_MOUNT_PATH) so accumulated state — raw session
+// events, the behavior snapshot, the live-orders map, and the geocode cache —
+// survives redeploys and restarts. Falls back to the in-repo ./data dir for local
+// dev, preserving prior behavior when no volume is configured.
+const dataDir = process.env.DATA_DIR
+  || (process.env.RAILWAY_VOLUME_MOUNT_PATH
+    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'shawq-data')
+    : path.join(__dirname, 'data'));
+try { fs.mkdirSync(dataDir, { recursive: true }); } catch {}
+const sessionEventsPath = process.env.SESSION_EVENTS_PATH || path.join(dataDir, 'session-events.ndjson');
+// Child scripts (e.g. `npm run fetch:behavior`) must read the same NDJSON path.
+process.env.SESSION_EVENTS_PATH = sessionEventsPath;
 const refreshOnStart = process.env.REFRESH_ON_START !== 'false';
 const SHOPIFY_HISTORICAL_SINCE = process.env.SHOPIFY_BACKFILL_START_DATE || '2026-02-01';
 const shopifyReportingTimezone = process.env.SHAWQ_SHOPIFY_REPORTING_TIMEZONE
@@ -84,8 +96,8 @@ function scheduleBehaviorRefreshFromSessionEvents() {
 
 // Live orders map: location resolver + webhook-sourced purchase store.
 const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET || '';
-const locationCachePath = process.env.LOCATION_CACHE_PATH || path.join(__dirname, 'data', 'location-cache.json');
-const webhookStorePath = process.env.ORDERS_MAP_STORE_PATH || path.join(__dirname, 'data', 'orders-map.json');
+const locationCachePath = process.env.LOCATION_CACHE_PATH || path.join(dataDir, 'location-cache.json');
+const webhookStorePath = process.env.ORDERS_MAP_STORE_PATH || path.join(dataDir, 'orders-map.json');
 const locationStore = createLocationStore({ cachePath: locationCachePath, geocoder: createGeocoder(process.env) });
 const MAX_STORED_PURCHASES = 250;
 
@@ -136,12 +148,48 @@ function runScript(script, extraEnv = {}) {
     let output = '';
     child.stdout.on('data', (d) => { output += d.toString(); });
     child.stderr.on('data', (d) => { output += d.toString(); });
-    child.on('close', (code) => resolve({ code, output }));
+    child.on('close', (code) => {
+      if (code === 0 && script === 'fetch:behavior') persistBehaviorToVolume();
+      resolve({ code, output });
+    });
   });
 }
 
 function publicDataPath(name) {
   return path.join(__dirname, 'public', 'data', name);
+}
+
+// Behavior intelligence accumulates across refreshes via mergeBehaviorSnapshot,
+// but its working copy lives in public/data which resets to the committed seed on
+// every redeploy. Mirror it to the durable data volume so accumulation survives
+// restarts: on boot restore volume -> public (or seed the volume from the
+// committed snapshot the first time), and copy public -> volume after each fetch.
+const behaviorPublicPath = publicDataPath('behavior-intelligence.json');
+const behaviorVolumePath = path.join(dataDir, 'behavior-intelligence.json');
+const behaviorPersistEnabled = Boolean(process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH);
+
+function restoreBehaviorFromVolume() {
+  if (!behaviorPersistEnabled) return;
+  try {
+    if (fs.existsSync(behaviorVolumePath)) {
+      fs.copyFileSync(behaviorVolumePath, behaviorPublicPath);
+      console.log(`Restored behavior snapshot from volume: ${behaviorVolumePath}`);
+    } else if (fs.existsSync(behaviorPublicPath)) {
+      fs.copyFileSync(behaviorPublicPath, behaviorVolumePath);
+      console.log(`Seeded behavior volume from committed snapshot: ${behaviorVolumePath}`);
+    }
+  } catch (error) {
+    console.warn('restoreBehaviorFromVolume failed:', error.message);
+  }
+}
+
+function persistBehaviorToVolume() {
+  if (!behaviorPersistEnabled) return;
+  try {
+    if (fs.existsSync(behaviorPublicPath)) fs.copyFileSync(behaviorPublicPath, behaviorVolumePath);
+  } catch (error) {
+    console.warn('persistBehaviorToVolume failed:', error.message);
+  }
 }
 
 // Cache parsed JSON keyed by file mtime so hot paths (per-order attribution
@@ -1516,5 +1564,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(port, () => {
   console.log(`ShawQ Ad Set Radar listening on ${port}`);
+  restoreBehaviorFromVolume();
   warmData().catch((error) => console.warn(error));
 });
