@@ -1,5 +1,5 @@
 /*
-  ShawQ PDP Intelligence Probe (v1) — full-page behaviour capture for the product page.
+  ShawQ PDP Intelligence Probe (v1.1) — full-page behaviour capture for the product page.
 
   WHAT IT DOES
   Captures the size-decision struggle and everything around it on a product page (the skirt and any
@@ -14,9 +14,8 @@
 
   STITCHING
   Reads Shopify's first-party _shopify_y cookie as the client id — the same value the Customer-Events
-  pixel sends as clientId — so the probe's DOM events join the same shopper. (The Web Pixel runs in a
-  separate sandbox, so we cannot share its localStorage; _shopify_y is the shared, first-party key.)
-  Session = the probe's own 30-min window + Shopify's _shopify_s, reconciled later by client id + time.
+  pixel sends as clientId — so the probe's DOM events join the same shopper. Session = the probe's own
+  30-min window + Shopify's _shopify_s, reconciled later by client id + time.
 
   PRIVACY
   Interaction SHAPE only — never input values, names, emails, addresses. Element text is labels/aria
@@ -43,7 +42,7 @@
     function now() { return Date.now(); }
     function clamp(s, n) { s = String(s == null ? '' : s).trim(); return s.length > n ? s.slice(0, n) : s; }
     function attr(el, name) { try { return (el && el.getAttribute && el.getAttribute(name)) || ''; } catch (e) { return ''; } }
-    function classOf(el) { return clamp(attr(el, 'class'), 160); }
+    function classOf(el) { return clamp(attr(el, 'class'), 160).toLowerCase(); }
     function cookie(name) { try { var m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)'); return m ? decodeURIComponent(m.pop()) : ''; } catch (e) { return ''; } }
     function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
     function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -63,14 +62,10 @@
     lsSet('si_pdp_sid', sid); lsSet('si_pdp_sid_ts', String(now()));
     var sessionId = clientId + ':' + sid.slice(0, 8);
 
-    // product context (Shopify exposes id/variants on the storefront)
     var product = { handle: handle, title: clamp(document.title, 160) };
-    try {
-      var meta = window.ShopifyAnalytics && ShopifyAnalytics.meta && ShopifyAnalytics.meta.product;
-      if (meta) { product.id = String(meta.id || ''); product.variants = (meta.variants || []).length; }
-    } catch (e) {}
 
-    var startTs = now(), lastInteractTs = now(), buffer = [];
+    var startTs = now(), lastInteractTs = now(), stalled = false, buffer = [];
+    var atcEl = null, atcRect = null;
     var state = {
       dwell_ms: 0, scroll_max_pct: 0, scroll_marks: {},
       size_sequence: [], size_switches: 0, size_chart_opens: 0,
@@ -79,12 +74,14 @@
       last_action: '', last_action_ts: 0
     };
 
-    function record(name, data) {
-      lastInteractTs = now();
+    // push = enqueue only (used by passive/system events like stalls — does NOT reset idle)
+    function push(name, data) {
       state.last_action = name; state.last_action_ts = now() - startTs;
       buffer.push({ t: now() - startTs, name: name, data: data || {} });
       if (buffer.length >= MAX_BATCH) flush('batch');
     }
+    // record = a real user interaction — resets the idle/stall tracking
+    function record(name, data) { lastInteractTs = now(); stalled = false; push(name, data); }
     function lastSize() { var s = state.size_sequence; return s.length ? s[s.length - 1].size : ''; }
     function snapshot() {
       state.dwell_ms = now() - startTs;
@@ -124,12 +121,18 @@
       return d;
     }
 
+    // Strict apparel-size token; numerics only accepted via explicit data-* option values (below).
+    var SIZE_RE = /^(xxs|xs|s|m|l|xl|xxl|xxxl|2xl|3xl|4xl)$/;
     function isSizeControl(el) {
       if (!el) return false;
-      var n = clamp(attr(el, 'name'), 60).toLowerCase();
-      if (/size/.test(n)) return true;
-      if (attr(el, 'data-option-value') || attr(el, 'data-value') || attr(el, 'data-size')) return true;
-      return /^(xxs|xs|s|m|l|xl|xxl|2xl|3xl|[0-9]{1,2})$/.test(txtOf(el));
+      if (/size/.test(clamp(attr(el, 'name'), 60).toLowerCase())) return true;
+      var optName = clamp(attr(el, 'data-option-name') || attr(el, 'data-option'), 40).toLowerCase();
+      if (/size/.test(optName)) return true;
+      var dv = attr(el, 'data-option-value') || attr(el, 'data-value') || attr(el, 'data-size');
+      if (dv) { var v = clamp(dv, 20).toLowerCase(); return SIZE_RE.test(v) || /^[0-9]{1,2}$/.test(v); }
+      // text fallback ONLY for option-like controls, and only strict letter sizes (no bare numbers)
+      var optionish = el.tagName === 'LABEL' || el.type === 'radio' || /swatch|option|variant|size/.test(classOf(el));
+      return optionish && SIZE_RE.test(txtOf(el));
     }
     function sizeLabel(el) { return clamp(attr(el, 'data-option-value') || attr(el, 'data-value') || attr(el, 'data-size') || el.value || el.textContent, 40); }
     function noteSize(label, via) {
@@ -141,14 +144,7 @@
       record('si_size_selected', { size: label, via: via, switch_count: state.size_switches });
     }
 
-    var atcEl = (function () {
-      var c = document.querySelector('form[action*="/cart/add"] [type="submit"], button[name="add"], [data-add-to-cart], button.product-form__submit');
-      if (c) return c;
-      var b = document.querySelectorAll('button, [role="button"], input[type="submit"]');
-      for (var i = 0; i < b.length; i++) if (/add to (cart|bag)|add to basket/.test(txtOf(b[i]))) return b[i];
-      return null;
-    })();
-
+    // ---- listeners (document/window exist now; DOM-specific lookups deferred to onReady) ----
     document.addEventListener('change', function (e) {
       var el = e.target; if (!el) return;
       if (el.tagName === 'SELECT' && /id|option|variant|size/i.test(el.name || '')) {
@@ -165,9 +161,7 @@
       var t = e.target; if (!t || t.nodeType !== 1) return;
       var node = (t.closest && t.closest('a,button,[role="button"],label,[data-option-value],.swatch,[data-size],input,summary')) || t;
       var label = txtOf(node), cls = classOf(node);
-
       if (isSizeControl(node) && node.tagName !== 'SELECT') noteSize(sizeLabel(node), 'swatch');
-
       if (/size chart|size guide|sizing|fit guide/.test(label) || /size-chart|size-guide/.test(clamp(attr(node, 'data-modal') || attr(node, 'href'), 120))) {
         state.size_chart_opens += 1; record('si_size_chart_open', { via: clamp(label, 40) });
       }
@@ -202,6 +196,7 @@
       if (scrollPending) return; scrollPending = true;
       requestAnimationFrame(function () {
         scrollPending = false;
+        if (atcEl) { try { atcRect = atcEl.getBoundingClientRect(); } catch (e) {} } // refresh cached rect on scroll
         var h = document.documentElement, max = (h.scrollHeight - h.clientHeight) || 1;
         var pct = Math.min(100, Math.round(((h.scrollTop || window.pageYOffset) / max) * 100));
         if (pct > state.scroll_max_pct) {
@@ -211,53 +206,76 @@
       });
     }, { passive: true });
 
-    try {
-      if (window.IntersectionObserver) {
-        var defs = [
-          ['gallery', '[data-product-media], .product__media, .product-gallery, [class*="gallery"]'],
-          ['buybox', 'form[action*="/cart/add"], .product-form, [class*="product-form"]'],
-          ['description', '.product__description, [class*="description"], .rte'],
-          ['reviews', '[class*="review"], #shopify-product-reviews, .spr-container']
-        ];
-        var io = new IntersectionObserver(function (entries) {
-          entries.forEach(function (en) {
-            var key = en.target.__si_sec; if (!key) return;
-            var s = state.sections[key] || (state.sections[key] = { visible_ms: 0, _in: 0, seen: false });
-            if (en.isIntersecting) { s._in = now(); s.seen = true; } else if (s._in) { s.visible_ms += now() - s._in; s._in = 0; }
-          });
-        }, { threshold: 0.5 });
-        defs.forEach(function (d) { var el = document.querySelector(d[1]); if (el) { el.__si_sec = d[0]; io.observe(el); } });
+    // ATC approach/retreat — uses the CACHED rect (no layout read on mousemove)
+    var near = false, lastDist = Infinity, mvPending = false;
+    document.addEventListener('mousemove', function (e) {
+      if (!atcRect || mvPending) return; mvPending = true;
+      requestAnimationFrame(function () {
+        mvPending = false;
+        var cx = atcRect.left + atcRect.width / 2, cy = atcRect.top + atcRect.height / 2;
+        var dx = e.clientX - cx, dy = e.clientY - cy, dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 160) { if (!near) near = true; } else if (near && dist > lastDist + 80) { near = false; state.atc_retreats += 1; record('si_atc_retreat', {}); }
+        lastDist = dist;
+      });
+    }, { passive: true });
+    window.addEventListener('resize', function () { if (atcEl) { try { atcRect = atcEl.getBoundingClientRect(); } catch (e) {} } }, { passive: true });
+
+    // idle / stall — fires ONCE per idle period (reset by the next real interaction); no infinite loop
+    setInterval(function () {
+      if (!stalled && (now() - lastInteractTs) > IDLE_MS) {
+        stalled = true;
+        push('si_stall', { idle_ms: now() - lastInteractTs, scroll_pct: state.scroll_max_pct, last_action: state.last_action });
       }
-    } catch (e) {}
-
-    if (atcEl) {
-      atcEl.addEventListener('mouseenter', function () { state.atc_hovers += 1; record('si_atc_hover', {}); }, { passive: true });
-      var near = false, lastDist = Infinity, mvPending = false;
-      document.addEventListener('mousemove', function (e) {
-        if (mvPending) return; mvPending = true;
-        requestAnimationFrame(function () {
-          mvPending = false;
-          try {
-            var r = atcEl.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-            var dx = e.clientX - cx, dy = e.clientY - cy, dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < 160) { if (!near) near = true; } else if (near && dist > lastDist + 80) { near = false; state.atc_retreats += 1; record('si_atc_retreat', {}); }
-            lastDist = dist;
-          } catch (err) {}
-        });
-      }, { passive: true });
-    }
-
-    setInterval(function () { if (now() - lastInteractTs > IDLE_MS) { record('si_stall', { idle_ms: now() - lastInteractTs, scroll_pct: state.scroll_max_pct, last_action: state.last_action }); lastInteractTs = now(); } }, IDLE_MS);
+    }, 5000);
     setInterval(function () { flush('interval'); }, FLUSH_MS);
 
     function exit() {
       try { for (var k in state.sections) { var s = state.sections[k]; if (s._in) { s.visible_ms += now() - s._in; s._in = 0; } } } catch (e) {}
-      record('si_exit', { dwell_ms: now() - startTs, scroll_pct: state.scroll_max_pct, last_action: state.last_action });
+      push('si_exit', { dwell_ms: now() - startTs, scroll_pct: state.scroll_max_pct, last_action: state.last_action });
       flush('exit');
     }
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') exit(); });
     window.addEventListener('pagehide', exit);
 
-    record('si_pdp_view', { product: product });
+    // ---- DOM-dependent setup: run after the DOM is ready ----
+    function onReady() {
+      try {
+        var meta = window.ShopifyAnalytics && ShopifyAnalytics.meta && ShopifyAnalytics.meta.product;
+        if (meta) { product.id = String(meta.id || ''); product.variants = (meta.variants || []).length; }
+      } catch (e) {}
+
+      atcEl = document.querySelector('form[action*="/cart/add"] [type="submit"], button[name="add"], [data-add-to-cart], button.product-form__submit');
+      if (!atcEl) {
+        var b = document.querySelectorAll('button, [role="button"], input[type="submit"]');
+        for (var i = 0; i < b.length; i++) { if (/add to (cart|bag)|add to basket/.test(txtOf(b[i]))) { atcEl = b[i]; break; } }
+      }
+      if (atcEl) {
+        try { atcRect = atcEl.getBoundingClientRect(); } catch (e) {}
+        atcEl.addEventListener('mouseenter', function () { state.atc_hovers += 1; record('si_atc_hover', {}); }, { passive: true });
+      }
+
+      try {
+        if (window.IntersectionObserver) {
+          var defs = [
+            ['gallery', '[data-product-media], .product__media, .product-gallery, [class*="gallery"]'],
+            ['buybox', 'form[action*="/cart/add"], .product-form, [class*="product-form"]'],
+            ['description', '.product__description, [class*="description"], .rte'],
+            ['reviews', '[class*="review"], #shopify-product-reviews, .spr-container']
+          ];
+          var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (en) {
+              var key = en.target.__si_sec; if (!key) return;
+              var s = state.sections[key] || (state.sections[key] = { visible_ms: 0, _in: 0, seen: false });
+              if (en.isIntersecting) { s._in = now(); s.seen = true; } else if (s._in) { s.visible_ms += now() - s._in; s._in = 0; }
+            });
+          }, { threshold: 0.5 });
+          defs.forEach(function (d) { var el = document.querySelector(d[1]); if (el) { el.__si_sec = d[0]; io.observe(el); } });
+        }
+      } catch (e) {}
+
+      record('si_pdp_view', { product: product });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady);
+    else onReady();
   } catch (e) { /* never break the storefront */ }
 })();
