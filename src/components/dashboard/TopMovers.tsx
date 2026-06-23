@@ -59,6 +59,18 @@ function compactOf(kind: Kind, e?: LeaderLike | null) {
   return { name: `${e.flag ?? ""} ${e.country ?? "—"}`.trim(), metric: fmtX(e.roas ?? 0) };
 }
 
+function headingFor(focusLabel: string) {
+  if (focusLabel === "Today") return "Today's top movers";
+  if (focusLabel === "Selected range") return "Top movers for selected range";
+  return `Top movers for ${focusLabel}`;
+}
+
+function copyFor(focusLabel: string) {
+  if (focusLabel === "Today") return "Today's leaders with this week & last week for context";
+  if (focusLabel === "Selected range") return "Leaders for selected range with this week & last week for context";
+  return `Leaders for ${focusLabel} with this week & last week for context`;
+}
+
 function CompareCell({ label, kind, entry }: { label: string; kind: Kind; entry?: LeaderLike | null }) {
   const c = compactOf(kind, entry);
   return (
@@ -121,8 +133,8 @@ export function TopMovers({ cards, focusLabel = "Today" }: TopMoversProps) {
           <Sparkles className="h-4 w-4" />
         </span>
         <div>
-          <h2 className="font-display text-base font-semibold tracking-tight">{focusLabel} top movers</h2>
-          <p className="text-[0.7rem] text-muted-foreground">{focusLabel} leaders with this week &amp; last week for context</p>
+          <h2 className="font-display text-base font-semibold tracking-tight">{headingFor(focusLabel)}</h2>
+          <p className="text-[0.7rem] text-muted-foreground">{copyFor(focusLabel)}</p>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3">
