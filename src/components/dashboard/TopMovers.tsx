@@ -22,6 +22,11 @@ export interface TopMoverCard {
   prevWeek?: LeaderLike | null;
 }
 
+interface TopMoversProps {
+  cards: TopMoverCard[];
+  focusLabel?: string;
+}
+
 const kindMeta: Record<Kind, { icon: LucideIcon; color: string; heroLabel: string }> = {
   product: { icon: Package, color: "var(--color-brand)", heroLabel: "revenue" },
   ad: { icon: Megaphone, color: "var(--color-gold)", heroLabel: "ROAS" },
@@ -65,7 +70,7 @@ function CompareCell({ label, kind, entry }: { label: string; kind: Kind; entry?
   );
 }
 
-function MoverCard({ card }: { card: TopMoverCard }) {
+function MoverCard({ card, focusLabel }: { card: TopMoverCard; focusLabel: string }) {
   const m = kindMeta[card.kind];
   const Icon = m.icon;
   return (
@@ -86,7 +91,7 @@ function MoverCard({ card }: { card: TopMoverCard }) {
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{card.label}</span>
         </div>
         <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-          Today
+          {focusLabel}
         </span>
       </div>
 
@@ -108,7 +113,7 @@ function MoverCard({ card }: { card: TopMoverCard }) {
   );
 }
 
-export function TopMovers({ cards }: { cards: TopMoverCard[] }) {
+export function TopMovers({ cards, focusLabel = "Today" }: TopMoversProps) {
   return (
     <section>
       <div className="mb-3 flex items-center gap-2">
@@ -116,13 +121,13 @@ export function TopMovers({ cards }: { cards: TopMoverCard[] }) {
           <Sparkles className="h-4 w-4" />
         </span>
         <div>
-          <h2 className="font-display text-base font-semibold tracking-tight">Today&apos;s top movers</h2>
-          <p className="text-[0.7rem] text-muted-foreground">Today&apos;s leaders with this week &amp; last week for context</p>
+          <h2 className="font-display text-base font-semibold tracking-tight">{focusLabel} top movers</h2>
+          <p className="text-[0.7rem] text-muted-foreground">{focusLabel} leaders with this week &amp; last week for context</p>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3">
         {cards.map((card) => (
-          <MoverCard key={card.kind} card={card} />
+          <MoverCard key={card.kind} card={card} focusLabel={focusLabel} />
         ))}
       </div>
     </section>
