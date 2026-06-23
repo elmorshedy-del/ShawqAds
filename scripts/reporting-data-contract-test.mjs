@@ -7,6 +7,7 @@ function assertIncludes(source, needle, message) {
 const app = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const server = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
 const metaFetch = fs.readFileSync(new URL('../scripts/fetch-meta-insights.mjs', import.meta.url), 'utf8');
+const topMovers = fs.readFileSync(new URL('../src/components/dashboard/TopMovers.tsx', import.meta.url), 'utf8');
 
 assertIncludes(
   server,
@@ -78,6 +79,36 @@ assertIncludes(
   app,
   'Yesterday (latest loaded)',
   'Dashboard label must disclose when Yesterday falls back to the latest loaded completed day.',
+);
+
+assertIncludes(
+  app,
+  'const anchor = activeDateRange?.until || reportingToday',
+  'Top movers must use the active business-card date instead of an independent loaded-data anchor.',
+);
+
+assertIncludes(
+  app,
+  'function pickTopCountryByUnits',
+  'Top movers country winner must be selected by units sold, not revenue or ROAS.',
+);
+
+assertIncludes(
+  app,
+  'function pickTopAdBySales',
+  'Top movers ad winner must be selected by Shopify sales count, not ROAS.',
+);
+
+assertIncludes(
+  app,
+  'Number(b.shopify_revenue_usd || 0)',
+  'Top movers ad count ties should break on Shopify revenue before Meta spend.',
+);
+
+assertIncludes(
+  topMovers,
+  'return fmtX(e.roas ?? 0)',
+  'Top movers should still surface ROAS for ad and country cards even though ranking is count-based.',
 );
 
 console.log('reporting data contract checks passed');

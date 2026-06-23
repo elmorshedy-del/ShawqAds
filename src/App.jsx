@@ -1498,6 +1498,26 @@ function businessAxisLabel(value, active) {
   return compact(n);
 }
 
+function pickTopCountryByUnits(countries = []) {
+  return [...(countries || [])]
+    .sort((a, b) => Number(b.units || 0) - Number(a.units || 0) || Number(b.revenue || 0) - Number(a.revenue || 0))
+    [0] || null;
+}
+function pickTopProductByUnits(products = []) {
+  const top = [...(products || [])]
+    .sort((a, b) => Number(b.units || 0) - Number(a.units || 0) || Number(b.revenue_usd || 0) - Number(a.revenue_usd || 0))
+    [0];
+  if (!top) return null;
+  return adapt.toProductLeaders([top], 1)[0] || null;
+}
+function pickTopAdBySales(adRows = []) {
+  const top = [...(adRows || [])]
+    .sort((a, b) => Number(b.shopify_sales || 0) - Number(a.shopify_sales || 0) || Number(b.shopify_revenue_usd || 0) - Number(a.shopify_revenue_usd || 0) || Number(b.spend_usd || 0) - Number(a.spend_usd || 0))
+    [0];
+  if (!top) return null;
+  return adapt.toAdLeaders([top], 1)[0] || null;
+}
+
 function businessTrendOption(rows, active, reportingDay = currentReportingDay()) {
   const metric = businessMetricConfig(active);
   const trendRows = businessTrendPresentationRows(rows, reportingDay);
@@ -2864,16 +2884,17 @@ function App() {
   // Mobile "Top movers" — today's leader as the hero, with the current week and
   // previous week as comparison windows (paid-ads only; email orders excluded).
   const topMovers = useMemo(() => {
-    const anchor = loadedBounds.until || loadedBounds.calendar_until || currentReportingDay();
+    const anchor = activeDateRange?.until || reportingToday;
     const leadersFor = (win) => {
       const ws = filterShopifyByDateRange(baseProductData, win, { excludeEmail: true });
       const wm = filterMetaDataByDateRange(baseData, win);
       const metaByCode = new Map((wm.countries || []).map((row) => [row.country_code, row]));
+      const countryLeaders = adapt.toCountrySales(ws.countries || [], metaByCode);
       const adRowsForWindow = enrichAdsWithShopifySales(wm.ads || [], ws.order_lines || []);
       return {
-        product: adapt.toProductLeaders(ws.products || [])[0] || null,
-        ad: adapt.toAdLeaders(adRowsForWindow)[0] || null,
-        country: adapt.toCountrySales(ws.countries || [], metaByCode)[0] || null,
+        product: pickTopProductByUnits(ws.products || []),
+        ad: pickTopAdBySales(adRowsForWindow),
+        country: pickTopCountryByUnits(countryLeaders),
       };
     };
     if (!anchor) return { anchor: '', today: {}, currentWeek: {}, prevWeek: {} };
@@ -2886,7 +2907,7 @@ function App() {
       currentWeek: leadersFor(currentWeekWin),
       prevWeek: leadersFor(prevWeekWin),
     };
-  }, [baseProductData, baseData, loadedBounds]);
+  }, [baseProductData, baseData, loadedBounds, activeDateRange?.until, reportingToday]);
   const topMoverCards = useMemo(() => ([
     {
       kind: 'product',
@@ -2910,6 +2931,9 @@ function App() {
       prevWeek: topMovers.prevWeek.country,
     },
   ]), [topMovers]);
+  const topMoverFocusLabel = dayCount(activeDateRange) === 1
+    ? (activeDateRange.until === reportingToday ? 'Today' : activeDateRange.until)
+    : 'Selected range';
 
   const todayOrderMovers = useMemo(() => {
     const lines = baseProductData?.order_lines || [];
@@ -3066,7 +3090,7 @@ function App() {
     decision: <AdSetDecisionTable rows={decisions} />,
     product: <ProductDemand data={productDemand} />,
     country: <CountrySalesPanel countries={countrySales} windows={countrySalesWindows} />,
-    mobileTops: <TopMovers cards={topMoverCards} />,
+    mobileTops: <TopMovers cards={topMoverCards} focusLabel={topMoverFocusLabel} />,
     behavior: (
       <BehaviorAnalytics
         behavior={behaviorData}
