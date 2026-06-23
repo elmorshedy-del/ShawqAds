@@ -858,12 +858,21 @@ function launchAnalysisDateRange(bounds) {
     until: bounds?.calendar_until || bounds?.until || currentReportingDay(),
   }, bounds);
 }
+function latestCompletedDataDay(bounds) {
+  return bounds?.common_until || bounds?.until || bounds?.union_until || '';
+}
+function yesterdayPresetDay(bounds) {
+  const end = bounds?.today || currentReportingDay();
+  const calendarYesterday = shiftDate(end, -1);
+  const latestLoaded = latestCompletedDataDay(bounds);
+  return latestLoaded && calendarYesterday > latestLoaded ? latestLoaded : calendarYesterday;
+}
 function presetDateRange(preset, bounds) {
   const end = bounds?.today || currentReportingDay();
   if (!end) return { since: '', until: '' };
   if (preset === 'today') return clampDateRange({ since: end, until: end }, bounds);
   if (preset === 'yesterday') {
-    const day = shiftDate(end, -1);
+    const day = yesterdayPresetDay(bounds);
     return clampDateRange({ since: day, until: day }, bounds);
   }
   if (preset === 'last7') return clampDateRange({ since: shiftDate(end, -6), until: end }, bounds);
@@ -913,9 +922,13 @@ function behaviorPanelRangeLabel(scope, launchRange, activeRange, preset, behavi
   }
   return base;
 }
-function dateRangeLabel(range, preset) {
+function dateRangeLabel(range, preset, bounds) {
   if (!range?.since || !range?.until) return 'Choose dates';
-  const prefix = datePresets.find((p) => p.value === preset)?.label || 'Custom';
+  const calendarYesterday = shiftDate(bounds?.today || currentReportingDay(), -1);
+  const isLoadedYesterdayFallback = preset === 'yesterday' && range.since === range.until && range.until && range.until < calendarYesterday;
+  const prefix = isLoadedYesterdayFallback
+    ? 'Yesterday (latest loaded)'
+    : datePresets.find((p) => p.value === preset)?.label || 'Custom';
   return `${prefix}: ${range.since} - ${range.until}`;
 }
 function presetSubLabel(preset, bounds) {
@@ -1666,7 +1679,7 @@ function DateWindowControl({ range, bounds, preset, isOpen, customRange, onToggl
   return <div className={`date-control ${isOpen ? 'open' : ''}`}>
     <button type="button" className="date-trigger" onClick={onToggle} aria-expanded={isOpen}>
       <CalendarDays size={16} />
-      <span>{dateRangeLabel(range, preset)}</span>
+      <span>{dateRangeLabel(range, preset, bounds)}</span>
       <i>{isOpen ? '−' : '+'}</i>
     </button>
     {isOpen ? <div className="date-menu">
@@ -3097,7 +3110,7 @@ function App() {
                 Sales &amp; Ads Performance
               </h1>
               <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">
-                Live Shopify sales, Meta spend, and launch momentum in one command view · {dateRangeLabel(activeDateRange, datePreset)}
+                Live Shopify sales, Meta spend, and launch momentum in one command view · {dateRangeLabel(activeDateRange, datePreset, loadedBounds)}
               </p>
             </div>
             <div className="flex gap-3">

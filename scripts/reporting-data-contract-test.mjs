@@ -68,4 +68,16 @@ assertIncludes(
   'Country ROAS must use an explicit overlapping Meta+Shopify range.',
 );
 
+assertIncludes(
+  app,
+  'function yesterdayPresetDay',
+  'Yesterday preset must not select an unloaded calendar day when the data cache is behind.',
+);
+
+assertIncludes(
+  app,
+  'Yesterday (latest loaded)',
+  'Dashboard label must disclose when Yesterday falls back to the latest loaded completed day.',
+);
+
 console.log('reporting data contract checks passed');
