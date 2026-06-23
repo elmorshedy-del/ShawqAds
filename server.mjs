@@ -57,10 +57,13 @@ const metaReportingTimezone = process.env.SHAWQ_META_REPORTING_TIMEZONE
 const DEFAULT_META_LIVE_TTL_MS = 120000;
 const META_ACCOUNT_CACHE_TTL_MS = 3600000;
 const DEFAULT_FX_MAX_LOOKBACK_DAYS = 7;
+const DEFAULT_DATA_REFRESH_COOLDOWN_MS = 300000;
 const metaLiveTtlRaw = Number(process.env.SHAWQ_META_LIVE_TTL_MS || process.env.META_LIVE_TTL_MS || DEFAULT_META_LIVE_TTL_MS);
 const fxMaxLookbackRaw = Number(process.env.SHAWQ_FX_MAX_LOOKBACK_DAYS || process.env.FX_MAX_LOOKBACK_DAYS || DEFAULT_FX_MAX_LOOKBACK_DAYS);
+const dataRefreshCooldownRaw = Number(process.env.DATA_REFRESH_COOLDOWN_MS || DEFAULT_DATA_REFRESH_COOLDOWN_MS);
 const metaLiveTtlMs = Number.isFinite(metaLiveTtlRaw) && metaLiveTtlRaw > 0 ? metaLiveTtlRaw : DEFAULT_META_LIVE_TTL_MS;
 const fxMaxLookbackDays = Number.isFinite(fxMaxLookbackRaw) && fxMaxLookbackRaw >= 0 ? Math.floor(fxMaxLookbackRaw) : DEFAULT_FX_MAX_LOOKBACK_DAYS;
+const dataRefreshCooldownMs = Number.isFinite(dataRefreshCooldownRaw) && dataRefreshCooldownRaw > 0 ? dataRefreshCooldownRaw : DEFAULT_DATA_REFRESH_COOLDOWN_MS;
 let metaLiveCache = { key: '', fetchedAt: 0, payload: null };
 let metaLiveInFlight = { key: '', promise: null };
 let metaAccountCache = { fetchedAt: 0, payload: null };
@@ -326,17 +329,30 @@ function shopifyCacheNeedsRefresh(filePath) {
   return shopifyCacheNeedsHistoricalBackfill(filePath) || cacheUntilBeforeToday(filePath, shopifyReportingTimezone);
 }
 
+function inDataRefreshCooldown(lastAttemptAt, now = Date.now()) {
+  return Boolean(lastAttemptAt && now - lastAttemptAt < dataRefreshCooldownMs);
+}
+
 function dataCacheNeedsRefresh(filePath, script) {
-  if (script === 'fetch:meta') return metaCacheNeedsRefresh(filePath);
-  if (script === 'fetch:shopify') return shopifyCacheNeedsRefresh(filePath);
+  if (script === 'fetch:meta') {
+    if (inDataRefreshCooldown(lastMetaFetchAttemptAt)) return false;
+    return metaCacheNeedsRefresh(filePath);
+  }
+  if (script === 'fetch:shopify') {
+    if (inDataRefreshCooldown(lastShopifyFetchAttemptAt)) return false;
+    return shopifyCacheNeedsRefresh(filePath);
+  }
   return false;
 }
 
 let shopifyFetchPromise = null;
 let metaFetchPromise = null;
+let lastMetaFetchAttemptAt = 0;
+let lastShopifyFetchAttemptAt = 0;
 
 function runMetaFetch(extraEnv = {}) {
   if (metaFetchPromise) return metaFetchPromise;
+  lastMetaFetchAttemptAt = Date.now();
   metaFetchPromise = runScript('fetch:meta', extraEnv).finally(() => {
     metaFetchPromise = null;
   });
@@ -345,6 +361,7 @@ function runMetaFetch(extraEnv = {}) {
 
 function runShopifyFetch(extraEnv = {}) {
   if (shopifyFetchPromise) return shopifyFetchPromise;
+  lastShopifyFetchAttemptAt = Date.now();
   shopifyFetchPromise = runScript('fetch:shopify', shopifyBackfillEnv(extraEnv)).finally(() => {
     shopifyFetchPromise = null;
   });

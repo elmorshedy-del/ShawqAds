@@ -28,6 +28,24 @@ assertIncludes(
 
 assertIncludes(
   server,
+  'dataRefreshCooldownMs',
+  'Server must throttle failed stale-cache refresh retries to avoid fetch storms.',
+);
+
+assertIncludes(
+  server,
+  'lastMetaFetchAttemptAt = Date.now()',
+  'Meta stale-cache refresh attempts must record a cooldown timestamp.',
+);
+
+assertIncludes(
+  server,
+  'lastShopifyFetchAttemptAt = Date.now()',
+  'Shopify stale-cache refresh attempts must record a cooldown timestamp.',
+);
+
+assertIncludes(
+  server,
   'shopifyCacheNeedsRefresh',
   'Server must detect stale Shopify cache windows so ROAS uses current overlapping data.',
 );
