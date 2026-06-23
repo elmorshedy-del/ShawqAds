@@ -57,10 +57,13 @@ const metaReportingTimezone = process.env.SHAWQ_META_REPORTING_TIMEZONE
 const DEFAULT_META_LIVE_TTL_MS = 120000;
 const META_ACCOUNT_CACHE_TTL_MS = 3600000;
 const DEFAULT_FX_MAX_LOOKBACK_DAYS = 7;
+const DEFAULT_DATA_REFRESH_COOLDOWN_MS = 300000;
 const metaLiveTtlRaw = Number(process.env.SHAWQ_META_LIVE_TTL_MS || process.env.META_LIVE_TTL_MS || DEFAULT_META_LIVE_TTL_MS);
 const fxMaxLookbackRaw = Number(process.env.SHAWQ_FX_MAX_LOOKBACK_DAYS || process.env.FX_MAX_LOOKBACK_DAYS || DEFAULT_FX_MAX_LOOKBACK_DAYS);
+const dataRefreshCooldownRaw = Number(process.env.DATA_REFRESH_COOLDOWN_MS || DEFAULT_DATA_REFRESH_COOLDOWN_MS);
 const metaLiveTtlMs = Number.isFinite(metaLiveTtlRaw) && metaLiveTtlRaw > 0 ? metaLiveTtlRaw : DEFAULT_META_LIVE_TTL_MS;
 const fxMaxLookbackDays = Number.isFinite(fxMaxLookbackRaw) && fxMaxLookbackRaw >= 0 ? Math.floor(fxMaxLookbackRaw) : DEFAULT_FX_MAX_LOOKBACK_DAYS;
+const dataRefreshCooldownMs = Number.isFinite(dataRefreshCooldownRaw) && dataRefreshCooldownRaw > 0 ? dataRefreshCooldownRaw : DEFAULT_DATA_REFRESH_COOLDOWN_MS;
 let metaLiveCache = { key: '', fetchedAt: 0, payload: null };
 let metaLiveInFlight = { key: '', promise: null };
 let metaAccountCache = { fetchedAt: 0, payload: null };
@@ -299,10 +302,66 @@ function shopifyCacheNeedsHistoricalBackfill(filePath) {
   return !since || since > SHOPIFY_HISTORICAL_SINCE;
 }
 
+function readDataPeriod(filePath) {
+  const data = readJsonCached(filePath) || {};
+  const period = data.period || data.analysis_window || {};
+  return {
+    since: period.since || '',
+    until: period.until || '',
+  };
+}
+
+function cacheUntilBeforeToday(filePath, timeZone) {
+  if (!fs.existsSync(filePath)) return true;
+  const { until } = readDataPeriod(filePath);
+  const today = dateInTimezone(new Date(), timeZone);
+  return Boolean(today && (!until || until < today));
+}
+
+function metaCacheNeedsRefresh(filePath) {
+  if (cacheUntilBeforeToday(filePath, metaReportingTimezone)) return true;
+  const { since } = readDataPeriod(filePath);
+  const desiredSince = process.env.META_SINCE || process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
+  return Boolean(since && desiredSince && since > desiredSince);
+}
+
+function shopifyCacheNeedsRefresh(filePath) {
+  return shopifyCacheNeedsHistoricalBackfill(filePath) || cacheUntilBeforeToday(filePath, shopifyReportingTimezone);
+}
+
+function inDataRefreshCooldown(lastAttemptAt, now = Date.now()) {
+  return Boolean(lastAttemptAt && now - lastAttemptAt < dataRefreshCooldownMs);
+}
+
+function dataCacheNeedsRefresh(filePath, script) {
+  if (script === 'fetch:meta') {
+    if (inDataRefreshCooldown(lastMetaFetchAttemptAt)) return false;
+    return metaCacheNeedsRefresh(filePath);
+  }
+  if (script === 'fetch:shopify') {
+    if (inDataRefreshCooldown(lastShopifyFetchAttemptAt)) return false;
+    return shopifyCacheNeedsRefresh(filePath);
+  }
+  return false;
+}
+
 let shopifyFetchPromise = null;
+let metaFetchPromise = null;
+let lastMetaFetchAttemptAt = 0;
+let lastShopifyFetchAttemptAt = 0;
+
+function runMetaFetch(extraEnv = {}) {
+  if (metaFetchPromise) return metaFetchPromise;
+  lastMetaFetchAttemptAt = Date.now();
+  metaFetchPromise = runScript('fetch:meta', extraEnv).finally(() => {
+    metaFetchPromise = null;
+  });
+  return metaFetchPromise;
+}
 
 function runShopifyFetch(extraEnv = {}) {
   if (shopifyFetchPromise) return shopifyFetchPromise;
+  lastShopifyFetchAttemptAt = Date.now();
   shopifyFetchPromise = runScript('fetch:shopify', shopifyBackfillEnv(extraEnv)).finally(() => {
     shopifyFetchPromise = null;
   });
@@ -1437,6 +1496,7 @@ async function serveData(req, res, name, script) {
   }
 
   const behaviorStale = script === 'fetch:behavior' && !force && behaviorNeedsRefresh(file);
+  const dataStale = !force && script !== 'fetch:behavior' && fs.existsSync(file) && dataCacheNeedsRefresh(file, script);
 
   // Behavior: never block the HTTP response on a full regeneration (it hits Meta +
   // Shopify and parses the entire session-event log, which can take minutes). When a
@@ -1450,13 +1510,15 @@ async function serveData(req, res, name, script) {
     return;
   }
 
-  if (force || !fs.existsSync(file) || behaviorStale) {
+  if (force || !fs.existsSync(file) || behaviorStale || dataStale) {
     const env = script === 'fetch:behavior'
       ? behaviorBackfillEnv(dateEnvFromUrl(url))
       : dateEnvFromUrl(url);
     const result = script === 'fetch:shopify'
       ? await runShopifyFetch(env)
-      : await runScript(script, env);
+      : script === 'fetch:meta'
+        ? await runMetaFetch(env)
+        : await runScript(script, env);
     if (result?.code !== 0) {
       console.warn(result?.output || `${script} failed`);
       if (!fs.existsSync(file)) {

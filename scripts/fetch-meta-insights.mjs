@@ -512,6 +512,9 @@ const currentAdsetRows = await getInsights({ level: 'adset', fields: adsetFields
 const marchAdsetRows = await getInsights({ level: 'adset', fields: adsetFields, start: '2026-03-01', end: '2026-03-31' });
 const currentAdsetCountryRows = await getInsights({ level: 'adset', fields: adsetFields, start: since, end: until, breakdowns: 'country' });
 const marchAdsetCountryRows = await getInsights({ level: 'adset', fields: adsetFields, start: '2026-03-01', end: '2026-03-31', breakdowns: 'country' });
+const adDailyRawRows = await getInsights({ level: 'ad', fields: adFields, start: since, end: until });
+const adDaily = [];
+for (const row of adDailyRawRows) adDaily.push(await normalizeInsightRow(row, accountCurrency));
 const adCountryRawRows = await getInsights({ level: 'ad', fields: adFields, start: since, end: until, breakdowns: 'country' });
 const adCountryDaily = [];
 for (const row of adCountryRawRows) adCountryDaily.push(await normalizeInsightRow(row, accountCurrency));
@@ -670,19 +673,20 @@ const adsetChanges = activities
   .filter((a) => a.date);
 const finalAdsetChanges = activitiesFailed && previousAdsetChanges.length ? previousAdsetChanges : adsetChanges;
 
-const allAdsets = aggregateBy(adCountryDaily, (r) => r.adset_id, (r) => ({ adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name }))
+const adMetricRows = adDaily.length ? adDaily : adCountryDaily;
+const allAdsets = aggregateBy(adMetricRows, (r) => r.adset_id, (r) => ({ adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name }))
   .sort((a, b) => b.spend_usd - a.spend_usd);
-const accountDailyMetrics = attachFxMetaByDate(aggregateBy(adCountryDaily, (r) => r.date, (r) => ({ date: r.date })), adCountryDaily)
+const accountDailyMetrics = attachFxMetaByDate(aggregateBy(adMetricRows, (r) => r.date, (r) => ({ date: r.date })), adMetricRows)
   .sort((a, b) => a.date.localeCompare(b.date));
-const ads = aggregateBy(adCountryDaily, (r) => r.ad_id, (r) => ({ ad_id: r.ad_id, ad_name: r.ad_name, adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name, product_family: r.product_family, product_subtype: r.product_subtype }))
+const ads = aggregateBy(adMetricRows, (r) => r.ad_id, (r) => ({ ad_id: r.ad_id, ad_name: r.ad_name, adset_id: r.adset_id, adset_name: r.adset_name, campaign_id: r.campaign_id, campaign_name: r.campaign_name, product_family: r.product_family, product_subtype: r.product_subtype }))
   .sort((a, b) => b.purchases - a.purchases || b.purchase_value_usd - a.purchase_value_usd || b.spend_usd - a.spend_usd);
 const countries = aggregateBy(adCountryDaily, (r) => r.country_code, (r) => ({ country_code: r.country_code, country: r.country }))
   .sort((a, b) => b.purchase_value_usd - a.purchase_value_usd || b.purchases - a.purchases || b.spend_usd - a.spend_usd);
-const productFamilies = aggregateBy(adCountryDaily, (r) => r.product_family, (r) => ({ product_family: r.product_family }))
+const productFamilies = aggregateBy(adMetricRows, (r) => r.product_family, (r) => ({ product_family: r.product_family }))
   .sort((a, b) => b.purchases - a.purchases || b.purchase_value_usd - a.purchase_value_usd || b.spend_usd - a.spend_usd);
-const productSubtypes = aggregateBy(adCountryDaily, (r) => `${r.product_family}::${r.product_subtype}`, (r) => ({ product_family: r.product_family, product_subtype: r.product_subtype }))
+const productSubtypes = aggregateBy(adMetricRows, (r) => `${r.product_family}::${r.product_subtype}`, (r) => ({ product_family: r.product_family, product_subtype: r.product_subtype }))
   .sort((a, b) => b.purchases - a.purchases || b.purchase_value_usd - a.purchase_value_usd || b.spend_usd - a.spend_usd);
-const fxRates = [...new Map(adCountryDaily.map((r) => [r.date, {
+const fxRates = [...new Map(adMetricRows.map((r) => [r.date, {
   date: r.date,
   account_currency: accountCurrency,
   ...fxMetaFromRow(r),
@@ -705,6 +709,7 @@ const out = {
   data_coverage: {
     adset_daily_rows: currentAdsetRows.length,
     adset_country_daily_rows: currentAdsetCountryRows.length,
+    ad_daily_rows: adDaily.length,
     ad_country_daily_rows: adCountryDaily.length,
     all_adsets: allAdsets.length,
     usa_adsets: [...byAdset.values()].filter((a) => a.rows.some((r) => r.spend > 0)).length,
@@ -735,6 +740,7 @@ const out = {
   countries,
   product_families: productFamilies,
   product_subtypes: productSubtypes,
+  ad_daily: adDaily,
   ad_country_daily: adCountryDaily,
 };
 const outPath = path.resolve('public/data/adset-radar.json');
