@@ -15,6 +15,8 @@
     "test:email-channel": "node scripts/email-channel-smoke-test.mjs",
     "inspect:live-order": "node scripts/inspect-live-order.mjs",
     "test:dashboard": "node scripts/dashboard-regression-test.mjs",
+    "test:campaign-attribution": "node scripts/campaign-attribution-test.mjs",
+    "test:reporting-data": "node scripts/reporting-data-contract-test.mjs",
     "test:kpi-insights": "node scripts/business-kpi-insights-test.mjs",
     "test:funnel": "node scripts/funnel-analytics-test.mjs",
     "test:revenue-scope": "node scripts/revenue-scope-test.mjs",

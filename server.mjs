@@ -299,7 +299,49 @@ function shopifyCacheNeedsHistoricalBackfill(filePath) {
   return !since || since > SHOPIFY_HISTORICAL_SINCE;
 }
 
+function readDataPeriod(filePath) {
+  const data = readJsonCached(filePath) || {};
+  const period = data.period || data.analysis_window || {};
+  return {
+    since: period.since || '',
+    until: period.until || '',
+  };
+}
+
+function cacheUntilBeforeToday(filePath, timeZone) {
+  if (!fs.existsSync(filePath)) return true;
+  const { until } = readDataPeriod(filePath);
+  const today = dateInTimezone(new Date(), timeZone);
+  return Boolean(today && (!until || until < today));
+}
+
+function metaCacheNeedsRefresh(filePath) {
+  if (cacheUntilBeforeToday(filePath, metaReportingTimezone)) return true;
+  const { since } = readDataPeriod(filePath);
+  const desiredSince = process.env.META_SINCE || process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
+  return Boolean(since && desiredSince && since > desiredSince);
+}
+
+function shopifyCacheNeedsRefresh(filePath) {
+  return shopifyCacheNeedsHistoricalBackfill(filePath) || cacheUntilBeforeToday(filePath, shopifyReportingTimezone);
+}
+
+function dataCacheNeedsRefresh(filePath, script) {
+  if (script === 'fetch:meta') return metaCacheNeedsRefresh(filePath);
+  if (script === 'fetch:shopify') return shopifyCacheNeedsRefresh(filePath);
+  return false;
+}
+
 let shopifyFetchPromise = null;
+let metaFetchPromise = null;
+
+function runMetaFetch(extraEnv = {}) {
+  if (metaFetchPromise) return metaFetchPromise;
+  metaFetchPromise = runScript('fetch:meta', extraEnv).finally(() => {
+    metaFetchPromise = null;
+  });
+  return metaFetchPromise;
+}
 
 function runShopifyFetch(extraEnv = {}) {
   if (shopifyFetchPromise) return shopifyFetchPromise;
@@ -1437,6 +1479,7 @@ async function serveData(req, res, name, script) {
   }
 
   const behaviorStale = script === 'fetch:behavior' && !force && behaviorNeedsRefresh(file);
+  const dataStale = !force && script !== 'fetch:behavior' && fs.existsSync(file) && dataCacheNeedsRefresh(file, script);
 
   // Behavior: never block the HTTP response on a full regeneration (it hits Meta +
   // Shopify and parses the entire session-event log, which can take minutes). When a
@@ -1450,13 +1493,15 @@ async function serveData(req, res, name, script) {
     return;
   }
 
-  if (force || !fs.existsSync(file) || behaviorStale) {
+  if (force || !fs.existsSync(file) || behaviorStale || dataStale) {
     const env = script === 'fetch:behavior'
       ? behaviorBackfillEnv(dateEnvFromUrl(url))
       : dateEnvFromUrl(url);
     const result = script === 'fetch:shopify'
       ? await runShopifyFetch(env)
-      : await runScript(script, env);
+      : script === 'fetch:meta'
+        ? await runMetaFetch(env)
+        : await runScript(script, env);
     if (result?.code !== 0) {
       console.warn(result?.output || `${script} failed`);
       if (!fs.existsSync(file)) {

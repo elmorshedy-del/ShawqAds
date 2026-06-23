@@ -150,7 +150,7 @@ function productCandidates(metaRows, campaignId, countryCode, family, subtype, o
   const grouped = new Map();
   for (const row of metaRows || []) {
     if (campaignId && row.campaign_id !== campaignId) continue;
-    if (countryCode && row.country_code !== countryCode) continue;
+    if (countryCode && row.country_code && row.country_code !== countryCode) continue;
     if (row.product_family !== family) continue;
     if (!familyOnly && row.product_subtype !== subtype) continue;
     if (!row.ad_id) continue;
@@ -213,7 +213,8 @@ function collectSalesGaps(nodes, out = [], path = []) {
 }
 
 export function buildCampaignAttribution(meta, shopify) {
-  const metaRows = meta?.ad_country_daily || [];
+  const metaRows = meta?.ad_daily?.length ? meta.ad_daily : (meta?.ad_country_daily || []);
+  const countryMetaRows = meta?.ad_country_daily?.length ? meta.ad_country_daily : metaRows;
   const campaigns = new Map();
   const campaignRows = [];
   const adsetRows = [];
@@ -247,7 +248,7 @@ export function buildCampaignAttribution(meta, shopify) {
     adRows.push(row);
   }
 
-  const countryCampaigns = dominantCampaignByCountry(metaRows);
+  const countryCampaigns = dominantCampaignByCountry(countryMetaRows);
   const unresolved = [];
 
   for (const line of shopify?.order_lines || []) {
@@ -297,7 +298,7 @@ export function buildCampaignAttribution(meta, shopify) {
       continue;
     }
 
-    const candidates = bestInferredCandidate(metaRows, campaign.campaign_id, line.country_code, line.family, line.subtype);
+    const candidates = bestInferredCandidate(countryMetaRows.length ? countryMetaRows : metaRows, campaign.campaign_id, line.country_code, line.family, line.subtype);
     if (candidates.top) {
       const adset = getAdset(campaign, candidates.top);
       const ad = getAd(adset, candidates.top);

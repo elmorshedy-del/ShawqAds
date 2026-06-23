@@ -458,6 +458,7 @@ function loadedDateRange(meta, shopify) {
   addMeta(meta?.analysis_window?.since); addMeta(meta?.analysis_window?.until);
   addShopify(shopify?.period?.since); addShopify(shopify?.period?.until);
   (meta?.adsets || []).forEach((adset) => (adset.rows || []).forEach((row) => addMeta(row.date)));
+  (meta?.ad_daily || []).forEach((row) => addMeta(row.date));
   (meta?.ad_country_daily || []).forEach((row) => addMeta(row.date));
   (meta?.account_daily_metrics || []).forEach((row) => addMeta(row.date));
   (shopify?.daily || []).forEach((row) => addShopify(row.date));
@@ -562,11 +563,13 @@ function aggregateMetaRows(rows, keyFn, seedFn) {
 }
 function filterMetaDataByDateRange(meta, range) {
   const adRows = filterRowsByDateRange(meta?.ad_country_daily || [], range);
-  const hasWindowableAdRows = Boolean(meta?.ad_country_daily?.length);
+  const adDailyRows = filterRowsByDateRange(meta?.ad_daily || [], range);
+  const metricAdRows = adDailyRows.length ? adDailyRows : adRows;
+  const hasWindowableAdRows = Boolean(meta?.ad_daily?.length || meta?.ad_country_daily?.length);
   const adsets = (meta?.adsets || [])
     .map((adset) => ({ ...adset, rows: filterRowsByDateRange(adset.rows || [], range) }))
     .filter((adset) => adset.rows.length);
-  const ads = adRows.length ? aggregateMetaRows(adRows, adRollupKey, (row) => ({
+  const ads = metricAdRows.length ? aggregateMetaRows(metricAdRows, adRollupKey, (row) => ({
     campaign_id: '',
     campaign_name: '',
     adset_id: '',
@@ -576,7 +579,7 @@ function filterMetaDataByDateRange(meta, range) {
     product_family: row.product_family,
     product_subtype: row.product_subtype,
   })) : (hasWindowableAdRows ? [] : (meta?.ads || []));
-  const allAdsets = adRows.length ? aggregateMetaRows(adRows, (row) => row.adset_id || localKey([row.campaign_id, row.adset_name]), (row) => ({
+  const allAdsets = metricAdRows.length ? aggregateMetaRows(metricAdRows, (row) => row.adset_id || localKey([row.campaign_id, row.adset_name]), (row) => ({
     campaign_id: row.campaign_id,
     campaign_name: row.campaign_name,
     adset_id: row.adset_id,
@@ -597,6 +600,7 @@ function filterMetaDataByDateRange(meta, range) {
     all_adsets: allAdsets,
     countries,
     account_daily_metrics: accountDaily,
+    ad_daily: adDailyRows,
     ad_country_daily: adRows,
     adset_country_daily: adsetCountryDaily,
     adset_changes: filterRowsByDateRange(meta?.adset_changes || [], range),
@@ -607,6 +611,7 @@ function filterMetaDataByDateRange(meta, range) {
       usa_adsets: allAdsets.filter((row) => row.country_code === 'US' || /(^|_)usa|usa_|us_/i.test(`${row.campaign_name || ''} ${row.adset_name || ''}`)).length,
       ads: ads.length,
       countries: countries.length,
+      ad_daily_rows: adDailyRows.length,
       ad_country_daily_rows: adRows.length,
       adset_country_daily_rows: adsetCountryDaily.length,
     },
@@ -2607,6 +2612,12 @@ function App() {
   const productData = useMemo(() => filterShopifyByDateRange(baseProductData, activeDateRange), [baseProductData, activeDateRange]);
   const launchData = useMemo(() => filterMetaDataByDateRange(baseData, launchDateRange), [baseData, launchDateRange]);
   const launchProductData = useMemo(() => filterShopifyByDateRange(baseProductData, launchDateRange), [baseProductData, launchDateRange]);
+  const countryRoasDateRange = useMemo(() => clampDateRange({
+    since: CAMPAIGN_LAUNCH_DATE,
+    until: loadedBounds.common_until || launchDateRange.until,
+  }, loadedBounds), [loadedBounds, launchDateRange]);
+  const countryRoasData = useMemo(() => filterMetaDataByDateRange(baseData, countryRoasDateRange), [baseData, countryRoasDateRange]);
+  const countryRoasProductData = useMemo(() => filterShopifyByDateRange(baseProductData, countryRoasDateRange), [baseProductData, countryRoasDateRange]);
   const emailPanelDateRange = useMemo(
     () => (emailPanelScope === 'launch' ? launchDateRange : activeDateRange),
     [emailPanelScope, launchDateRange, activeDateRange],
@@ -2679,7 +2690,7 @@ function App() {
     ? `Meta checked ${saleTime(metaMonitor.checkedAt)}`
     : `Refreshed ${data.generated_at ? new Date(data.generated_at).toLocaleString() : 'now'}`;
   const accountDaily = useMemo(() => {
-    const accountRows = data.account_daily_metrics?.length ? data.account_daily_metrics : accountDailyFromAdRows(data.ad_country_daily || []);
+    const accountRows = data.account_daily_metrics?.length ? data.account_daily_metrics : accountDailyFromAdRows(data.ad_daily?.length ? data.ad_daily : (data.ad_country_daily || []));
     return accountRows.length ? accountRows : (data.daily_metrics || aggregateRows(data.adsets || []));
   }, [data]);
   const allLoadedDateRange = useMemo(() => ({
@@ -2700,7 +2711,7 @@ function App() {
     [baseProductData?.daily, allLoadedDateRange.since, allLoadedDateRange.until],
   );
   const allLoadedAccountDaily = useMemo(() => {
-    const accountRows = allLoadedData.account_daily_metrics?.length ? allLoadedData.account_daily_metrics : accountDailyFromAdRows(allLoadedData.ad_country_daily || []);
+    const accountRows = allLoadedData.account_daily_metrics?.length ? allLoadedData.account_daily_metrics : accountDailyFromAdRows(allLoadedData.ad_daily?.length ? allLoadedData.ad_daily : (allLoadedData.ad_country_daily || []));
     return accountRows.length ? accountRows : (allLoadedData.daily_metrics || aggregateRows(allLoadedData.adsets || []));
   }, [allLoadedData]);
   const emailDailyIndex = useMemo(() => buildEmailDailyIndex(baseProductData?.order_lines || []), [baseProductData?.order_lines]);
@@ -2721,7 +2732,7 @@ function App() {
   const deliveryComparison = baseData.delivery_comparison || {};
   const deliveryShopifyComparison = baseProductData.delivery_comparison || {};
   const adsetPerfById = useMemo(() => new Map((data.all_adsets || []).map((row) => [row.adset_id, row])), [data]);
-  const launchCountryMetaByCode = useMemo(() => new Map((launchData.countries || []).map((row) => [row.country_code, row])), [launchData]);
+  const countryRoasMetaByCode = useMemo(() => new Map((countryRoasData.countries || []).map((row) => [row.country_code, row])), [countryRoasData]);
 
   const filterProps = {
     selected,
@@ -2820,13 +2831,13 @@ function App() {
   const growth = adapt.toProductDevelopment(launchProductData);
   const decisions = adapt.toAdSetDecisions(filtered, adsetPerfById, statusLabels);
   const productDemand = adapt.toProductDemand(launchProductData, launchDateRange.since);
-  const countrySales = adapt.toCountrySales(launchProductData.countries || [], launchCountryMetaByCode);
+  const countrySales = adapt.toCountrySales(countryRoasProductData.countries || [], countryRoasMetaByCode);
   // Trailing-window country aggregates (Today / 3D / 7D / 14D) for the panel's range toggle.
   // Each window re-runs the exact same filter + adapt pipeline as the "All" view
   // above, just over a shorter trailing range — so no business logic is recomputed,
   // every figure stays calculation-identical to the launch-window view.
   const countrySalesWindows = useMemo(() => {
-    const anchor = loadedBounds.until || loadedBounds.calendar_until || currentReportingDay();
+    const anchor = countryRoasDateRange.until || loadedBounds.common_until || loadedBounds.until || currentReportingDay();
     if (!anchor) return {};
     const build = (sinceDays) => {
       const win = clampDateRange({ since: shiftDate(anchor, sinceDays), until: anchor }, loadedBounds);
@@ -2836,7 +2847,7 @@ function App() {
       return adapt.toCountrySales(ws.countries || [], metaByCode);
     };
     return { Today: build(0), '3D': build(-2), '7D': build(-6), '14D': build(-13) };
-  }, [baseProductData, baseData, loadedBounds]);
+  }, [baseProductData, baseData, loadedBounds, countryRoasDateRange.until]);
   // Mobile "Top movers" — today's leader as the hero, with the current week and
   // previous week as comparison windows (paid-ads only; email orders excluded).
   const topMovers = useMemo(() => {
