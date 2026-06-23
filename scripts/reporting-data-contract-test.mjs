@@ -101,6 +101,12 @@ assertIncludes(
 
 assertIncludes(
   app,
+  'products tied',
+  'Top movers product winner must disclose count ties instead of crowning one product by revenue.',
+);
+
+assertIncludes(
+  app,
   'Number(b.shopify_revenue_usd || 0)',
   'Top movers ad count ties should break on Shopify revenue before Meta spend.',
 );

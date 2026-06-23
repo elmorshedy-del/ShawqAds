@@ -1504,10 +1504,22 @@ function pickTopCountryByUnits(countries = []) {
     [0] || null;
 }
 function pickTopProductByUnits(products = []) {
-  const top = [...(products || [])]
-    .sort((a, b) => Number(b.units || 0) - Number(a.units || 0) || Number(b.revenue_usd || 0) - Number(a.revenue_usd || 0))
-    [0];
+  const sorted = [...(products || [])]
+    .sort((a, b) => Number(b.units || 0) - Number(a.units || 0) || String(a.product || '').localeCompare(String(b.product || '')));
+  const top = sorted[0];
   if (!top) return null;
+  const topUnits = Number(top.units || 0);
+  const tied = sorted.filter((row) => Number(row.units || 0) === topUnits);
+  if (tied.length > 1) {
+    const names = tied.map((row) => row.product || row.family || 'Product');
+    return {
+      initial: 'T',
+      name: `${tied.length} products tied`,
+      category: names.slice(0, 2).join(' + ') + (names.length > 2 ? ` + ${names.length - 2} more` : ''),
+      units: topUnits,
+      revenue: tied.reduce((total, row) => total + Number(row.revenue_usd || 0), 0),
+    };
+  }
   return adapt.toProductLeaders([top], 1)[0] || null;
 }
 function pickTopAdBySales(adRows = []) {
