@@ -1,6 +1,6 @@
 # Checkout session replay research (ShawQ)
 
-**Updated:** 2026-06-26
+**Last Updated:** 2026-06-26
 
 ## User ask
 
