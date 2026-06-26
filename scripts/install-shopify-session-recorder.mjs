@@ -19,14 +19,14 @@ for (const envPath of envPaths) {
   }
 }
 
-const token = process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN;
+const token = process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN;
 const store = process.env.SHAWQ_SHOPIFY_STORE || process.env.SHOPIFY_STORE || 'f3e7e9-2.myshopify.com';
 const apiVersion = process.env.SHOPIFY_API_VERSION || '2025-10';
 const publicBase = process.env.SHAWQ_PUBLIC_APP_URL || 'https://shawq-ads-production.up.railway.app';
 const src = recorderScriptTagSrc(publicBase);
 
 if (!token) {
-  console.error('Missing SHAWQ_SHOPIFY_ACCESS_TOKEN. Set it in Railway or .env and retry.');
+  console.error('Missing SHAWQ_SHOPIFY_ACCESS_TOKEN or SHOPIFY_ACCESS_TOKEN. Set it in Railway or .env and retry.');
   process.exit(1);
 }
 
