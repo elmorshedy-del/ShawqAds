@@ -35,6 +35,8 @@ Use this file to find code by feature. Open the listed paths directly instead of
 | Shopify products/orders | `public/data/shopify-products.json` | `SHOPIFY_BACKFILL_START_DATE=2026-02-01` |
 | Behavior intelligence | `public/data/behavior-intelligence.json` | `fetch:behavior`; page_facts from full `session-events.ndjson` |
 | Session events (append-only) | `data/session-events.ndjson` | `POST /api/session-events`; not in git |
+| Session replay (append-only) | `data/session-replay.ndjson` | `POST /api/session-replay`; theme script `shopify/theme-session-replay.js` |
+| Session replay index | `data/session-replay-index.json` | Built from replay chunks + pixel checkout sessions |
 | Reporting timezone | `Europe/Istanbul` | `REPORTING_TIMEZONE` in `App.jsx` |
 | Production | https://shawq-ads-production.up.railway.app/ | `/health` |
 
@@ -42,7 +44,7 @@ Use this file to find code by feature. Open the listed paths directly instead of
 
 | Task | Edit these | Do not touch unless asked |
 |------|------------|---------------------------|
-| Behavior / dwell | `dwellStats.js`, `pagePath.js`, `BehaviorAnalytics.tsx`, `fetch-behavior-intelligence.mjs` | KPI cards, `RevenueChart`, unrelated `App.jsx` |
+| Behavior / dwell | `dwellStats.js`, `pagePath.js`, `BehaviorAnalytics.tsx`, `SessionReplayPanel.tsx`, `sessionReplay.js`, `fetch-behavior-intelligence.mjs`, `shopify/theme-session-replay.js` | KPI cards, `RevenueChart`, unrelated `App.jsx` |
 | KPI badges | `businessKpiInsights.js`, `KpiCard.tsx`, `kpiRecord*` in `App.jsx` | Behavior rollups |
 | Location labels | `orderLocality.js`, `orderResolver.mjs` | KPI, charts |
 | Email campaign | `emailCampaignSummary.js`, `EmailCampaign.tsx`, `orderChannel.mjs` | KPI logic |
@@ -60,6 +62,8 @@ Use this file to find code by feature. Open the listed paths directly instead of
 ```bash
 npm run test:order-merchandise
 npm run test:order-locality
+npm run test:session-events
+npm run test:session-replay
 npm run test:dwell-stats
 npm run test:kpi-insights
 npm run test:dashboard

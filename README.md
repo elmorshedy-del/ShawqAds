@@ -222,6 +222,36 @@ Local ingest smoke test:
 npm run test:session-events
 ```
 
+## Checkout session replay (Clarity-style)
+
+The Behavior tab replays checkout sessions using three layers:
+
+1. **Storefront DOM (rrweb)** — hosted at `/shopify/session-recorder.js`, auto-installable via Shopify ScriptTag.
+2. **Hosted checkout steps** — Customer Events pixel → animated **Checkout journey replay** + step timeline (works on `checkout.shopify.com` where DOM recording is blocked).
+3. **Full checkout DOM (Partner path)** — requires Shopify Advanced DOM app scope; see `extensions/shawq-advanced-dom-pixel/README.md` and `memory/12-checkout-replay-research.md`.
+
+### Auto-install storefront recorder
+
+```bash
+# Needs SHAWQ_SHOPIFY_ACCESS_TOKEN with write_script_tags scope
+npm run install:shopify-recorder
+curl https://YOUR_APP/api/shopify/recorder/status
+```
+
+### Manual pixel install (still required)
+
+Shopify does not expose Admin API to create Custom Pixels. Paste `shopify/customer-events-pixel.js` into **Settings → Customer events**.
+
+### Verify
+
+```bash
+curl https://YOUR_APP/api/session-replay/status
+npm run test:session-replay
+npm run test:checkout-theater
+```
+
+**Research note:** Microsoft Clarity uses a official Shopify App + Advanced DOM Events (Plus for checkout DOM). ShawQ matches that split: rrweb on storefront, pixel theater on hosted checkout, Partner scaffold for true checkout DOM when scope is approved.
+
 ## Deployment
 
 Render and Railway configs are included:

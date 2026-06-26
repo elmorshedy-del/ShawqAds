@@ -1,29 +1,34 @@
 # Repository Map
 
-**Last Updated:** 2026-06-15
+**Last Updated:** 2026-06-26
 
 ---
 
 ## Manifests
 
-| Path            | Type       | Name              | Dependencies                                                                                                                               |
-| --------------- | ---------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `package.json`  | node       | shawq-adset-radar | @nivo/bar, @nivo/core, @nivo/line, @radix-ui/react-label, @radix-ui/react-select, @tailwindcss/vite, @types/d3-geo, @types/topojson-client |
-| `tsconfig.json` | typescript |                   |                                                                                                                                            |
+| Path                            | Type       | Name              | Dependencies                                                                                                                               |
+| ------------------------------- | ---------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `deploy/agentmemory/Dockerfile` | docker     |                   |                                                                                                                                            |
+| `package.json`                  | node       | shawq-adset-radar | @nivo/bar, @nivo/core, @nivo/line, @radix-ui/react-label, @radix-ui/react-select, @tailwindcss/vite, @types/d3-geo, @types/topojson-client |
+| `tsconfig.json`                 | typescript |                   |                                                                                                                                            |
 
 ## Source Files
 
 - `shopify/customer-events-pixel.js`
+- `shopify/pdp-intelligence-probe.js`
+- `shopify/theme-session-replay.js`
 - `src/App.jsx`
 - `src/components/dashboard/AdSetDecisionTable.tsx`
 - `src/components/dashboard/BehaviorAnalytics.tsx`
 - `src/components/dashboard/Benchmarks.tsx`
 - `src/components/dashboard/CampaignRoasTree.tsx`
+- `src/components/dashboard/CheckoutTheater.tsx`
 - `src/components/dashboard/CountrySalesPanel.tsx`
 - `src/components/dashboard/DailyDelivery.tsx`
 - `src/components/dashboard/DataTable.tsx`
 - `src/components/dashboard/DevelopingGrowth.tsx`
 - `src/components/dashboard/EmailCampaign.tsx`
+- `src/components/dashboard/FunnelAnalytics.tsx`
 - `src/components/dashboard/HistoricalInsights.tsx`
 - `src/components/dashboard/KpiCard.tsx`
 - `src/components/dashboard/LeadershipTables.tsx`
@@ -34,6 +39,7 @@
 - `src/components/dashboard/ProductDemand.tsx`
 - `src/components/dashboard/RevenueChart.tsx`
 - `src/components/dashboard/SalesLeaders.tsx`
+- `src/components/dashboard/SessionReplayPanel.tsx`
 - `src/components/dashboard/Sidebar.tsx`
 - `src/components/dashboard/TopMovers.tsx`
 - `src/components/dashboard/UsaComparison.tsx`
@@ -43,20 +49,30 @@
 - `src/features/adset-radar/constants.js`
 - `src/features/product-demand/constants.js`
 - `src/lib/adapt.js`
+- `src/lib/behaviorPersistence.js`
 - `src/lib/businessKpiInsights.js`
 - `src/lib/campaignAttribution.js`
+- `src/lib/checkoutTheater.js`
 - `src/lib/dashboard-data.ts`
 - `src/lib/dwellStats.js`
 - `src/lib/emailCampaignSummary.js`
 - `src/lib/format.js`
+- `src/lib/funnelAnalytics.js`
 - `src/lib/historicalInsights.js`
 - `src/lib/kpiConfetti.js`
 - `src/lib/orderDropRankings.js`
 - `src/lib/orderLocality.js`
 - `src/lib/orderMerchandise.js`
+- `src/lib/pageCategory.js`
 - `src/lib/pagePath.js`
 - `src/lib/productMapping.js`
+- `src/lib/reportingBounds.js`
+- `src/lib/revenueScope.js`
+- `src/lib/sampleTiers.js`
+- `src/lib/sessionRecorderInstall.js`
+- `src/lib/sessionReplay.js`
 - `src/lib/statsTests.js`
+- `src/lib/trafficSource.js`
 - `src/lib/utils.ts`
 - `src/main.jsx`
 - `vite.config.js`
@@ -77,6 +93,7 @@
 ## Documentation and Agent Files
 
 - `README.md`
+- `extensions/shawq-advanced-dom-pixel/README.md`
 - `memory/README.md`
 - `AGENTS.md`
 

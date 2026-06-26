@@ -1,6 +1,6 @@
 # Development Workflow
 
-**Last Updated:** 2026-06-15
+**Last Updated:** 2026-06-26
 
 ---
 
@@ -20,4 +20,5 @@
 ## README Files
 
 - `README.md`
+- `extensions/shawq-advanced-dom-pixel/README.md`
 - `memory/README.md`
