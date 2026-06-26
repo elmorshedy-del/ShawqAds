@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Film, PlayCircle, RefreshCw, Video } from "lucide-react";
+import { CheckoutTheater } from "@/components/dashboard/CheckoutTheater";
+import { Film, PlayCircle, RefreshCw, Video, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { pagePathLabel } from "@/lib/pagePath";
 
@@ -31,6 +32,13 @@ interface ReplayPayload {
   checkout_outcome?: string;
   checkout_outcome_label?: string;
   checkout_timeline?: ReplayTimelineRow[];
+  checkout_theater?: {
+    frames?: any[];
+    reached_steps?: string[];
+    last_step_id?: string;
+    duration_ms?: number;
+    outcome?: string;
+  };
   events?: any[];
 }
 
@@ -151,6 +159,7 @@ export function SessionReplayPanel() {
   const [selectedKey, setSelectedKey] = useState("");
   const [payload, setPayload] = useState<ReplayPayload | null>(null);
   const [status, setStatus] = useState<{ configured?: boolean; checkout_sessions?: number } | null>(null);
+  const [recorderStatus, setRecorderStatus] = useState<{ installed?: boolean; hosted_src?: string; error?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState("");
@@ -164,16 +173,19 @@ export function SessionReplayPanel() {
     setLoading(true);
     setError("");
     try {
-      const [indexRes, statusRes] = await Promise.all([
+      const [indexRes, statusRes, recorderRes] = await Promise.all([
         fetch("/api/session-replay/index?limit=20", { cache: "no-store" }),
         fetch("/api/session-replay/status", { cache: "no-store" }),
+        fetch("/api/shopify/recorder/status", { cache: "no-store" }),
       ]);
       const indexJson = await indexRes.json();
       const statusJson = await statusRes.json();
+      const recorderJson = await recorderRes.json();
       if (!indexRes.ok) throw new Error(indexJson.error || "Could not load replay sessions");
       const rows = Array.isArray(indexJson.sessions) ? indexJson.sessions : [];
       setSessions(rows);
       setStatus(statusJson);
+      setRecorderStatus(recorderJson);
       if (!selectedKey && rows[0]?.session_key) setSelectedKey(rows[0].session_key);
     } catch (loadError: any) {
       setError(loadError.message || "Could not load checkout replays");
@@ -234,13 +246,28 @@ export function SessionReplayPanel() {
 
       <div className="rounded-lg border border-border bg-surface px-3 py-2 text-[0.7rem] leading-relaxed text-muted-foreground">
         <p>
-          <span className="font-medium text-foreground">Setup:</span> paste{" "}
-          <code className="rounded bg-surface-2 px-1 py-0.5">shopify/theme-session-replay.js</code> into your theme and keep{" "}
-          <code className="rounded bg-surface-2 px-1 py-0.5">shopify/customer-events-pixel.js</code> connected. Hosted Shopify checkout cannot be DOM-recorded from the theme; those steps appear in the timeline only.
+          <span className="font-medium text-foreground">Auto setup:</span> ShawQ can inject the storefront recorder via Shopify ScriptTag at{" "}
+          <code className="rounded bg-surface-2 px-1 py-0.5">/shopify/session-recorder.js</code> when the Admin token has{" "}
+          <code className="rounded bg-surface-2 px-1 py-0.5">write_script_tags</code>. The Customer Events pixel still installs manually in Shopify Admin.
+        </p>
+        <p className="mt-1 flex flex-wrap items-center gap-2">
+          <Wrench className="h-3.5 w-3.5" />
+          Recorder script tag:{" "}
+          {recorderStatus?.installed ? (
+            <span className="font-medium text-positive">installed</span>
+          ) : (
+            <span className="font-medium text-gold">not detected — run npm run install:shopify-recorder</span>
+          )}
+          {recorderStatus?.hosted_src ? (
+            <span className="break-all text-[0.65rem]">{recorderStatus.hosted_src}</span>
+          ) : null}
+        </p>
+        <p className="mt-1">
+          Hosted checkout (<code className="rounded bg-surface-2 px-1 py-0.5">checkout.shopify.com</code>) cannot be DOM-recorded from theme or custom pixels. Clarity/Fullstory use Shopify&apos;s Advanced DOM app scope (Plus). ShawQ replays those steps via the pixel journey theater below; full checkout DOM requires the Partner app path in <code className="rounded bg-surface-2 px-1 py-0.5">extensions/shawq-advanced-dom-pixel/</code>.
         </p>
         {status ? (
           <p className="mt-1">
-            Recorder status: {status.configured ? `${status.checkout_sessions || 0} checkout sessions indexed` : "waiting for first replay chunk"}
+            Replay index: {status.configured ? `${status.checkout_sessions || 0} checkout sessions indexed` : "waiting for first replay chunk"}
           </p>
         ) : null}
       </div>
@@ -321,9 +348,11 @@ export function SessionReplayPanel() {
                 </div>
               )}
 
+              <CheckoutTheater theater={payload.checkout_theater} />
+
               <div>
                 <p className="mb-2 text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Checkout step timeline
+                  Raw checkout step timeline
                 </p>
                 <CheckoutTimeline rows={payload.checkout_timeline || []} />
               </div>

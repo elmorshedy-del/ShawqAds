@@ -1,30 +1,36 @@
 # Agent Handoff
 
-**Last Updated:** 2026-06-15
+**Last Updated:** 2026-06-26
 
 ---
 
 ## Current State
 
-- **agentmemory on Railway:** live at https://agentmemory-production-dcdc.up.railway.app (`GET /agentmemory/livez`).
-- **Cursor MCP:** set `AGENTMEMORY_URL` + `AGENTMEMORY_SECRET` in project MCP env (secret from Railway deploy logs once).
-- **Deploy bundle:** `deploy/agentmemory/` — use `deploy/agentmemory/railway.json`, not repo root `railway.json`.
+- Last agent: cursor
+- Last event: checkpoint
+- Last message: Added Clarity-style checkout session replay: theme rrweb recorder, /api/session-replay ingest+index APIs, SessionReplayPanel in Behavior tab.
 
 ## Recent Events
 
+- 2026-06-26T06:53:01.719Z | cursor | checkpoint: Added Clarity-style checkout session replay: theme rrweb recorder, /api/session-replay ingest+index APIs, SessionReplayPanel in Behavior tab.
 - 2026-06-15T17:20:59.800Z | cursor | checkpoint: Initialize RavByte AMS memory/ + Railway agentmemory deploy docs; ams-memory rule, npm scripts, AGENTS.md stack update
 
 ## Next Steps
 
-1. Add `AGENTMEMORY_URL` and `AGENTMEMORY_SECRET` to Cursor project MCP env (phone/cloud agents).
-2. Merge `cursor/agentmemory-railway-deploy-d573` to `main` and point Railway service at `main`.
+- [INCOMPLETE] Add next steps during checkpoints or handoffs.
 
 ## Files Mentioned
 
+- `server.mjs`
+- `src/lib/sessionReplay.js`
+- `src/components/dashboard/SessionReplayPanel.tsx`
+- `shopify/theme-session-replay.js`
+- `scripts/session-replay-smoke-test.mjs`
 - `memory/`
 - `AGENTS.md`
 - `.cursor/rules/ams-memory.mdc`
 - `deploy/agentmemory/RAILWAY.md`
 ## Graph Context for Mentioned Files
 
+- `server.mjs` — layer: utils, importedBy: 1, health: 48/100
 - `AGENTS.md` — layer: utils, importedBy: 0, health: 100/100

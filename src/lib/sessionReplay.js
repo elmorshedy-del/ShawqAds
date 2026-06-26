@@ -89,7 +89,7 @@ export function eventClientId(raw = {}) {
 export function eventSessionKey(raw = {}) {
   const sessionId = eventSessionId(raw);
   const clientId = eventClientId(raw);
-  return hashSessionKey(sessionId || clientId || raw.id || raw.payload?.id || '');
+  return hashSessionKey(clientId || sessionId || raw.id || raw.payload?.id || '');
 }
 
 export function isCheckoutRelatedPath(path = '') {
@@ -132,6 +132,7 @@ export function summarizePixelTimeline(events = []) {
       timestamp: event.timestamp || event.ts || '',
       path: event.path || '',
       country_code: event.country_code || '',
+      line_items: Array.isArray(event.line_items) ? event.line_items.slice(0, 6) : [],
     }));
 }
 
@@ -159,6 +160,7 @@ export function readSessionEventsByKey(sessionEventsPath) {
       country_code: countryFromEvent(raw),
       session_id: eventSessionId(raw),
       client_id: eventClientId(raw),
+      line_items: Array.isArray(raw.line_items) ? raw.line_items : Array.isArray(raw.payload?.line_items) ? raw.payload.line_items : [],
     });
     byKey.set(key, list);
   }
@@ -197,7 +199,7 @@ function pathDir(filePath) {
 }
 
 export function upsertReplayIndexEntry(indexSessions = [], entry = {}) {
-  const sessionKey = entry.session_key || hashSessionKey(entry.session_id || entry.client_id);
+  const sessionKey = entry.session_key || hashSessionKey(entry.client_id || entry.session_id);
   if (!sessionKey) return indexSessions;
   const next = [...indexSessions];
   const existingIndex = next.findIndex((row) => row.session_key === sessionKey);
@@ -283,15 +285,16 @@ export function listCheckoutReplaySessions(replayIndexPath, { limit = 25 } = {})
     }));
 }
 
-export function loadSessionReplayChunks(replayPath, sessionKey, sessionId = '') {
+export function loadSessionReplayChunks(replayPath, sessionKey, sessionId = '', clientId = '') {
   if (!replayPath || !fs.existsSync(replayPath)) {
     return { events: [], chunks: 0 };
   }
-  const altKey = hashSessionKey(sessionId);
+  const altSessionKey = hashSessionKey(sessionId);
+  const altClientKey = hashSessionKey(clientId);
   const rows = parseNdjsonLines(fs.readFileSync(replayPath, 'utf8'))
     .filter((row) => {
-      const key = hashSessionKey(row.session_id || row.client_id);
-      return key === sessionKey || (altKey && key === altKey);
+      const key = hashSessionKey(row.client_id || row.session_id);
+      return key === sessionKey || (altSessionKey && key === altSessionKey) || (altClientKey && key === altClientKey);
     })
     .sort((a, b) => Number(a.chunk_seq || 0) - Number(b.chunk_seq || 0));
   const events = [];
@@ -301,10 +304,11 @@ export function loadSessionReplayChunks(replayPath, sessionKey, sessionId = '') 
   return { events, chunks: rows.length };
 }
 
-export function loadSessionPixelEvents(sessionEventsPath, sessionKey, sessionId = '') {
+export function loadSessionPixelEvents(sessionEventsPath, sessionKey, sessionId = '', clientId = '') {
   const byKey = readSessionEventsByKey(sessionEventsPath);
-  const altKey = hashSessionKey(sessionId);
-  return byKey.get(sessionKey) || byKey.get(altKey) || [];
+  const altSessionKey = hashSessionKey(sessionId);
+  const altClientKey = hashSessionKey(clientId);
+  return byKey.get(sessionKey) || byKey.get(altSessionKey) || byKey.get(altClientKey) || [];
 }
 
 export function sessionReplayStatus(replayPath, replayIndexPath) {

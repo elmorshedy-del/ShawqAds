@@ -29,6 +29,7 @@ flowchart LR
 
 - `README.md`
 - `deploy/agentmemory/Dockerfile`
+- `extensions/shawq-advanced-dom-pixel/README.md`
 - `shopify/pdp-intelligence-probe.js`
 - `src/components/dashboard/BehaviorAnalytics.tsx`
 - `src/components/dashboard/DailyDelivery.tsx`

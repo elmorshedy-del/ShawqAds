@@ -17,7 +17,7 @@
 | Languages        | JavaScript, TypeScript |
 | Frameworks       | React                  |
 | Manifests        | 3                      |
-| Source files     | 59                     |
+| Source files     | 62                     |
 
 ## Quick Start
 

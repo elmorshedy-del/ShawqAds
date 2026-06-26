@@ -92,6 +92,7 @@ try {
   assert(detailJson.has_replay, 'session detail must report replay availability');
   assert(Array.isArray(detailJson.events) && detailJson.events.length > 0, 'session detail must return replay events');
   assert(Array.isArray(detailJson.checkout_timeline) && detailJson.checkout_timeline.length > 0, 'session detail must include checkout timeline');
+assert(detailJson.checkout_theater?.frames?.length > 0, 'session detail must include checkout theater frames');
 
   const statusRes = await fetch(`${baseUrl}/api/session-replay/status`);
   const statusJson = await statusRes.json();

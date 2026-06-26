@@ -20,4 +20,5 @@
 ## README Files
 
 - `README.md`
+- `extensions/shawq-advanced-dom-pixel/README.md`
 - `memory/README.md`

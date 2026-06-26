@@ -224,20 +224,33 @@ npm run test:session-events
 
 ## Checkout session replay (Clarity-style)
 
-The Behavior tab can replay storefront cart/checkout sessions and show hosted-checkout step timelines.
+The Behavior tab replays checkout sessions using three layers:
 
-1. Keep `shopify/customer-events-pixel.js` connected (checkout step events + session ids).
-2. Paste `shopify/theme-session-replay.js` into your Shopify theme before `</body>` (or as a Custom Liquid embed on all pages).
-3. Set `ENDPOINT` in the theme script to `https://YOUR_APP/api/session-replay`.
-4. If `SESSION_EVENT_INGEST_KEY` is set on the server, paste the same value into `INGEST_KEY` in both the pixel and theme recorder.
-5. Verify:
+1. **Storefront DOM (rrweb)** — hosted at `/shopify/session-recorder.js`, auto-installable via Shopify ScriptTag.
+2. **Hosted checkout steps** — Customer Events pixel → animated **Checkout journey replay** + step timeline (works on `checkout.shopify.com` where DOM recording is blocked).
+3. **Full checkout DOM (Partner path)** — requires Shopify Advanced DOM app scope; see `extensions/shawq-advanced-dom-pixel/README.md` and `memory/12-checkout-replay-research.md`.
+
+### Auto-install storefront recorder
+
+```bash
+# Needs SHAWQ_SHOPIFY_ACCESS_TOKEN with write_script_tags scope
+npm run install:shopify-recorder
+curl https://YOUR_APP/api/shopify/recorder/status
+```
+
+### Manual pixel install (still required)
+
+Shopify does not expose Admin API to create Custom Pixels. Paste `shopify/customer-events-pixel.js` into **Settings → Customer events**.
+
+### Verify
 
 ```bash
 curl https://YOUR_APP/api/session-replay/status
 npm run test:session-replay
+npm run test:checkout-theater
 ```
 
-**Note:** Shopify-hosted checkout (`checkout.shopify.com`) cannot be DOM-recorded from the theme. Those steps still appear in the dashboard timeline from the Customer Events pixel; full visual replay covers cart and storefront pages leading into checkout.
+**Research note:** Microsoft Clarity uses a official Shopify App + Advanced DOM Events (Plus for checkout DOM). ShawQ matches that split: rrweb on storefront, pixel theater on hosted checkout, Partner scaffold for true checkout DOM when scope is approved.
 
 ## Deployment
 

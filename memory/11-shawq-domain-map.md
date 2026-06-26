@@ -44,7 +44,7 @@ Use this file to find code by feature. Open the listed paths directly instead of
 
 | Task | Edit these | Do not touch unless asked |
 |------|------------|---------------------------|
-| Behavior / dwell | `dwellStats.js`, `pagePath.js`, `BehaviorAnalytics.tsx`, `fetch-behavior-intelligence.mjs` | KPI cards, `RevenueChart`, unrelated `App.jsx` |
+| Behavior / dwell | `dwellStats.js`, `pagePath.js`, `BehaviorAnalytics.tsx`, `SessionReplayPanel.tsx`, `sessionReplay.js`, `fetch-behavior-intelligence.mjs`, `shopify/theme-session-replay.js` | KPI cards, `RevenueChart`, unrelated `App.jsx` |
 | KPI badges | `businessKpiInsights.js`, `KpiCard.tsx`, `kpiRecord*` in `App.jsx` | Behavior rollups |
 | Location labels | `orderLocality.js`, `orderResolver.mjs` | KPI, charts |
 | Email campaign | `emailCampaignSummary.js`, `EmailCampaign.tsx`, `orderChannel.mjs` | KPI logic |
@@ -62,6 +62,8 @@ Use this file to find code by feature. Open the listed paths directly instead of
 ```bash
 npm run test:order-merchandise
 npm run test:order-locality
+npm run test:session-events
+npm run test:session-replay
 npm run test:dwell-stats
 npm run test:kpi-insights
 npm run test:dashboard

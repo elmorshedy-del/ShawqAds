@@ -1,14 +1,6 @@
-// ShawQ Checkout Session Replay — Shopify Theme App Embed / Custom Liquid snippet
-// Paste into Online Store -> Themes -> Edit code -> theme.liquid (before </body>)
-// or add as an App embed / Custom Liquid block on all pages.
-//
-// Records storefront DOM replay (rrweb) for cart + pre-checkout pages and posts chunks to ShawQ.
-// Pair with shopify/customer-events-pixel.js so checkout step events line up with the same session_id.
-//
-// 1. Set ENDPOINT to your deployed dashboard URL.
-// 2. If SESSION_EVENT_INGEST_KEY is set on the server, paste the same value into INGEST_KEY.
-// 3. Hosted Shopify checkout (checkout.shopify.com) cannot be DOM-recorded from the theme;
-//    those steps still appear in the dashboard timeline from the Customer Events pixel.
+// Prefer the hosted recorder (auto-updated, auto-installable via ScriptTag):
+//   https://shawq-ads-production.up.railway.app/shopify/session-recorder.js
+// This file is a static fallback if you cannot use ScriptTag.
 
 (function () {
   var ENDPOINT = 'https://shawq-ads-production.up.railway.app/api/session-replay';
@@ -36,8 +28,9 @@
   }
 
   function sessionIdentity() {
-    var sessionId = readCookie(cookieName('virona_si_session_id')) || readCookie('virona_si_session1_session_id__' + STORE) || '';
-    var clientId = readCookie(cookieName('virona_si_client_id')) || '';
+    var clientId = readCookie('_shopify_y') || readCookie(cookieName('virona_si_client_id')) || '';
+    var shopifySession = readCookie('_shopify_s') || '';
+    var sessionId = readCookie(cookieName('virona_si_session_id')) || (clientId && shopifySession ? clientId + ':' + shopifySession.slice(0, 12) : '');
     return { sessionId: sessionId, clientId: clientId };
   }
 
@@ -135,7 +128,14 @@
   }
 
   if (!shouldRecordHere()) return;
-  loadScript(RRWEB_SRC, function () {
-    startRecording(window.rrweb);
+  function waitIdentity(tries, cb) {
+    var id = sessionIdentity();
+    if (id.clientId || id.sessionId || tries <= 0) return cb();
+    setTimeout(function () { waitIdentity(tries - 1, cb); }, 250);
+  }
+  waitIdentity(12, function () {
+    loadScript(RRWEB_SRC, function () {
+      startRecording(window.rrweb);
+    });
   });
 })();

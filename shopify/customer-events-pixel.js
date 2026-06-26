@@ -3,6 +3,7 @@
 // Keeps the persistent client/session/tab stitching; sends the fields the ShawQ dashboard reads
 // (event_name, path, referrer, country_code, line_items) at the TOP LEVEL, and posts to /api/session-events.
 const ENDPOINT = 'https://shawq-ads-production.up.railway.app/api/session-events';
+const INGEST_KEY = '';
 const STORE = 'shawq';
 const SOURCE = 'shopify_custom_pixel_v4';
 const STANDARD_EVENTS = [
@@ -218,6 +219,14 @@ function extractLineItems(event) {
   return [];
 }
 async function getOrCreateClientId(event) {
+  const shopifyClientId = safeString(event && (event.clientId || event.client_id), 160);
+  if (shopifyClientId) {
+    const storageName = storageKey('virona_si_client_id');
+    const cookieName = cookieKey('virona_si_client_id');
+    await writeBrowserStorage(BROWSER_API && BROWSER_API.localStorage, storageName, shopifyClientId);
+    await writeBrowserCookie(cookieName, shopifyClientId, CLIENT_ID_COOKIE_MAX_AGE_SECONDS);
+    return shopifyClientId;
+  }
   const storageName = storageKey('virona_si_client_id');
   const cookieName = cookieKey('virona_si_client_id');
   const fromStorage = await readBrowserStorage(BROWSER_API && BROWSER_API.localStorage, storageName);
@@ -230,8 +239,7 @@ async function getOrCreateClientId(event) {
     await writeBrowserStorage(BROWSER_API && BROWSER_API.localStorage, storageName, fromCookie);
     return fromCookie;
   }
-  const shopifyClientId = safeString(event && (event.clientId || event.client_id), 160);
-  const id = shopifyClientId || uuid();
+  const id = uuid();
   await writeBrowserStorage(BROWSER_API && BROWSER_API.localStorage, storageName, id);
   await writeBrowserCookie(cookieName, id, CLIENT_ID_COOKIE_MAX_AGE_SECONDS);
   return id;
@@ -288,7 +296,10 @@ async function send(name, event) {
     const context = buildContext(event, identity);
     fetch(ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(INGEST_KEY ? { 'x-session-event-key': INGEST_KEY } : {}),
+      },
       keepalive: true,
       body: JSON.stringify({
         store: STORE,

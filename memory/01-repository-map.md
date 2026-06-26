@@ -22,6 +22,7 @@
 - `src/components/dashboard/BehaviorAnalytics.tsx`
 - `src/components/dashboard/Benchmarks.tsx`
 - `src/components/dashboard/CampaignRoasTree.tsx`
+- `src/components/dashboard/CheckoutTheater.tsx`
 - `src/components/dashboard/CountrySalesPanel.tsx`
 - `src/components/dashboard/DailyDelivery.tsx`
 - `src/components/dashboard/DataTable.tsx`
@@ -51,6 +52,7 @@
 - `src/lib/behaviorPersistence.js`
 - `src/lib/businessKpiInsights.js`
 - `src/lib/campaignAttribution.js`
+- `src/lib/checkoutTheater.js`
 - `src/lib/dashboard-data.ts`
 - `src/lib/dwellStats.js`
 - `src/lib/emailCampaignSummary.js`
@@ -67,6 +69,7 @@
 - `src/lib/reportingBounds.js`
 - `src/lib/revenueScope.js`
 - `src/lib/sampleTiers.js`
+- `src/lib/sessionRecorderInstall.js`
 - `src/lib/sessionReplay.js`
 - `src/lib/statsTests.js`
 - `src/lib/trafficSource.js`
@@ -90,6 +93,7 @@
 ## Documentation and Agent Files
 
 - `README.md`
+- `extensions/shawq-advanced-dom-pixel/README.md`
 - `memory/README.md`
 - `AGENTS.md`
 

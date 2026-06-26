@@ -22,6 +22,13 @@ import {
   upsertReplayIndexEntry,
   writeReplayIndex,
 } from './src/lib/sessionReplay.js';
+import { buildCheckoutTheaterScript } from './src/lib/checkoutTheater.js';
+import {
+  buildSessionRecorderScript,
+  ensureShopifyRecorderScriptTag,
+  listShopifyScriptTags,
+  recorderScriptTagSrc,
+} from './src/lib/sessionRecorderInstall.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -687,7 +694,7 @@ async function recordSessionReplay(req, res, url) {
     const payload = text ? JSON.parse(text) : {};
     const sessionId = String(payload.session_id || payload.sessionId || '').trim();
     const clientId = String(payload.client_id || payload.clientId || '').trim();
-    const sessionKey = hashSessionKey(sessionId || clientId);
+    const sessionKey = hashSessionKey(clientId || sessionId);
     const events = Array.isArray(payload.events) ? payload.events.slice(0, MAX_REPLAY_CHUNK_EVENTS) : [];
     if (!sessionKey) {
       send(res, 400, JSON.stringify({ ok: false, error: 'session_id or client_id required' }));
@@ -756,22 +763,95 @@ function serveSessionReplaySession(req, res, sessionKey, url) {
     return;
   }
   const sessionId = String(url.searchParams.get('session_id') || '').trim();
-  const replay = loadSessionReplayChunks(sessionReplayPath, key, sessionId);
-  const pixelEvents = loadSessionPixelEvents(sessionEventsPath, key, sessionId);
+  const clientId = String(url.searchParams.get('client_id') || '').trim();
+  const replay = loadSessionReplayChunks(sessionReplayPath, key, sessionId, clientId);
+  const pixelEvents = loadSessionPixelEvents(sessionEventsPath, key, sessionId, clientId);
   const outcome = checkoutOutcomeFromEvents(pixelEvents);
+  const theater = buildCheckoutTheaterScript(pixelEvents);
   send(res, 200, JSON.stringify({
     ok: true,
     session_key: key,
     session_id: sessionId || pixelEvents.find((event) => event.session_id)?.session_id || '',
+    client_id: clientId || pixelEvents.find((event) => event.client_id)?.client_id || '',
     has_replay: replay.events.length > 0,
     replay_events: replay.events.length,
     replay_chunks: replay.chunks,
-    checkout_timeline: summarizePixelTimeline(pixelEvents.filter((event) => /checkout|cart|payment|page_viewed/i.test(event.event_name || ''))),
+    checkout_timeline: summarizePixelTimeline(pixelEvents.filter((event) => /checkout|cart|payment|page_viewed|product_viewed|collection_viewed/i.test(event.event_name || ''))),
+    checkout_theater: theater,
     checkout_outcome: outcome,
     checkout_outcome_label: formatCheckoutOutcome(outcome),
     pixel_events: pixelEvents.length,
     events: replay.events,
   }));
+}
+
+function publicAppBaseUrl(req) {
+  const configured = process.env.SHAWQ_PUBLIC_APP_URL || process.env.PUBLIC_APP_URL || '';
+  if (configured) return String(configured).replace(/\/$/, '');
+  const host = req.headers['x-forwarded-host'] || req.headers.host || '';
+  const proto = req.headers['x-forwarded-proto'] || 'https';
+  return host ? `${proto}://${host}` : '';
+}
+
+function serveHostedSessionRecorder(req, res) {
+  const baseUrl = publicAppBaseUrl(req);
+  const endpoint = `${baseUrl}/api/session-replay`;
+  const body = buildSessionRecorderScript({
+    endpoint,
+    ingestKey: sessionEventKey,
+    store: process.env.SHAWQ_STORE_SLUG || 'shawq',
+  });
+  res.writeHead(200, {
+    'content-type': 'application/javascript; charset=utf-8',
+    'cache-control': 'public, max-age=300',
+    'access-control-allow-origin': '*',
+  });
+  res.end(body);
+}
+
+async function serveShopifyRecorderStatus(_req, res) {
+  const { token, store, apiVersion } = shopifyConfig();
+  if (!token || !store) {
+    send(res, 200, JSON.stringify({ ok: false, configured: false, error: 'Shopify token or store is not configured' }));
+    return;
+  }
+  try {
+    const tags = await listShopifyScriptTags({ token, store, apiVersion });
+    const hosted = tags.filter((tag) => String(tag.src || '').includes('/shopify/session-recorder.js'));
+    send(res, 200, JSON.stringify({
+      ok: true,
+      configured: true,
+      store,
+      script_tags: hosted,
+      installed: hosted.length > 0,
+      hosted_src: recorderScriptTagSrc(publicAppBaseUrl(_req) || process.env.SHAWQ_PUBLIC_APP_URL || ''),
+    }));
+  } catch (error) {
+    send(res, 502, JSON.stringify({ ok: false, configured: true, error: error.message, installed: false }));
+  }
+}
+
+async function installShopifyRecorder(req, res) {
+  if (!isAuthorized(req)) {
+    send(res, 401, JSON.stringify({ ok: false, error: 'unauthorized' }));
+    return;
+  }
+  const { token, store, apiVersion } = shopifyConfig();
+  if (!token || !store) {
+    send(res, 503, JSON.stringify({ ok: false, error: 'Shopify token or store is not configured' }));
+    return;
+  }
+  try {
+    const src = recorderScriptTagSrc(publicAppBaseUrl(req) || process.env.SHAWQ_PUBLIC_APP_URL || '');
+    const result = await ensureShopifyRecorderScriptTag({ token, store, apiVersion, src });
+    send(res, 200, JSON.stringify({ ok: true, ...result, src }));
+  } catch (error) {
+    send(res, 502, JSON.stringify({
+      ok: false,
+      error: error.message,
+      hint: 'Admin token needs write_script_tags scope. Custom pixels still require manual install in Customer events.',
+    }));
+  }
 }
 
 function queryParamsFromMaybeUrl(value = '') {
@@ -1715,6 +1795,21 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/session-events' && req.method === 'POST') {
     res.setHeader('access-control-allow-origin', '*');
     await recordSessionEvent(req, res, url);
+    return;
+  }
+
+  if (url.pathname === '/shopify/session-recorder.js') {
+    serveHostedSessionRecorder(req, res);
+    return;
+  }
+
+  if (url.pathname === '/api/shopify/recorder/status') {
+    await serveShopifyRecorderStatus(req, res);
+    return;
+  }
+
+  if (url.pathname === '/api/shopify/recorder/install' && req.method === 'POST') {
+    await installShopifyRecorder(req, res);
     return;
   }
 
