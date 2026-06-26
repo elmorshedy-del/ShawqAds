@@ -1,6 +1,6 @@
 # System Architecture
 
-**Last Updated:** 2026-06-15
+**Last Updated:** 2026-06-26
 
 ---
 
@@ -28,6 +28,8 @@ flowchart LR
 ## Deployment Hints
 
 - `README.md`
+- `deploy/agentmemory/Dockerfile`
+- `shopify/pdp-intelligence-probe.js`
 - `src/components/dashboard/BehaviorAnalytics.tsx`
 - `src/components/dashboard/DailyDelivery.tsx`
 - `src/components/dashboard/OrdersMap.tsx`

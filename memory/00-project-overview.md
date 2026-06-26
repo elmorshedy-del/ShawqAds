@@ -1,6 +1,6 @@
 # Project Overview
 
-**Last Updated:** 2026-06-15
+**Last Updated:** 2026-06-26
 
 ---
 
@@ -16,8 +16,8 @@
 | Detected profile | mixed                  |
 | Languages        | JavaScript, TypeScript |
 | Frameworks       | React                  |
-| Manifests        | 2                      |
-| Source files     | 47                     |
+| Manifests        | 3                      |
+| Source files     | 59                     |
 
 ## Quick Start
 

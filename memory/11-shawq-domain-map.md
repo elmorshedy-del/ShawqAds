@@ -35,6 +35,8 @@ Use this file to find code by feature. Open the listed paths directly instead of
 | Shopify products/orders | `public/data/shopify-products.json` | `SHOPIFY_BACKFILL_START_DATE=2026-02-01` |
 | Behavior intelligence | `public/data/behavior-intelligence.json` | `fetch:behavior`; page_facts from full `session-events.ndjson` |
 | Session events (append-only) | `data/session-events.ndjson` | `POST /api/session-events`; not in git |
+| Session replay (append-only) | `data/session-replay.ndjson` | `POST /api/session-replay`; theme script `shopify/theme-session-replay.js` |
+| Session replay index | `data/session-replay-index.json` | Built from replay chunks + pixel checkout sessions |
 | Reporting timezone | `Europe/Istanbul` | `REPORTING_TIMEZONE` in `App.jsx` |
 | Production | https://shawq-ads-production.up.railway.app/ | `/health` |
 

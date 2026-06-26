@@ -24,6 +24,7 @@ import {
 } from "@/lib/sampleTiers";
 import { BRAND_PAGES_LABEL, brandPageName } from "@/lib/pageCategory";
 import { PanelScopeToggle, type PanelScope } from "@/components/dashboard/PanelScopeToggle";
+import { SessionReplayPanel } from "@/components/dashboard/SessionReplayPanel";
 
 interface BehaviorStep {
   products?: any[];
@@ -984,6 +985,8 @@ export function BehaviorAnalytics({
               <JourneyComparison journeys={behavior?.journeys || {}} />
             </div>
           </div>
+
+          <SessionReplayPanel />
         </div>
       ) : null}
     </div>

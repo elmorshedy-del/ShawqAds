@@ -222,6 +222,23 @@ Local ingest smoke test:
 npm run test:session-events
 ```
 
+## Checkout session replay (Clarity-style)
+
+The Behavior tab can replay storefront cart/checkout sessions and show hosted-checkout step timelines.
+
+1. Keep `shopify/customer-events-pixel.js` connected (checkout step events + session ids).
+2. Paste `shopify/theme-session-replay.js` into your Shopify theme before `</body>` (or as a Custom Liquid embed on all pages).
+3. Set `ENDPOINT` in the theme script to `https://YOUR_APP/api/session-replay`.
+4. If `SESSION_EVENT_INGEST_KEY` is set on the server, paste the same value into `INGEST_KEY` in both the pixel and theme recorder.
+5. Verify:
+
+```bash
+curl https://YOUR_APP/api/session-replay/status
+npm run test:session-replay
+```
+
+**Note:** Shopify-hosted checkout (`checkout.shopify.com`) cannot be DOM-recorded from the theme. Those steps still appear in the dashboard timeline from the Customer Events pixel; full visual replay covers cart and storefront pages leading into checkout.
+
 ## Deployment
 
 Render and Railway configs are included:
