@@ -28,10 +28,40 @@
   }
 
   function sessionIdentity() {
-    var clientId = readCookie('_shopify_y') || readCookie(cookieName('virona_si_client_id')) || '';
+    var clientId = readCookie('_shopify_y') || readCookie(cookieName('virona_si_client_id')) || fallbackClientId();
     var shopifySession = readCookie('_shopify_s') || '';
-    var sessionId = readCookie(cookieName('virona_si_session_id')) || (clientId && shopifySession ? clientId + ':' + shopifySession.slice(0, 12) : '');
+    var sessionId = readCookie(cookieName('virona_si_session_id')) || (clientId && shopifySession ? clientId + ':' + shopifySession.slice(0, 12) : fallbackSessionId(clientId));
     return { sessionId: sessionId, clientId: clientId };
+  }
+
+  function storageKey(base) {
+    return (base + '__' + STORE).replace(/[^a-zA-Z0-9_-]/g, '_');
+  }
+
+  function fallbackClientId() {
+    var key = storageKey('replay_client_id');
+    try {
+      var existing = localStorage.getItem(key);
+      if (existing) return existing;
+      var id = 'sr_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem(key, id);
+      return id;
+    } catch (_error) {
+      return 'sr_' + Date.now();
+    }
+  }
+
+  function fallbackSessionId(clientId) {
+    var key = storageKey('replay_session_id');
+    try {
+      var existing = sessionStorage.getItem(key);
+      if (existing) return existing;
+      var id = clientId + ':' + Math.random().toString(36).slice(2, 10);
+      sessionStorage.setItem(key, id);
+      return id;
+    } catch (_error) {
+      return clientId + ':' + Date.now();
+    }
   }
 
   function shouldRecordHere() {

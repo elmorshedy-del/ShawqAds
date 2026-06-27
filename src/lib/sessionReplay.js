@@ -223,6 +223,17 @@ export function upsertReplayIndexEntry(indexSessions = [], entry = {}) {
   return next;
 }
 
+function checkoutRelatedPixelEvents(pixelEvents = []) {
+  const checkoutEvents = pixelEvents.filter((event) => isCheckoutPixelEvent(event.event_name));
+  const checkoutRelated = checkoutEvents.length > 0
+    || pixelEvents.some((event) => isCheckoutRelatedPath(event.path));
+  return { checkoutEvents, checkoutRelated };
+}
+
+function latestPixelEvent(pixelEvents = []) {
+  return [...pixelEvents].sort((a, b) => new Date(a.timestamp || 0) - new Date(b.timestamp || 0)).at(-1) || {};
+}
+
 export function buildSessionReplayIndex({
   sessionEventsPath,
   replayIndexPath,
@@ -248,16 +259,33 @@ export function buildSessionReplayIndex({
     }
   }
 
+  for (const [, pixelEvents] of pixelByKey.entries()) {
+    const { checkoutEvents, checkoutRelated } = checkoutRelatedPixelEvents(pixelEvents);
+    if (!checkoutRelated) continue;
+    const latest = latestPixelEvent(pixelEvents);
+    sessions = upsertReplayIndexEntry(sessions, {
+      session_id: latest.session_id || pixelEvents.find((event) => event.session_id)?.session_id || '',
+      client_id: latest.client_id || pixelEvents.find((event) => event.client_id)?.client_id || '',
+      country_code: checkoutEvents.find((event) => event.country_code)?.country_code
+        || pixelEvents.find((event) => event.country_code)?.country_code
+        || '',
+      received_at: latest.timestamp,
+      timestamp: latest.timestamp,
+      path: latest.path || '',
+      checkout_outcome: checkoutOutcomeFromEvents(pixelEvents),
+      checkout_steps: checkoutEvents.length,
+    });
+  }
+
   sessions = sessions.map((row) => {
     const pixelEvents = pixelByKey.get(row.session_key) || [];
-    const checkoutEvents = pixelEvents.filter((event) => isCheckoutPixelEvent(event.event_name));
-    const checkoutRelated = checkoutEvents.length > 0
-      || pixelEvents.some((event) => isCheckoutRelatedPath(event.path));
-    if (!checkoutRelated) return null;
+    const { checkoutEvents, checkoutRelated } = checkoutRelatedPixelEvents(pixelEvents);
+    const hasReplay = Boolean(row.has_replay || Number(row.replay_events || 0) > 0);
+    if (!checkoutRelated && !hasReplay) return null;
     return {
       ...row,
-      checkout_steps: checkoutEvents.length,
-      checkout_outcome: checkoutOutcomeFromEvents(pixelEvents),
+      checkout_steps: checkoutEvents.length || Number(row.checkout_steps || 0),
+      checkout_outcome: checkoutEvents.length ? checkoutOutcomeFromEvents(pixelEvents) : (row.checkout_outcome || 'browsing'),
       country_code: row.country_code || checkoutEvents.find((event) => event.country_code)?.country_code || pixelEvents.find((event) => event.country_code)?.country_code || '',
       pixel_events: checkoutEvents.length,
     };

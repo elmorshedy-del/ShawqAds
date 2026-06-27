@@ -13,6 +13,7 @@
     "fetch:all": "npm run fetch:meta && npm run fetch:shopify && npm run fetch:behavior",
     "test:session-events": "node scripts/session-events-smoke-test.mjs",
     "test:session-replay": "node scripts/session-replay-smoke-test.mjs",
+    "test:session-replay-index": "node scripts/session-replay-index-test.mjs",
     "test:checkout-theater": "node scripts/checkout-theater-test.mjs",
     "install:shopify-recorder": "node scripts/install-shopify-session-recorder.mjs",
     "test:email-channel": "node scripts/email-channel-smoke-test.mjs",
