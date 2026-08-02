@@ -46,6 +46,7 @@ Use this file to find code by feature. Open the listed paths directly instead of
 |------|------------|---------------------------|
 | Key findings / anomalies | `analyticsInsights.js`, `KeyFindings.tsx`, `metricDefinitions.js` | KPI record logic, behavior rollups |
 | Per-tab findings | `tabInsights.js`, `PanelFindings` in `KeyFindings.tsx` | `analyticsInsights.js` (Overview only) |
+| Customer-local timing | `customerClock.js`, `CustomerClock.tsx` | merchant-clock buckets everywhere else |
 | Behavior / dwell | `dwellStats.js`, `pagePath.js`, `BehaviorAnalytics.tsx`, `SessionReplayPanel.tsx`, `sessionReplay.js`, `fetch-behavior-intelligence.mjs`, `shopify/theme-session-replay.js` | KPI cards, `RevenueChart`, unrelated `App.jsx` |
 | KPI badges | `businessKpiInsights.js`, `KpiCard.tsx`, `kpiRecord*` in `App.jsx` | Behavior rollups |
 | Location labels | `orderLocality.js`, `orderResolver.mjs` | KPI, charts |
@@ -76,6 +77,7 @@ npm run test:dwell-stats
 npm run test:kpi-insights
 npm run test:insights
 npm run test:tab-insights
+npm run test:customer-clock
 npm run test:dashboard
 npm run build
 ```

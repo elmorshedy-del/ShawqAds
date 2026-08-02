@@ -16,6 +16,8 @@ import {
   buildLaunchFindings,
   buildMarketFindings,
 } from './lib/tabInsights.js';
+import { buildCustomerClock, buildCustomerClockFindings } from './lib/customerClock.js';
+import { CustomerClock } from './components/dashboard/CustomerClock';
 import { KeyFindings, PanelFindings } from './components/dashboard/KeyFindings';
 import { buildShopifyHistoricalDaily } from './lib/historicalInsights.js';
 import { buildFunnelAnalytics } from './lib/funnelAnalytics.js';
@@ -2095,6 +2097,16 @@ function App() {
     () => buildLaunchFindings({ delivery: deliveryShape, phases: usaOk ? usaComparison : null }),
     [deliveryShape, usaOk, usaComparison],
   );
+  // Customer-local timing uses the full launch history rather than the date picker:
+  // an hour-of-day distribution needs every order it can get to be readable.
+  const customerClock = useMemo(
+    () => buildCustomerClock(launchProductData.order_lines || [], { merchantZone: REPORTING_TIMEZONE }),
+    [launchProductData.order_lines],
+  );
+  const customerClockFindings = useMemo(
+    () => buildCustomerClockFindings(customerClock),
+    [customerClock],
+  );
 
   const sectionEls = {
     ordersMap: (
@@ -2242,6 +2254,14 @@ function App() {
         timezone={REPORTING_TIMEZONE}
       />
     ),
+    customerClock: <CustomerClock data={customerClock} />,
+    customerClockFindings: (
+      <PanelFindings
+        title="What customer-local timing is telling you"
+        findings={customerClockFindings}
+        hint="since launch"
+      />
+    ),
     funnel: <FunnelAnalytics data={funnelData} />,
     funnelFindings: (
       <PanelFindings title="What the funnel is telling you" findings={funnelFindings} hint="since launch" />
@@ -2264,7 +2284,7 @@ function App() {
     { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['adsFindings', 'tree', 'emailCampaign', 'leaders', 'edits', 'decision'] },
     { key: 'launch', label: 'Launch', icon: Rocket, ids: ['launchFindings', 'usa', 'delivery'] },
     { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['marketFindings', 'salesBench', 'product', 'country'] },
-    { key: 'historical', label: 'Historical insights', icon: BarChart3, ids: ['historicalInsights'] },
+    { key: 'historical', label: 'Historical insights', icon: BarChart3, ids: ['historicalInsights', 'customerClockFindings', 'customerClock'] },
     { key: 'behavior', label: 'Behavior', icon: Activity, ids: ['behavior'] },
   ];
   const activeGroup = dashboardGroups.find((g) => g.key === activeTab) || dashboardGroups[0];
