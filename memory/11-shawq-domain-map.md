@@ -12,7 +12,8 @@ Use this file to find code by feature. Open the listed paths directly instead of
 | Ads | tree, emailCampaign, leaders, edits, decision | `CampaignRoasTree.tsx`, `EmailCampaign.tsx`, `App.jsx` |
 | Launch | salesBench, product, country | `ProductDemand.tsx`, `CountrySalesPanel.tsx`, `adapt.js` |
 | Market | (same as Launch group) | `launchProductData`, `launchDateRange` in `App.jsx` |
-| Historical | historicalInsights | `historicalInsights.js`, `HistoricalInsights.tsx` |
+| Budget | spendResponseFindings, budgetPacing, spendResponse | `budgetPacing.js`, `spendResponse.js` |
+| Historical | historicalInsights, customerClock | `historicalInsights.js`, `HistoricalInsights.tsx`, `customerClock.js` |
 | Behavior | behavior, data | `BehaviorAnalytics.tsx`, `dwellStats.js`, `fetch-behavior-intelligence.mjs` |
 
 ## Date scopes (do not confuse)
@@ -47,6 +48,7 @@ Use this file to find code by feature. Open the listed paths directly instead of
 | Key findings / anomalies | `analyticsInsights.js`, `KeyFindings.tsx`, `metricDefinitions.js` | KPI record logic, behavior rollups |
 | Per-tab findings | `tabInsights.js`, `PanelFindings` in `KeyFindings.tsx` | `analyticsInsights.js` (Overview only) |
 | Customer-local timing | `customerClock.js`, `CustomerClock.tsx` | merchant-clock buckets everywhere else |
+| Budget pacing / saturation | `budgetPacing.js`, `spendResponse.js`, `BudgetPacing.tsx`, `SpendResponse.tsx` | KPI cards, findings engines |
 | Behavior / dwell | `dwellStats.js`, `pagePath.js`, `BehaviorAnalytics.tsx`, `SessionReplayPanel.tsx`, `sessionReplay.js`, `fetch-behavior-intelligence.mjs`, `shopify/theme-session-replay.js` | KPI cards, `RevenueChart`, unrelated `App.jsx` |
 | KPI badges | `businessKpiInsights.js`, `KpiCard.tsx`, `kpiRecord*` in `App.jsx` | Behavior rollups |
 | Location labels | `orderLocality.js`, `orderResolver.mjs` | KPI, charts |
@@ -78,6 +80,7 @@ npm run test:kpi-insights
 npm run test:insights
 npm run test:tab-insights
 npm run test:customer-clock
+npm run test:spend-response
 npm run test:dashboard
 npm run build
 ```

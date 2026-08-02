@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, BarChart3, Filter, GitBranch, LayoutDashboard, Rocket, ShoppingBag, SlidersHorizontal } from 'lucide-react';
+import { Activity, BarChart3, Filter, GitBranch, LayoutDashboard, Rocket, ShoppingBag, SlidersHorizontal, Wallet } from 'lucide-react';
 import { compact, money, pct } from './lib/format.js';
 import { buildCampaignAttribution } from './lib/campaignAttribution.js';
 import {
@@ -17,6 +17,14 @@ import {
   buildMarketFindings,
 } from './lib/tabInsights.js';
 import { buildCustomerClock, buildCustomerClockFindings } from './lib/customerClock.js';
+import { buildBudgetPacing, buildPacingFindings } from './lib/budgetPacing.js';
+import { BudgetPacing } from './components/dashboard/BudgetPacing';
+import {
+  buildSpendResponseFindings,
+  fitResponseCurve,
+  marketSaturation,
+} from './lib/spendResponse.js';
+import { SpendResponse } from './components/dashboard/SpendResponse';
 import { CustomerClock } from './components/dashboard/CustomerClock';
 import { KeyFindings, PanelFindings } from './components/dashboard/KeyFindings';
 import { buildShopifyHistoricalDaily } from './lib/historicalInsights.js';
@@ -61,6 +69,9 @@ const META_POLL_MS = 120000;
 const BEHAVIOR_POLL_MS = 60000;
 const REPORTING_TIMEZONE = 'Europe/Istanbul';
 const CAMPAIGN_LAUNCH_DATE = '2026-06-03';
+// The monthly ad budget is an operator input, not something either API reports,
+// so it lives in the browser rather than in the data pipeline.
+const BUDGET_STORAGE_KEY = 'shawq-monthly-budget';
 
 // Demo orders used to visualize the live map before Shopify is connected.
 // Newest order is first (Toronto) — it gets the animated route from ShawQ HQ.
@@ -1521,6 +1532,13 @@ function App() {
   const [metaMonitor, setMetaMonitor] = useState({ status: 'checking', live: null, checkedAt: null, error: '' });
   const [activeTab, setActiveTab] = useState('overview');
   const [autoPresetApplied, setAutoPresetApplied] = useState(false);
+  const [monthlyBudget, setMonthlyBudget] = useState(() => {
+    try {
+      return Number(window.localStorage.getItem(BUDGET_STORAGE_KEY)) || 0;
+    } catch {
+      return 0;
+    }
+  });
   const autoPresetRef = useRef(false);
   const saleAudioRef = useRef(null);
   const saleSoundEnabledRef = useRef(true);
@@ -2108,6 +2126,62 @@ function App() {
     [customerClock],
   );
 
+  // Pacing runs on the full loaded history, not the date picker: it answers a
+  // question about the calendar month regardless of what window is being viewed.
+  const budgetPacing = useMemo(
+    () => buildBudgetPacing(allBusinessRows, {
+      budget: monthlyBudget,
+      today: reportingToday,
+      elapsedShare: elapsedReportingDayShare(),
+    }),
+    [allBusinessRows, monthlyBudget, reportingToday],
+  );
+  const pacingFindings = useMemo(() => buildPacingFindings(budgetPacing), [budgetPacing]);
+  function handleBudgetChange(value) {
+    setMonthlyBudget(value);
+    try {
+      window.localStorage.setItem(BUDGET_STORAGE_KEY, String(value));
+    } catch {
+      // Persisting is best-effort; the value still applies for this session.
+    }
+  }
+
+  // Saturation is fitted on completed launch-window days. The developing day is
+  // excluded — a part-day sits at low spend with low revenue and would drag the
+  // curve's low end down, flattering the marginal return.
+  const responseFit = useMemo(() => fitResponseCurve(
+    allBusinessRows
+      .filter((row) => row.date >= CAMPAIGN_LAUNCH_DATE && row.date !== reportingToday)
+      .map((row) => ({ date: row.date, spend: row.spend_usd, revenue: row.revenue_usd })),
+  ), [allBusinessRows, reportingToday]);
+  const marketResponse = useMemo(() => {
+    const byMarket = {};
+    const spendByKey = new Map();
+    (baseData.ad_country_daily || []).forEach((row) => {
+      if (!row?.date || row.date < CAMPAIGN_LAUNCH_DATE || row.date === reportingToday) return;
+      const key = `${row.country_code}|${row.date}`;
+      spendByKey.set(key, (spendByKey.get(key) || 0) + Number(row.spend_usd || 0));
+    });
+    const revenueByKey = new Map();
+    (baseProductData.order_lines || []).forEach((line) => {
+      if (!line?.date || line.date < CAMPAIGN_LAUNCH_DATE || line.date === reportingToday) return;
+      const key = `${line.country_code}|${line.date}`;
+      revenueByKey.set(key, (revenueByKey.get(key) || 0) + Number(line.line_revenue_usd || 0));
+    });
+    const nameByCode = new Map((baseProductData.countries || []).map((c) => [c.country_code, c.country]));
+    spendByKey.forEach((spend, key) => {
+      const [code] = key.split('|');
+      const label = nameByCode.get(code) || code;
+      if (!byMarket[label]) byMarket[label] = [];
+      byMarket[label].push({ spend, revenue: revenueByKey.get(key) || 0 });
+    });
+    return marketSaturation(byMarket);
+  }, [baseData.ad_country_daily, baseProductData.order_lines, baseProductData.countries, reportingToday]);
+  const responseFindings = useMemo(
+    () => buildSpendResponseFindings(responseFit, marketResponse, { currentSpend: responseFit.meanSpend }),
+    [responseFit, marketResponse],
+  );
+
   const sectionEls = {
     ordersMap: (
       <OrdersMap
@@ -2254,6 +2328,17 @@ function App() {
         timezone={REPORTING_TIMEZONE}
       />
     ),
+    budgetPacing: (
+      <BudgetPacing pacing={budgetPacing} budget={monthlyBudget} onBudgetChange={handleBudgetChange} />
+    ),
+    spendResponse: <SpendResponse fit={responseFit} currentSpend={responseFit.meanSpend} />,
+    spendResponseFindings: (
+      <PanelFindings
+        title="What the next dollar buys"
+        findings={[...pacingFindings, ...responseFindings]}
+        hint="since launch"
+      />
+    ),
     customerClock: <CustomerClock data={customerClock} />,
     customerClockFindings: (
       <PanelFindings
@@ -2282,6 +2367,7 @@ function App() {
     { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'keyFindings', 'orderDrop', 'orderLift', 'revenue', 'data', 'mobileTops'] },
     { key: 'funnel', label: 'Funnel', icon: Filter, ids: ['funnelFindings', 'funnel'] },
     { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['adsFindings', 'tree', 'emailCampaign', 'leaders', 'edits', 'decision'] },
+    { key: 'budget', label: 'Budget', icon: Wallet, ids: ['spendResponseFindings', 'budgetPacing', 'spendResponse'] },
     { key: 'launch', label: 'Launch', icon: Rocket, ids: ['launchFindings', 'usa', 'delivery'] },
     { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['marketFindings', 'salesBench', 'product', 'country'] },
     { key: 'historical', label: 'Historical insights', icon: BarChart3, ids: ['historicalInsights', 'customerClockFindings', 'customerClock'] },
