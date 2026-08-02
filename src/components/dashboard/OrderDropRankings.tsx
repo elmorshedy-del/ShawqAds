@@ -127,7 +127,7 @@ export function OrderDropRankings({
       <div className="mb-3 flex items-center gap-2">
         <span
           className="flex h-7 w-7 items-center justify-center rounded-lg"
-          style={{ background: `color-mix(in oklab, ${config.accent} 14%, var(--color-surface-2))`, color: config.accent }}
+          style={{ background: `color-mix(in oklab, ${config.accent} 14%, white)`, color: config.accent }}
         >
           <config.Icon className="h-4 w-4" />
         </span>

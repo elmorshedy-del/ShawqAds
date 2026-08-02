@@ -96,7 +96,7 @@ function MoverCard({ card, focusLabel }: { card: TopMoverCard; focusLabel: strin
         <div className="flex items-center gap-2">
           <span
             className="flex h-8 w-8 items-center justify-center rounded-xl"
-            style={{ background: `color-mix(in oklab, ${m.color} 16%, var(--color-surface-2))`, color: m.color }}
+            style={{ background: `color-mix(in oklab, ${m.color} 16%, white)`, color: m.color }}
           >
             <Icon className="h-4 w-4" />
           </span>

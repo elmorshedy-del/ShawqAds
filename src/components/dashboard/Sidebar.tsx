@@ -7,7 +7,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 export interface DateRange {
@@ -248,11 +247,10 @@ export function Sidebar(props: SidebarProps) {
         >
           Ş
         </div>
-        <div className="min-w-0 flex-1">
+        <div>
           <p className="font-display text-base font-semibold leading-none">ShawQ</p>
           <p className="text-xs text-muted-foreground">Business Monitoring</p>
         </div>
-        <ThemeToggle />
       </div>
 
       <Controls {...props} />
@@ -274,12 +272,6 @@ export function Sidebar(props: SidebarProps) {
 export function MobileFilters(props: SidebarProps) {
   return (
     <div className="panel flex flex-col gap-5 p-5 lg:hidden">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          Filters
-        </p>
-        <ThemeToggle />
-      </div>
       <Controls {...props} />
     </div>
   );

@@ -102,7 +102,7 @@ export function HistoricalInsights({
         <div className="flex items-center gap-2">
           <span
             className="flex h-7 w-7 items-center justify-center rounded-lg"
-            style={{ background: `color-mix(in oklab, ${ACCENT} 14%, var(--color-surface-2))`, color: ACCENT }}
+            style={{ background: `color-mix(in oklab, ${ACCENT} 14%, white)`, color: ACCENT }}
           >
             <BarChart3 className="h-4 w-4" />
           </span>
@@ -274,7 +274,7 @@ export function HistoricalInsights({
                     margin={{ top: 12, right: 12, bottom: 36, left: 44 }}
                     padding={0.18}
                     innerPadding={4}
-                    colors={["var(--week-1)", "var(--week-2)", "var(--week-3)", "var(--week-4)"]}
+                    colors={["#c084fc", "#818cf8", "#38bdf8", "#34d399"]}
                     borderRadius={6}
                     enableLabel={false}
                     axisBottom={{ tickSize: 0, tickPadding: 8 }}
