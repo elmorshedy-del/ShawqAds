@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ArrowDownRight, ArrowUpRight, Sparkles, TrendingDown } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Info, Minus, Sparkles, TrendingDown } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { cn } from "@/lib/utils";
 import { burstKpiConfetti } from "@/lib/kpiConfetti.js";
@@ -24,12 +24,22 @@ interface KpiCardProps {
   value: string;
   sub?: string;
   delta: number;
+  /** What the delta is measured against, e.g. "vs previous period". */
+  deltaLabel?: string;
   series: number[];
   positiveWhenUp?: boolean;
   accent?: "brand" | "positive" | "gold" | "violet" | "blue";
   valueColor?: string | null;
   projection?: KpiProjection | null;
   record?: KpiRecord | null;
+  /** False when the selected window contains no rows at all — suppresses the delta. */
+  hasData?: boolean;
+  /** False when there is no comparable prior window to measure the delta against. */
+  hasComparison?: boolean;
+  /** Plain-language definition surfaced on hover/focus. */
+  definition?: string;
+  /** Why the metric matters, shown under the definition. */
+  whyItMatters?: string;
 }
 
 const accentColor: Record<NonNullable<KpiCardProps["accent"]>, string> = {
@@ -47,12 +57,17 @@ export function KpiCard({
   value,
   sub,
   delta,
+  deltaLabel,
   series,
   positiveWhenUp = true,
   accent = "brand",
   valueColor = null,
   projection = null,
   record = null,
+  hasData = true,
+  hasComparison = true,
+  definition,
+  whyItMatters,
 }: KpiCardProps) {
   const up = delta >= 0;
   const good = positiveWhenUp ? up : !up;
@@ -100,8 +115,19 @@ export function KpiCard({
       className="panel group relative flex flex-col overflow-hidden p-5 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-elegant)]"
       style={{ containerType: "inline-size" }}
     >
-      <p className="flex min-h-[2.25rem] items-center justify-center text-[0.7rem] font-semibold uppercase leading-tight tracking-[0.12em] text-muted-foreground">
+      <p className="flex min-h-[2.25rem] items-center justify-center gap-1 text-[0.7rem] font-semibold uppercase leading-tight tracking-[0.12em] text-muted-foreground">
         {label}
+        {definition ? (
+          <span
+            tabIndex={0}
+            role="note"
+            aria-label={`${label}: ${definition}${whyItMatters ? `. ${whyItMatters}` : ""}`}
+            title={`${definition}${whyItMatters ? `\n\nWhy it matters: ${whyItMatters}` : ""}`}
+            className="cursor-help text-muted-foreground/60 transition-colors hover:text-brand focus-visible:text-brand focus-visible:outline-none"
+          >
+            <Info className="h-3 w-3" />
+          </span>
+        ) : null}
       </p>
 
       <p
@@ -111,15 +137,33 @@ export function KpiCard({
         {value}
       </p>
 
-      <div
-        className={cn(
-          "mt-2 inline-flex items-center gap-0.5 self-center rounded-full px-2 py-0.5 text-[0.7rem] font-semibold",
-          good ? "bg-positive/12 text-positive" : "bg-destructive/12 text-destructive",
-        )}
-      >
-        {up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-        {Math.abs(delta).toFixed(1)}%
-      </div>
+      {!hasData ? (
+        <div className="mt-2 inline-flex items-center gap-1 self-center rounded-full bg-surface-2 px-2 py-0.5 text-[0.7rem] font-semibold text-muted-foreground">
+          <Minus className="h-3 w-3" />
+          No data yet
+        </div>
+      ) : !hasComparison ? (
+        // A 0.0% delta rendered in "good" green is a claim that nothing changed.
+        // With no comparable prior window there is nothing to claim.
+        <div className="mt-2 inline-flex items-center gap-1 self-center rounded-full bg-surface-2 px-2 py-0.5 text-[0.7rem] font-semibold text-muted-foreground">
+          <Minus className="h-3 w-3" />
+          No prior period
+        </div>
+      ) : (
+        <div
+          className={cn(
+            "mt-2 inline-flex items-center gap-0.5 self-center rounded-full px-2 py-0.5 text-[0.7rem] font-semibold",
+            good ? "bg-positive/12 text-positive" : "bg-destructive/12 text-destructive",
+          )}
+        >
+          {up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+          {Math.abs(delta).toFixed(1)}%
+        </div>
+      )}
+
+      {hasData && hasComparison && deltaLabel ? (
+        <p className="mt-1 text-[0.65rem] leading-tight text-muted-foreground">{deltaLabel}</p>
+      ) : null}
 
       {sub ? <p className="mt-1.5 text-xs text-muted-foreground">{sub}</p> : null}
 

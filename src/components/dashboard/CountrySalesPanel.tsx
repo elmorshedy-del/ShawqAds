@@ -12,7 +12,13 @@ function rangeCaption(range: Range) {
   return `trailing ${range}`;
 }
 
-function roasClass(v: number) {
+// Below this many units a country's ROAS is one or two orders divided by spend. It is
+// arithmetically real but far too noisy to colour as a verdict — a single-unit market
+// rendered in alarm-red invites cutting a market that was never measured.
+const LOW_SAMPLE_UNITS = 5;
+
+function roasClass(v: number, lowSample = false) {
+  if (lowSample) return "text-muted-foreground";
   if (v >= 3) return "text-positive";
   if (v >= 1.5) return "text-gold";
   return "text-destructive";
@@ -21,6 +27,7 @@ function roasClass(v: number) {
 function CountryRow({ c, delay }: { c: CountrySales; delay: number }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const lowSample = c.units < LOW_SAMPLE_UNITS;
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(id);
@@ -39,11 +46,23 @@ function CountryRow({ c, delay }: { c: CountrySales; delay: number }) {
             {c.units} units · {c.products} products
           </p>
         </div>
-        <div className="text-right">
-          <p className={cn("font-display text-base font-semibold tabular-nums", roasClass(c.roas))}>
+        <div className="shrink-0 text-right">
+          <p
+            className={cn(
+              "font-display text-base font-semibold tabular-nums",
+              roasClass(c.roas, lowSample),
+            )}
+            title={
+              lowSample
+                ? `Only ${c.units} unit${c.units === 1 ? "" : "s"} sold — too few to read this ROAS as a verdict`
+                : undefined
+            }
+          >
             {c.roas.toFixed(2)}x
           </p>
-          <p className="text-[0.6rem] uppercase tracking-[0.1em] text-muted-foreground">ROAS</p>
+          <p className="text-[0.6rem] uppercase tracking-[0.1em] text-muted-foreground">
+            {lowSample ? "ROAS · low sample" : "ROAS"}
+          </p>
         </div>
       </button>
 

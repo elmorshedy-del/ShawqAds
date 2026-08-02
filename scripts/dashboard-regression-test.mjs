@@ -10,10 +10,15 @@ function assertIncludes(source, needle, message) {
   }
 }
 
+// The legacy BusinessMetricPanel/ECharts panels these assertions were written against
+// were replaced by the current dashboard components and left behind as unrendered dead
+// code, so this file had been asserting on markup that no longer reached the screen.
+// Each assertion below keeps its original intent and now points at the live component.
+
 assertIncludes(
   app,
-  '<BusinessMetricPanel rows={allBusinessRows}',
-  'Business unfold chart must receive allBusinessRows so Week/2W/Month buttons can expand beyond the selected date.'
+  'adapt.toDayRows(allBusinessRows)',
+  'Business trend chart must receive allBusinessRows so 3D/7D/14D/All buttons can expand beyond the selected date.'
 );
 
 assertIncludes(
@@ -29,9 +34,15 @@ assertIncludes(
 );
 
 assertIncludes(
-  app,
-  'Developing today',
-  'Business unfold chart must mark the current Istanbul day as a developing/dashed point instead of a misleading solid zero drop.'
+  fs.readFileSync(new URL('../src/lib/adapt.js', import.meta.url), 'utf8'),
+  'developing: Boolean(reportingDay',
+  'Daily rows must flag the current Istanbul day so a partial day is not read as a completed one.'
+);
+
+assertIncludes(
+  fs.readFileSync(new URL('../src/components/dashboard/DataTable.tsx', import.meta.url), 'utf8'),
+  'Developing',
+  'Daily breakdown must mark the current Istanbul day as developing instead of showing it as a settled row.'
 );
 
 assertIncludes(
@@ -132,14 +143,20 @@ assertIncludes(
 
 assertIncludes(
   app,
-  'productGrowthOption(launchProductData)',
+  'adapt.toProductDevelopment(launchProductData)',
   'Developing growth chart must use Shopify product data from campaign launch onward.'
 );
 
 assertIncludes(
   app,
-  'trendOption(deliveryTrendRows, march, launchSelectedChanges, launchProductData.daily || [])',
-  'Daily delivery shape must use the fixed launch window and launch-window Shopify sales series.'
+  'const deliveryTrendRows = aggregateRows(launchChosen.length ? launchChosen : launchFiltered)',
+  'Daily delivery shape must use the fixed launch window, not the selected date range.'
+);
+
+assertIncludes(
+  app,
+  'adapt.toDeliveryShape(deliveryRowsExcludingToday)',
+  'Daily delivery shape must drop the still-accumulating reporting day so reach does not end in a false cliff.'
 );
 
 assertIncludes(
@@ -149,8 +166,8 @@ assertIncludes(
 );
 
 assertIncludes(
-  app,
-  'TipSummary',
+  fs.readFileSync(new URL('../src/lib/adapt.js', import.meta.url), 'utf8'),
+  'tipsPeople',
   'Tips should be shown as a small separate summary instead of product inventory.'
 );
 

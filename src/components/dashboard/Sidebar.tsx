@@ -28,6 +28,7 @@ export interface StatusOption {
 export const datePresets: { value: string; label: string; description: string }[] = [
   { value: "today", label: "Today", description: "Current Istanbul day" },
   { value: "yesterday", label: "Yesterday", description: "Previous Istanbul day" },
+  { value: "latest", label: "Latest data day", description: "Most recent day that actually has data" },
   { value: "last7", label: "Last week", description: "Rolling 7-day view" },
   { value: "launch", label: "June 3 CBO campaign launch", description: "New Meta CBO campaigns from launch day onward" },
   { value: "all", label: "Matched data", description: "All days with Meta + Shopify" },

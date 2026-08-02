@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Crown, Package, Megaphone } from "lucide-react";
 import { fmtCurrency, fmtPct, type ProductLeader, type AdLeader } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/dashboard/EmptyState";
 
 type Tab = "products" | "ads";
 
@@ -54,7 +55,19 @@ export function LeadershipTables({ products, ads }: { products: ProductLeader[];
         </div>
       </div>
 
-      {tab === "products" ? (
+      {tab === "products" && !products.length ? (
+        <EmptyState
+          icon={Package}
+          title="No product sales in this window"
+          hint="Product leaders come from paid Shopify order lines. Pick a window that contains orders, or switch to the June 3 launch preset."
+        />
+      ) : tab === "ads" && !ads.length ? (
+        <EmptyState
+          icon={Megaphone}
+          title="No Shopify-captured ads in this window"
+          hint="An ad appears here once a Shopify order carries its UTM or ad reference. Meta-only delivery is in the campaign ROAS tree."
+        />
+      ) : tab === "products" ? (
         <div className="divide-y divide-border/70">
           {products.map((p, i) => (
             <div key={p.name} className="flex items-center gap-4 px-6 py-3.5 transition-colors hover:bg-surface-2/50">

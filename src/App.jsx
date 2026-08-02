@@ -1,7 +1,6 @@
-import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import ReactECharts from 'echarts-for-react';
-import { Activity, BarChart3, BellRing, CalendarDays, Filter, GitBranch, LayoutDashboard, RefreshCw, Rocket, Search, ShoppingBag, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react';
-import { compact, money, pct, slug } from './lib/format.js';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, BarChart3, Filter, GitBranch, LayoutDashboard, Rocket, ShoppingBag, SlidersHorizontal } from 'lucide-react';
+import { compact, money, pct } from './lib/format.js';
 import { buildCampaignAttribution } from './lib/campaignAttribution.js';
 import {
   buildKpiProjectionDisplay,
@@ -9,18 +8,15 @@ import {
   buildKpiRecordMap,
   buildMonthProjection,
 } from './lib/businessKpiInsights.js';
+import { metricDefinition } from './lib/metricDefinitions.js';
+import { buildKeyFindings, topDrivers } from './lib/analyticsInsights.js';
+import { KeyFindings } from './components/dashboard/KeyFindings';
 import { buildShopifyHistoricalDaily } from './lib/historicalInsights.js';
 import { buildFunnelAnalytics } from './lib/funnelAnalytics.js';
 import { buildEmailDailyIndex, applyRevenueScope } from './lib/revenueScope.js';
-import {
-  formatDwellSeconds,
-  journeyStepInsight,
-  normalizePagePath,
-  pagePathLabel,
-} from './lib/pagePath.js';
-import { dwellPageInsight, dwellAnalysisMeta, rollupDwellPages } from './lib/dwellStats.js';
+import { normalizePagePath } from './lib/pagePath.js';
+import { dwellAnalysisMeta, rollupDwellPages } from './lib/dwellStats.js';
 import { statusLabels, statusOrder } from './features/adset-radar/constants.js';
-import { familyStyle } from './features/product-demand/constants.js';
 import { Sidebar, MobileFilters, datePresets } from './components/dashboard/Sidebar';
 import { OrdersMap } from './components/dashboard/OrdersMap';
 import { KpiCard } from './components/dashboard/KpiCard';
@@ -204,10 +200,22 @@ async function fetchJsonWithFallback(apiPath, staticPath, fallbackFactory) {
   return fallbackFactory();
 }
 
+// A non-JSON body (an HTML error page from a proxy, a dev server 404) used to surface
+// the raw parser message — "Unexpected token '<'" — in the live monitor card. Operators
+// get a sentence they can act on instead.
+function parseApiJson(text, label) {
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${label} returned an unexpected response`);
+  }
+}
+
 async function fetchLatestSale() {
   const res = await fetch('/api/shopify/latest-sale', { cache: 'no-store' });
   const text = await res.text();
-  const payload = text ? JSON.parse(text) : {};
+  const payload = parseApiJson(text, 'Shopify sales monitor');
   if (!res.ok) throw new Error(payload.error || `Shopify sale monitor ${res.status}`);
   return payload;
 }
@@ -215,7 +223,7 @@ async function fetchLatestSale() {
 async function fetchLiveMeta() {
   const res = await fetch('/api/meta/live-spend', { cache: 'no-store' });
   const text = await res.text();
-  const payload = text ? JSON.parse(text) : {};
+  const payload = parseApiJson(text, 'Meta live spend');
   if (!res.ok) throw new Error(payload.error || `Meta live spend ${res.status}`);
   return payload;
 }
@@ -255,13 +263,6 @@ function sum(rows, key) { return rows.reduce((a, r) => a + Number(r[key] || 0), 
 function reachPerDollar(row = {}) {
   const spendUsd = Number(row.spend_usd ?? row.spend ?? 0);
   return spendUsd > 0 ? Number(row.reach || 0) / spendUsd : 0;
-}
-function movingAverage(values = [], window = 3) {
-  return values.map((_, index) => {
-    const start = Math.max(0, index - window + 1);
-    const slice = values.slice(start, index + 1).filter((value) => Number.isFinite(Number(value)));
-    return slice.length ? slice.reduce((a, b) => a + Number(b || 0), 0) / slice.length : 0;
-  });
 }
 function byDate(rows = []) {
   return new Map((rows || []).filter((row) => row?.date).map((row) => [row.date, row]));
@@ -453,16 +454,24 @@ function rangeFromDateSet(set) {
 function loadedDateRange(meta, shopify) {
   const metaDates = new Set();
   const shopifyDates = new Set();
+  // Row-backed dates only: `analysis_window` / `period` describe what was *requested*,
+  // which can run past the days that actually came back. Anything that decides "is there
+  // data here?" must use these sets, not the declared windows.
+  const metaRowDates = new Set();
+  const shopifyRowDates = new Set();
   const addMeta = (date) => { if (date) metaDates.add(date); };
   const addShopify = (date) => { if (date) shopifyDates.add(date); };
+  const addMetaRow = (date) => { if (date) { metaDates.add(date); metaRowDates.add(date); } };
+  const addShopifyRow = (date) => { if (date) { shopifyDates.add(date); shopifyRowDates.add(date); } };
   addMeta(meta?.analysis_window?.since); addMeta(meta?.analysis_window?.until);
   addShopify(shopify?.period?.since); addShopify(shopify?.period?.until);
-  (meta?.adsets || []).forEach((adset) => (adset.rows || []).forEach((row) => addMeta(row.date)));
-  (meta?.ad_daily || []).forEach((row) => addMeta(row.date));
-  (meta?.ad_country_daily || []).forEach((row) => addMeta(row.date));
-  (meta?.account_daily_metrics || []).forEach((row) => addMeta(row.date));
-  (shopify?.daily || []).forEach((row) => addShopify(row.date));
-  (shopify?.order_lines || []).forEach((row) => addShopify(row.date));
+  (meta?.adsets || []).forEach((adset) => (adset.rows || []).forEach((row) => addMetaRow(row.date)));
+  (meta?.ad_daily || []).forEach((row) => addMetaRow(row.date));
+  (meta?.ad_country_daily || []).forEach((row) => addMetaRow(row.date));
+  (meta?.account_daily_metrics || []).forEach((row) => addMetaRow(row.date));
+  (meta?.daily_metrics || []).forEach((row) => addMetaRow(row.date));
+  (shopify?.daily || []).forEach((row) => addShopifyRow(row.date));
+  (shopify?.order_lines || []).forEach((row) => addShopifyRow(row.date));
   const metaRange = rangeFromDateSet(metaDates);
   const shopifyRange = rangeFromDateSet(shopifyDates);
   const unionRange = rangeFromDateSet(new Set([...metaDates, ...shopifyDates]));
@@ -472,6 +481,9 @@ function loadedDateRange(meta, shopify) {
   const commonUntil = [metaRange.until, shopifyRange.until].filter(Boolean).sort()[0] || unionRange.until;
   const hasCommon = Boolean(commonSince && commonUntil && commonSince <= commonUntil);
   const commonDates = unionRange.dates.filter((date) => date >= commonSince && date <= commonUntil);
+  const metaRowRange = rangeFromDateSet(metaRowDates);
+  const shopifyRowRange = rangeFromDateSet(shopifyRowDates);
+  const latestDataDay = [metaRowRange.until, shopifyRowRange.until].filter(Boolean).sort().at(-1) || '';
   return {
     since: unionRange.since,
     until: unionRange.until,
@@ -490,6 +502,10 @@ function loadedDateRange(meta, shopify) {
     today,
     reporting_timezone: REPORTING_TIMEZONE,
     is_common: hasCommon,
+    latest_meta_day: metaRowRange.until,
+    latest_shopify_day: shopifyRowRange.until,
+    latest_data_day: latestDataDay,
+    has_today_data: Boolean(latestDataDay && latestDataDay >= today),
   };
 }
 function normalizeDateRange(range, bounds) {
@@ -591,6 +607,10 @@ function filterMetaDataByDateRange(meta, range) {
   })) : (hasWindowableAdRows ? [] : (meta?.countries || []));
   const accountDaily = filterRowsByDateRange(meta?.account_daily_metrics || [], range);
   const adsetCountryDaily = filterRowsByDateRange(meta?.adset_country_daily || [], range);
+  // `daily_metrics` is the last-resort source for account spend. It must be windowed
+  // like every other series: leaving it unfiltered let a window with no Meta rows fall
+  // through to full-history spend, so an empty day reported the whole campaign's spend.
+  const dailyMetrics = filterRowsByDateRange(meta?.daily_metrics || [], range);
   const fxRates = meta?.fx_rates?.rates ? { ...meta.fx_rates, rates: filterRowsByDateRange(meta.fx_rates.rates, range) } : meta?.fx_rates;
   return {
     ...meta,
@@ -600,6 +620,7 @@ function filterMetaDataByDateRange(meta, range) {
     all_adsets: allAdsets,
     countries,
     account_daily_metrics: accountDaily,
+    daily_metrics: dailyMetrics,
     ad_daily: adDailyRows,
     ad_country_daily: adRows,
     adset_country_daily: adsetCountryDaily,
@@ -875,6 +896,10 @@ function presetDateRange(preset, bounds) {
     const day = yesterdayPresetDay(bounds);
     return clampDateRange({ since: day, until: day }, bounds);
   }
+  if (preset === 'latest') {
+    const day = bounds?.latest_data_day || latestCompletedDataDay(bounds) || end;
+    return clampDateRange({ since: day, until: day }, bounds);
+  }
   if (preset === 'last7') return clampDateRange({ since: shiftDate(end, -6), until: end }, bounds);
   if (preset === 'launch') return launchAnalysisDateRange(bounds);
   if (preset === 'all' && bounds?.common_since && bounds?.common_until) {
@@ -931,68 +956,15 @@ function dateRangeLabel(range, preset, bounds) {
     : datePresets.find((p) => p.value === preset)?.label || 'Custom';
   return `${prefix}: ${range.since} - ${range.until}`;
 }
-function presetSubLabel(preset, bounds) {
-  const range = presetDateRange(preset, bounds);
-  if (!range.since) return 'No loaded dates yet';
-  if (preset === 'custom') return 'Choose exact start and end';
-  return range.since === range.until ? range.since : `${range.since} - ${range.until}`;
-}
-function wrapChartLabel(value, maxLineLength = 18) {
-  const text = String(value || '').trim();
-  if (!text) return '';
-  const words = text.split(/\s+/);
-  const lines = [];
-  let line = '';
-  for (const word of words) {
-    if (word.length > maxLineLength) {
-      if (line) {
-        lines.push(line);
-        line = '';
-      }
-      for (let i = 0; i < word.length; i += maxLineLength) lines.push(word.slice(i, i + maxLineLength));
-      continue;
-    }
-    const next = line ? `${line} ${word}` : word;
-    if (next.length > maxLineLength) {
-      if (line) lines.push(line);
-      line = word;
-    } else {
-      line = next;
-    }
-  }
-  if (line) lines.push(line);
-  return lines.join('\n');
-}
 function countryFlag(code) {
   const cc = String(code || '').trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(cc)) return '•';
   return [...cc].map((char) => String.fromCodePoint(127397 + char.charCodeAt(0))).join('');
 }
-function saleMoney(sale) {
-  const currency = sale?.currency || 'USD';
-  try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(sale?.total_price || 0));
-  } catch {
-    return money.format(Number(sale?.total_price || 0));
-  }
-}
 function saleTime(value) {
   if (!value) return 'No timestamp';
   return new Date(value).toLocaleString([], { timeZone: REPORTING_TIMEZONE, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
 }
-
-function businessMetricConfig(active) {
-  return {
-    revenue: { key: 'revenue_usd', label: 'Shopify revenue', formatter: (v) => money.format(v), color: '#e02e92' },
-    sales: { key: 'orders', label: 'Shopify orders', formatter: (v) => compact(v), color: '#7f1d57' },
-    aov: { key: 'aov', label: 'AOV', formatter: (v) => (v ? money.format(v) : 'n/a'), color: '#be2b78' },
-    spend: { key: 'spend_usd', label: 'Meta spend', formatter: (v) => money.format(v), color: '#bf6b1f' },
-    cac: { key: 'cac', label: 'CAC', formatter: (v) => (v ? money.format(v) : 'n/a'), color: '#9f1d63' },
-    roas: { key: 'roas', label: 'ROAS', formatter: (v) => (v ? `${Number(v).toFixed(2)}x` : 'n/a'), color: '#0b766c' },
-  }[active] || { key: 'revenue_usd', label: 'Shopify revenue', formatter: (v) => money.format(v), color: '#e02e92' };
-}
-
-const BUSINESS_WINDOW_OPTIONS = [['3', '3D'], ['7', 'Week'], ['14', '2W'], ['30', 'Month'], ['all', 'All']];
 
 export function businessWindowRows(rows, windowKey) {
   const sorted = [...(rows || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
@@ -1136,10 +1108,11 @@ function businessPeriodDelta(rows, key, activeRange) {
   return periodDeltaFromRows(currentRows, [], key, 'no prior period');
 }
 
-function toneForDelta(value, higherIsGood = true) {
-  const n = Number(value || 0);
-  if (!n) return 'neutral';
-  return higherIsGood ? (n > 0 ? 'good' : 'bad') : (n < 0 ? 'good' : 'bad');
+// `businessPeriodDelta` reports these labels when it could not build a comparison at
+// all. Without this the cards render a green "0.0%", which reads as "flat" rather than
+// "unknown".
+function hasComparison(delta) {
+  return Boolean(delta && delta.label !== 'no prior period' && delta.label !== 'no current data');
 }
 
 function enrichAdset(adset, march) {
@@ -1171,77 +1144,6 @@ function enrichAdset(adset, march) {
   return { ...adset, current, histDelta, marchDelta, activeDays: rows.filter((r) => Number(r.spend || 0) > 0).length, status, recommendation };
 }
 
-function groupedChangePointsForRows(rows, changes) {
-  if (!changes?.length) return [];
-  const byDate = new Map(rows.map((r) => [r.date, r]));
-  const grouped = new Map();
-  changes.forEach((change) => {
-    if (!byDate.has(change.date)) return;
-    const list = grouped.get(change.date) || [];
-    list.push(change);
-    grouped.set(change.date, list);
-  });
-  return [...grouped.entries()].map(([date, list]) => {
-    const r = byDate.get(date);
-    const budgetCount = list.filter((c) => c.is_budget_change).length;
-    const ordered = [...list].sort((a, b) => Number(Boolean(b.is_budget_change)) - Number(Boolean(a.is_budget_change)));
-    const examples = ordered.slice(0, 4).map((c) => `${c.is_budget_change ? 'BUDGET: ' : ''}${c.object_name || 'Ad set'}: ${c.label || c.event_type || 'changed'}`);
-    return {
-      coord: [date, r.frequency],
-      value: budgetCount ? `${budgetCount} budget change${budgetCount === 1 ? '' : 's'} · ${list.length} total edit${list.length === 1 ? '' : 's'}` : `${list.length} ad set change${list.length === 1 ? '' : 's'}`,
-      changes: list,
-      examples,
-      budgetCount,
-      itemStyle: { color: budgetCount ? '#a40013' : '#c81e2c', borderColor: '#fff', borderWidth: 2 },
-      symbolSize: budgetCount ? Math.min(24, 14 + Math.sqrt(budgetCount) * 4) : Math.min(16, 9 + Math.sqrt(list.length) * 2),
-    };
-  });
-}
-
-function sparkOption(rows, metric, color) {
-  return { animation: false, grid: { left: 0, right: 0, top: 4, bottom: 0 }, xAxis: { type: 'category', show: false, data: rows.map((r) => r.date) }, yAxis: { type: 'value', show: false, scale: true }, series: [{ type: 'line', data: rows.map((r) => Number(r[metric] || 0)), smooth: true, symbol: 'none', lineStyle: { color, width: 2 }, areaStyle: { color: `${color}22` } }] };
-}
-
-function trendOption(rows, march, changes, shopifyDaily = []) {
-  const latestShopifyDate = [...(shopifyDaily || []).map((row) => row.date).filter(Boolean)].sort().at(-1) || '';
-  const chartRows = attachShopifySales(rows, shopifyDaily, { completedUntil: latestShopifyDate });
-  const dates = chartRows.map((r) => r.date);
-  const reachPerDollarValues = chartRows.map((r) => reachPerDollar(r));
-  const maxReachPerDollar = Math.max(...reachPerDollarValues, reachPerDollar(march), 1);
-  const maxSales = Math.max(...chartRows.map((r) => Number(r.shopify_sales || 0)), 1);
-  const showUsaBaseline = Boolean(march?.applies);
-  const marchReachPerDollar = reachPerDollar(march);
-  return {
-    animation: false,
-    color: ['#067c73', '#e09113', '#d63f8c', '#1d64d8', '#c81e2c'],
-    tooltip: { trigger: 'axis', backgroundColor: '#111827', borderColor: '#111827', textStyle: { color: '#fff' }, formatter: (params) => {
-      const i = params[0].dataIndex;
-      const r = chartRows[i];
-      const editsForDay = (changes || []).filter((c) => c.date === r.date);
-      const orderedEdits = [...editsForDay].sort((a, b) => Number(Boolean(b.is_budget_change)) - Number(Boolean(a.is_budget_change)));
-      const budgetCount = orderedEdits.filter((c) => c.is_budget_change).length;
-      const edits = orderedEdits.length ? `${budgetCount ? `${budgetCount} BUDGET change${budgetCount === 1 ? '' : 's'} · ` : ''}${orderedEdits.length} total edit${orderedEdits.length === 1 ? '' : 's'}<br/>${orderedEdits.slice(0, 4).map((c) => `${c.is_budget_change ? 'BUDGET: ' : ''}${c.object_name || 'Ad set'}: ${c.label || c.event_type || 'changed'}`).join('<br/>')}` : '';
-      return `<b>${r.date}</b><br/>Frequency: ${Number(r.frequency || 0).toFixed(2)}<br/>CPM: ${money.format(r.cpm_usd ?? r.cpm ?? 0)}<br/>Shopify sales: ${compact(r.shopify_sales || 0)}<br/>Unique reach / $: ${reachPerDollar(r).toFixed(1)}<br/>Unique reach: ${compact(r.reach || 0)}<br/>Spend: ${money.format(r.spend_usd ?? r.spend ?? 0)}${edits ? `<br/><span style="color:#ffb4b4">● ${edits}</span>` : ''}`;
-    } },
-    legend: { top: 0, right: 18, itemGap: 22, textStyle: { color: '#394150', fontWeight: 600 } },
-    grid: { left: 48, right: 148, top: 48, bottom: 58 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 18, borderColor: '#d8d4ca', fillerColor: '#0a766630' }],
-    xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#d8d4ca' } }, axisLabel: { color: '#697386' } },
-    yAxis: [
-      { type: 'value', name: 'Frequency', min: 0, axisLabel: { color: '#067c73' }, splitLine: { lineStyle: { color: '#ece7db', type: 'dashed' } } },
-      { type: 'value', name: 'CPM', axisLabel: { color: '#e09113', formatter: '${value}' }, splitLine: { show: false } },
-      { type: 'value', name: 'Sales', min: 0, max: Math.max(3, Math.ceil(maxSales * 1.3)), offset: 48, axisLabel: { color: '#d63f8c' }, splitLine: { show: false } },
-      { type: 'value', name: 'Reach / $', min: 0, max: Math.ceil(maxReachPerDollar * 1.2), offset: 96, axisLabel: { color: '#1d64d8' }, splitLine: { show: false } },
-    ],
-    series: [
-      { name: 'Frequency', type: 'line', smooth: true, symbolSize: 6, data: chartRows.map((r) => Number(r.frequency || 0)), markLine: showUsaBaseline ? { silent: true, symbol: 'none', data: [{ yAxis: march.frequency, name: 'March freq' }], lineStyle: { color: '#067c73', type: 'dashed', opacity: 0.55 } } : undefined, markPoint: { data: groupedChangePointsForRows(chartRows, changes), label: { show: false }, tooltip: { formatter: (p) => `<b>${p.data.value}</b><br/>${(p.data.examples || []).join('<br/>')}` } } },
-      { name: 'CPM', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 6, data: chartRows.map((r) => Number(r.cpm_usd ?? r.cpm ?? 0)), markLine: showUsaBaseline ? { silent: true, symbol: 'none', data: [{ yAxis: march.cpm, name: 'March CPM' }], lineStyle: { color: '#e09113', type: 'dashed', opacity: 0.55 } } : undefined },
-      { name: 'Shopify sales', type: 'line', yAxisIndex: 2, smooth: true, symbolSize: 7, data: chartRows.map((r) => Number(r.shopify_sales || 0)), lineStyle: { width: 3 }, areaStyle: { opacity: 0.06 } },
-      { name: 'Unique reach / $', type: 'line', yAxisIndex: 3, smooth: true, symbolSize: 5, data: reachPerDollarValues, lineStyle: { width: 2 }, areaStyle: { opacity: 0.08 }, markLine: showUsaBaseline && marchReachPerDollar ? { silent: true, symbol: 'none', data: [{ yAxis: marchReachPerDollar, name: 'March reach/$' }], lineStyle: { color: '#1d64d8', type: 'dashed', opacity: 0.55 } } : undefined },
-    ],
-  };
-}
-
 function comparisonRows(period = {}, shopifyPeriod = {}) {
   const matchedOrders = Number(shopifyPeriod.totals?.orders || 0);
   const countryOrders = Number(shopifyPeriod.totals?.country_orders || 0);
@@ -1265,182 +1167,6 @@ function comparisonStats(period = {}, shopifyPeriod = {}) {
     avgCpm: avg(rows, 'cpm_usd') || avg(rows, 'cpm'),
     avgReachPerDollar: avg(rows, 'reach_per_dollar'),
   };
-}
-
-function deliveryComparisonOption(comparison = {}, shopifyComparison = {}) {
-  const historical = comparison.historical || {};
-  const current = comparison.current || {};
-  const periods = [
-    { key: 'historical', label: historical.label || 'Historical USA_ABO', legend: 'Old', lineType: 'dashed', rows: comparisonRows(historical, shopifyComparison.historical || {}) },
-    { key: 'current', label: current.label || 'June USA launch', legend: 'June', lineType: 'solid', rows: comparisonRows(current, shopifyComparison.current || {}) },
-  ];
-  const maxDays = Math.max(...periods.map((period) => period.rows.length), 1);
-  const dayLabels = Array.from({ length: maxDays }, (_, i) => `Day ${i + 1}`);
-  const allRows = periods.flatMap((period) => period.rows);
-  const maxReachPerDollar = Math.max(...allRows.map((r) => reachPerDollar(r)), 1);
-  const maxSales = Math.max(...allRows.map((r) => Number(r.shopify_sales || 0)), 1);
-  const metricValue = (row, metric) => {
-    if (metric === 'frequency') return Number(row.frequency || 0);
-    if (metric === 'cpm') return Number(row.cpm_usd ?? row.cpm ?? 0);
-    if (metric === 'sales') return Number(row.shopify_sales || 0);
-    if (metric === 'reach_per_dollar') return reachPerDollar(row);
-    return 0;
-  };
-  const makeSeries = (period, metric, label, yAxisIndex = 0) => {
-    const rawValues = period.rows.map((row) => metricValue(row, metric));
-    const smoothedValues = period.key === 'historical' && metric === 'sales' ? movingAverage(rawValues, 3) : rawValues;
-    const metricLabel = period.key === 'historical' && metric === 'sales' ? 'Shopify sales (3d avg)' : label;
-    const legendLabel = metric === 'sales'
-      ? (period.key === 'historical' ? 'Sales 3d' : 'Sales')
-      : metric === 'reach_per_dollar'
-        ? 'Reach/$'
-        : label;
-    return {
-      name: `${period.legend} ${legendLabel}`,
-      type: 'line',
-      smooth: true,
-      yAxisIndex,
-      symbolSize: metric === 'sales' ? 7 : 5,
-      data: period.rows.map((row, index) => ({ value: smoothedValues[index], actual: rawValues[index], raw: row, day: index + 1, period: period.label, metricLabel, metric, smoothed: smoothedValues[index] !== rawValues[index] })),
-      lineStyle: { width: metric === 'sales' ? 3.2 : 2.2, type: period.lineType, opacity: period.key === 'historical' ? 0.74 : 1 },
-      itemStyle: { opacity: period.key === 'historical' ? 0.74 : 1 },
-      emphasis: { focus: 'series' },
-    };
-  };
-  return {
-    animation: false,
-    color: periods.flatMap(() => ['#0b766c', '#c98834', '#d63f8c', '#2f65d9']),
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: '#211018',
-      borderColor: '#211018',
-      textStyle: { color: '#fff' },
-      formatter: (params) => {
-        const groups = new Map();
-        params.filter((p) => p.data?.raw).forEach((p) => {
-          const key = p.data.period;
-          const row = p.data.raw;
-          if (!groups.has(key)) groups.set(key, { row, lines: [] });
-          const metric = p.data.metric;
-          let value = metric === 'cpm' ? money.format(p.value) : metric === 'reach_per_dollar' ? Number(p.value || 0).toFixed(1) : metric === 'frequency' ? Number(p.value || 0).toFixed(2) : Number(p.value || 0).toFixed(p.data.smoothed ? 1 : 0);
-          if (metric === 'sales' && p.data.smoothed) value = `${value} (actual ${compact(p.data.actual || 0)})`;
-          groups.get(key).lines.push(`${p.marker}${p.data.metricLabel}: ${value}`);
-        });
-        return [...groups.entries()].map(([label, group]) => `<b>${label} · ${group.row.date}</b><br/>${group.lines.join('<br/>')}<br/>Spend: ${money.format(group.row.spend_usd || 0)}<br/>Unique reach: ${compact(group.row.reach || 0)}<br/>Shopify revenue: ${money.format(group.row.shopify_revenue_usd || 0)}<br/>Sales source: ${group.row.shopify_sales_source || 'Shopify orders'}`).join('<br/><br/>');
-      },
-    },
-    legend: { top: 0, left: 0, right: 0, type: 'plain', itemGap: 14, textStyle: { color: '#5f4a56', fontWeight: 850, fontSize: 11 }, pageIconColor: '#d63f8c' },
-    grid: { left: 48, right: 148, top: 64, bottom: 42 },
-    xAxis: { type: 'category', data: dayLabels, axisLine: { lineStyle: { color: '#efd4e3' } }, axisLabel: { color: '#7b6672', fontWeight: 800 } },
-    yAxis: [
-      { type: 'value', name: 'Frequency', min: 0, axisLabel: { color: '#0b766c' }, splitLine: { lineStyle: { color: '#f4e4ee', type: 'dashed' } } },
-      { type: 'value', name: 'CPM', axisLabel: { color: '#c98834', formatter: '${value}' }, splitLine: { show: false } },
-      { type: 'value', name: 'Sales', min: 0, max: Math.max(3, Math.ceil(maxSales * 1.35)), offset: 52, axisLabel: { color: '#d63f8c' }, splitLine: { show: false } },
-      { type: 'value', name: 'Reach / $', min: 0, max: Math.ceil(maxReachPerDollar * 1.2), offset: 104, axisLabel: { color: '#2f65d9' }, splitLine: { show: false } },
-    ],
-    series: periods.flatMap((period) => [
-      makeSeries(period, 'frequency', 'Frequency'),
-      makeSeries(period, 'cpm', 'CPM', 1),
-      makeSeries(period, 'sales', 'Shopify sales', 2),
-      makeSeries(period, 'reach_per_dollar', 'Unique reach / $', 3),
-    ]),
-  };
-}
-
-function DeliveryComparisonPanel({ comparison, shopifyComparison }) {
-  const ok = Boolean(comparison?.ok);
-  const historical = comparison?.historical || {};
-  const current = comparison?.current || {};
-  const historicalShopify = shopifyComparison?.historical || {};
-  const currentShopify = shopifyComparison?.current || {};
-  const historicalStats = comparisonStats(historical, historicalShopify);
-  const currentStats = comparisonStats(current, currentShopify);
-  const shopifyOk = Boolean(shopifyComparison?.ok);
-  const usesCountryFallback = [...comparisonRows(historical, historicalShopify), ...comparisonRows(current, currentShopify)]
-    .some((row) => row.shopify_sales_source === 'US country orders fallback');
-  return <section className="comparison-panel chart-panel">
-    <div className="panel-title comparison-title">
-      <div>
-        <h2>USA_ABO history vs June USA launch</h2>
-        <p>Dashed lines show Testing_USA_ABO from February until it ended. Solid lines show the USA launch from June 06 onward. Sales are Shopify-derived orders; delivery is Meta reach, frequency, CPM, and spend.</p>
-      </div>
-      <span>{comparison?.country_code || 'US'} comparison</span>
-    </div>
-    {ok ? <>
-      <div className="comparison-summary">
-        {[{ label: historical.label || 'Testing_USA_ABO', period: historical.period, stats: historicalStats, type: 'historical' }, { label: current.label || 'USA_CBO launch', period: current.period, stats: currentStats, type: 'current' }].map((item) => <article key={item.type} className={item.type}>
-          <b>{item.label}</b>
-          <small>{item.stats.since || item.period?.since || 'n/a'} - {item.stats.until || item.period?.until || 'n/a'} · {item.stats.days || 0} completed days</small>
-          <div>
-            <span><strong>{compact(item.stats.sales)}</strong><em>Shopify sales</em></span>
-            <span><strong>{money.format(item.stats.spend)}</strong><em>spend</em></span>
-            <span><strong>{item.stats.avgFrequency.toFixed(2)}</strong><em>avg freq</em></span>
-            <span><strong>{money.format(item.stats.avgCpm)}</strong><em>avg CPM</em></span>
-            <span><strong>{item.stats.avgReachPerDollar.toFixed(1)}</strong><em>reach / $</em></span>
-          </div>
-        </article>)}
-      </div>
-      {usesCountryFallback ? <div className="unresolved-note"><b>Shopify sales fallback is active.</b><span>Where campaign UTM is missing, the comparison uses completed US Shopify country orders for the US launch period instead of Meta purchases.</span></div> : null}
-      {!shopifyOk ? <div className="unresolved-note warn-note"><b>Shopify campaign sales were not available for this comparison.</b><span>The chart still shows Meta delivery, but Shopify sales will stay at zero until Shopify comparison rows are generated.</span></div> : null}
-      <ReactECharts option={deliveryComparisonOption(comparison, shopifyComparison)} style={{ height: 430 }} />
-    </> : <div className="behavior-empty compact">
-      <b>USA comparison is not available yet</b>
-      <span>{comparison?.error || 'The Meta comparison fetch did not return rows for the historical/current campaign pair.'}</span>
-    </div>}
-  </section>;
-}
-
-function productGrowthOption(shopify) {
-  const rows = shopify.cumulative || [];
-  const families = (shopify.families || []).map((f) => f.family).filter((f) => rows.some((r) => Number(r[f] || 0) > 0));
-  return {
-    color: families.map((f) => familyStyle[f]?.color || familyStyle.Other.color),
-    tooltip: { trigger: 'axis', backgroundColor: '#111827', borderColor: '#111827', textStyle: { color: '#fff' } },
-    legend: { top: 0, type: 'scroll', textStyle: { color: '#394150', fontWeight: 700 } },
-    grid: { left: 42, right: 24, top: 54, bottom: 36 },
-    xAxis: { type: 'category', data: rows.map((r) => r.date), axisLabel: { color: '#697386' }, axisLine: { lineStyle: { color: '#d8d4ca' } } },
-    yAxis: { type: 'value', name: 'Cumulative units', axisLabel: { color: '#697386' }, splitLine: { lineStyle: { color: '#ece7db', type: 'dashed' } } },
-    series: families.map((family) => {
-      const style = familyStyle[family] || familyStyle.Other;
-      return { name: family, type: 'line', smooth: true, data: rows.map((r) => Number(r[family] || 0)), symbol: style.symbol, symbolSize: 7, lineStyle: { width: family === 'Skirts' ? 4 : 3, type: style.dash, color: style.color }, itemStyle: { color: style.color }, emphasis: { focus: 'series' } };
-    }),
-  };
-}
-
-function countrySalesRoasOption(shopifyCountries = [], metaCountries = []) {
-  const metaByCode = new Map((metaCountries || []).map((country) => [country.country_code, country]));
-  const rows = (shopifyCountries || []).slice(0, 14).map((country) => ({
-    ...country,
-    meta: metaByCode.get(country.country_code) || {},
-  })).map((country) => ({ ...country, shopify_roas: shopifyCountryRoas(country, country.meta) }));
-  return {
-    color: ['#e02e92', '#0b766c'],
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: '#22121a',
-      borderColor: '#22121a',
-      textStyle: { color: '#fff' },
-      formatter: (params) => {
-        const row = rows[params[0].dataIndex];
-        return `<b>${countryFlag(row.country_code)} ${row.country}</b><br/>Shopify units: ${row.units || 0}<br/>Shopify revenue: ${money.format(row.revenue_usd || 0)}<br/>Meta spend: ${money.format(row.meta.spend_usd || 0)}<br/>Shopify ROAS: ${Number(row.shopify_roas || 0).toFixed(2)}x`;
-      },
-    },
-    grid: { left: 42, right: 52, top: 26, bottom: 42 },
-    xAxis: { type: 'category', data: rows.map((row) => `${countryFlag(row.country_code)} ${row.country_code}`), axisLabel: { color: '#6d5a66', fontWeight: 800 }, axisLine: { lineStyle: { color: '#f0dce8' } } },
-    yAxis: [
-      { type: 'value', name: 'Units', axisLabel: { color: '#6d5a66' }, splitLine: { lineStyle: { color: '#f5e4ee', type: 'dashed' } } },
-      { type: 'value', name: 'ROAS', axisLabel: { color: '#0b766c', formatter: '{value}x' }, splitLine: { show: false } },
-    ],
-    series: [
-      { name: 'Shopify units', type: 'bar', data: rows.map((row) => Number(row.units || 0)), barMaxWidth: 20, itemStyle: { borderRadius: [8, 8, 0, 0] } },
-      { name: 'Shopify ROAS', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 7, data: rows.map((row) => Number(row.shopify_roas || 0)), lineStyle: { width: 3 }, label: { show: true, color: '#0b766c', fontWeight: 900, formatter: (p) => `${Number(p.value || 0).toFixed(1)}x` } },
-    ],
-  };
-}
-
-function shopifyCountryRoas(country, metaCountry) {
-  const spend = Number(metaCountry?.spend_usd || 0);
-  return spend ? Number(country?.revenue_usd || 0) / spend : 0;
 }
 
 function mergeBusinessRows(metaDaily, shopifyDaily) {
@@ -1483,21 +1209,6 @@ function accountDailyFromAdRows(rows) {
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function businessSeriesData(rows, metric) {
-  return (rows || []).map((row) => (row ? Number(row[metric.key] || 0) : null));
-}
-
-function businessAxisLabel(value, active) {
-  const n = Number(value || 0);
-  if (active === 'roas') return `${Number(n.toFixed(1))}x`;
-  if (active === 'sales') return compact(n);
-  if (['cac', 'aov', 'spend', 'revenue'].includes(active)) {
-    if (Math.abs(n) >= 1000) return `$${Number((n / 1000).toFixed(Math.abs(n) >= 10000 ? 0 : 1))}k`;
-    return `$${Math.round(n)}`;
-  }
-  return compact(n);
-}
-
 function pickTopCountryByUnits(countries = []) {
   return [...(countries || [])]
     .sort((a, b) => Number(b.units || 0) - Number(a.units || 0) || Number(b.revenue || 0) - Number(a.revenue || 0))
@@ -1530,254 +1241,6 @@ function pickTopAdBySales(adRows = []) {
   return adapt.toAdLeaders([top], 1)[0] || null;
 }
 
-function businessTrendOption(rows, active, reportingDay = currentReportingDay()) {
-  const metric = businessMetricConfig(active);
-  const trendRows = businessTrendPresentationRows(rows, reportingDay);
-  const chartRows = trendRows.rows;
-  const xLabelStep = Math.max(1, Math.ceil(chartRows.length / 6));
-  return {
-    color: [metric.color],
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: '#22121a',
-      borderColor: '#22121a',
-      textStyle: { color: '#fff' },
-      formatter: (params) => {
-        const r = chartRows[params?.[0]?.dataIndex] || {};
-        const developing = r.is_developing ? '<br/><span style="color:#ffd27a">Developing today</span>' : '';
-        return `<b>${r.date || ''}</b>${developing}<br/>${metric.label}: ${metric.formatter(Number(r[metric.key] || 0))}<br/>Revenue: ${money.format(r.revenue_usd)}<br/>Spend: ${money.format(r.spend_usd)}<br/>Items sold: ${r.units || 0}<br/>Orders: ${r.orders || 0}<br/>AOV: ${r.orders ? money.format(r.aov) : 'n/a'}<br/>CAC: ${r.orders ? money.format(r.cac) : 'n/a'}<br/>ROAS: ${r.roas ? r.roas.toFixed(2) : 'n/a'}x`;
-      },
-    },
-    grid: { left: 62, right: 30, top: 22, bottom: 46 },
-    xAxis: {
-      type: 'category',
-      data: chartRows.map((r) => r.date),
-      axisTick: { show: false },
-      axisLabel: {
-        color: '#697386',
-        hideOverlap: true,
-        interval: (index) => index === chartRows.length - 1 || index % xLabelStep === 0,
-        margin: 12,
-        formatter: (value) => String(value || '').slice(5),
-      },
-      axisLine: { lineStyle: { color: '#d8d4ca' } },
-    },
-    yAxis: {
-      type: 'value',
-      min: 0,
-      splitNumber: 4,
-      axisTick: { show: false },
-      axisLabel: {
-        color: '#697386',
-        margin: 12,
-        formatter: (value) => businessAxisLabel(value, active),
-      },
-      splitLine: { lineStyle: { color: '#f0dce8', type: 'dashed' } },
-    },
-    series: [
-      { name: metric.label, type: 'line', smooth: true, symbolSize: 7, connectNulls: false, data: businessSeriesData(trendRows.solidRows, metric), lineStyle: { width: 4 }, areaStyle: { opacity: 0.12 } },
-      trendRows.hasDeveloping ? { name: 'Developing today', type: 'line', smooth: true, symbolSize: 9, connectNulls: false, data: businessSeriesData(trendRows.developingRows, metric), lineStyle: { width: 3, type: 'dashed', opacity: 0.95 }, itemStyle: { color: metric.color, borderColor: '#fff', borderWidth: 2 }, z: 3 } : null,
-    ].filter(Boolean),
-  };
-}
-
-function BusinessMetricPanel({ rows, active, windowKey, setWindowKey }) {
-  const metric = businessMetricConfig(active);
-  const reportingDay = currentReportingDay();
-  const shown = markDevelopingBusinessRows(businessWindowRows(rows, windowKey), reportingDay);
-  return <section className="metric-detail unfold-panel">
-    <div className="metric-detail-copy">
-      <b>{metric.label} trend</b>
-      <div className="window-tabs">{BUSINESS_WINDOW_OPTIONS.map(([key, label]) => <button type="button" key={key} className={windowKey === key ? 'active' : ''} onClick={() => setWindowKey(key)}>{label}</button>)}</div>
-    </div>
-    <div className="metric-detail-chart"><ReactECharts option={businessTrendOption(shown, active, reportingDay)} style={{ height: 260 }} /></div>
-    <div className="table-wrap compact-table metric-detail-table"><table><thead><tr><th>Date</th><th>Revenue</th><th>Meta spend</th><th>Items sold</th><th>Orders</th><th>AOV</th><th>CAC</th><th>ROAS</th></tr></thead><tbody>{shown.map((r) => <tr key={r.date} className={`focus-${active} ${r.is_developing ? 'developing-row' : ''}`}><td><b>{r.date}</b>{r.is_developing ? <> <span className="pill warming developing-chip" title={`Current ${REPORTING_TIMEZONE} reporting day is still accumulating`}>Developing today</span></> : null}</td><td>{money.format(r.revenue_usd || 0)}</td><td>{money.format(r.spend_usd || 0)}</td><td>{r.units || 0}</td><td>{r.orders || 0}</td><td>{r.orders ? money.format(r.aov) : 'n/a'}</td><td>{r.orders ? money.format(r.cac) : 'n/a'}</td><td>{r.roas ? `${r.roas.toFixed(2)}x` : 'n/a'}</td></tr>)}</tbody></table></div>
-  </section>;
-}
-
-function productLeadershipOption(products) {
-  const rows = [...(products || []).slice(0, 14)].reverse();
-  return {
-    color: ['#d63f8c'],
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: '#111827',
-      borderColor: '#111827',
-      textStyle: { color: '#fff' },
-      formatter: (params) => {
-        const r = rows[params[0].dataIndex];
-        return `<b>${r.product}</b><br/>Family: ${r.family || 'Unknown'}<br/>Units sold: ${r.units || 0}<br/>Revenue: ${money.format(r.revenue_usd || 0)}`;
-      },
-    },
-    grid: { left: 240, right: 32, top: 20, bottom: 24 },
-    xAxis: { type: 'value', name: 'Units sold', axisLabel: { color: '#697386' }, splitLine: { lineStyle: { color: '#ece7db', type: 'dashed' } } },
-    yAxis: { type: 'category', data: rows.map((r) => r.product || 'Unknown product'), axisLabel: { color: '#344054', fontWeight: 700, fontSize: 10, lineHeight: 13, width: 220, overflow: 'break', formatter: (value) => wrapChartLabel(value, 24) } },
-    series: [{ name: 'Sales units', type: 'bar', data: rows.map((r) => Number(r.units || 0)), barMaxWidth: 16, itemStyle: { borderRadius: [0, 8, 8, 0] }, label: { show: true, position: 'right', formatter: '{c}' } }],
-  };
-}
-
-function adLeadershipOption(ads) {
-  const rows = (ads || []).slice(0, 12);
-  return {
-    color: ['#0b766c', '#d63f8c', '#5146d9', '#1d64d8', '#c68a00'],
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: '#111827',
-      borderColor: '#111827',
-      textStyle: { color: '#fff' },
-      formatter: (params) => {
-        const r = rows[params[0].dataIndex];
-        return `<b>${r.ad_name}</b><br/>Product: ${r.product_family || 'unknown_product'}<br/>Click-through CTR: ${Number(r.ctr || 0).toFixed(2)}%<br/>Add to cart: ${r.add_to_cart || 0}<br/>Initiated checkout: ${r.checkout_initiated || 0}<br/>Sales / purchases: ${r.purchases || 0}<br/>ROAS: ${Number(r.roas || 0).toFixed(2)}x<br/>Spend: ${money.format(r.spend_usd || 0)}<br/>Purchase value: ${money.format(r.purchase_value_usd || 0)}`;
-      },
-    },
-    legend: { top: 0, type: 'scroll', textStyle: { color: '#394150', fontWeight: 800 } },
-    grid: { left: 44, right: 56, top: 58, bottom: 142 },
-    xAxis: { type: 'category', data: rows.map((r) => r.ad_name || 'Unknown ad'), axisLabel: { color: '#697386', rotate: 34, interval: 0, lineHeight: 12, width: 96, overflow: 'break', formatter: (value) => wrapChartLabel(value, 13) }, axisLine: { lineStyle: { color: '#d8d4ca' } } },
-    yAxis: [
-      { type: 'value', name: 'Funnel counts', axisLabel: { color: '#697386' }, splitLine: { lineStyle: { color: '#ece7db', type: 'dashed' } } },
-      { type: 'value', name: 'CTR / ROAS', axisLabel: { color: '#1d64d8' }, splitLine: { show: false } },
-    ],
-    series: [
-      { name: 'Sales', type: 'bar', data: rows.map((r) => Number(r.purchases || 0)), barMaxWidth: 14, itemStyle: { borderRadius: [5, 5, 0, 0] } },
-      { name: 'Add to cart', type: 'bar', data: rows.map((r) => Number(r.add_to_cart || 0)), barMaxWidth: 14, itemStyle: { borderRadius: [5, 5, 0, 0] } },
-      { name: 'IC', type: 'bar', data: rows.map((r) => Number(r.checkout_initiated || 0)), barMaxWidth: 14, itemStyle: { borderRadius: [5, 5, 0, 0] } },
-      { name: 'Click-through CTR', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 6, data: rows.map((r) => Number(r.ctr || 0)) },
-      { name: 'ROAS', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 6, data: rows.map((r) => Number(r.roas || 0)) },
-    ],
-  };
-}
-
-function Card({ title, value, sub, deltaValue, tone, rows, metric, color }) {
-  const hasSparkData = (rows || []).some((row) => Number(row?.[metric] || 0) > 0);
-  return <section className="metric-card"><div className="metric-copy"><span>{title}</span><strong>{value}</strong><small>{sub}</small><em className={tone}>{deltaValue}</em></div>{hasSparkData ? <div className="spark"><ReactECharts option={sparkOption(rows, metric, color)} style={{ height: 72 }} /></div> : <div className="spark spark-empty" aria-hidden="true" />}</section>;
-}
-
-function TrendBadge({ delta, tone }) {
-  if (!delta) return null;
-  const value = Number(delta.pct || 0);
-  const up = value >= 0;
-  const marker = value === 0 ? '→' : up ? '▲' : '▼';
-  return <em className={`trend-badge ${tone || (up ? 'good' : 'bad')}`}><i>{marker}</i>{Math.abs(value).toFixed(1)}% <small>{delta.label}</small></em>;
-}
-
-function FinanceCard({ title, value, sub, tone = 'neutral', active, onClick, delta, deltaTone, sparkRows = [], sparkMetric, sparkColor = '#d63f8c' }) {
-  const chartRows = (sparkRows || []).slice(-12);
-  const hasCurrentValue = Number(delta?.current || 0) > 0;
-  return <button type="button" className={`finance-card ${tone} ${active ? 'active' : ''}`} onClick={onClick}>
-    <div className="finance-card-head">
-      <span>{title}</span>
-      <TrendBadge delta={delta} tone={deltaTone} />
-    </div>
-    <strong>{value}</strong>
-    <small>{sub}</small>
-    {sparkMetric && chartRows.length && hasCurrentValue ? <div className="finance-spark" aria-hidden="true"><ReactECharts option={sparkOption(chartRows, sparkMetric, sparkColor)} style={{ height: 48 }} /></div> : <div className="finance-spark finance-spark-empty" aria-hidden="true" />}
-  </button>;
-}
-
-function DataFallbackNotice({ metaFallback, shopifyFallback }) {
-  if (!metaFallback && !shopifyFallback) return null;
-  const sources = [metaFallback ? 'Meta delivery data' : null, shopifyFallback ? 'Shopify commerce data' : null].filter(Boolean).join(' and ');
-  return <div className="data-fallback-notice"><b>Sample fallback active</b><span>{sources} did not load from the live export/API, so commerce totals should not be treated as final until the source reconnects.</span></div>;
-}
-
-function SaleMonitor({ monitor, soundEnabled, onEnableSound }) {
-  const sale = monitor.sale;
-  const statusText = monitor.status === 'live' ? 'Live Shopify sales monitor' : monitor.status === 'checking' ? 'Checking Shopify sales' : 'Sale monitor paused';
-  const items = sale?.line_items || [];
-  const detail = sale ? `${sale.name} · ${saleMoney(sale)} · ${sale.item_count || 0} item${Number(sale.item_count || 0) === 1 ? '' : 's'}` : 'Waiting for the next paid order';
-  const orderTime = sale?.created_at ? saleTime(sale.created_at) : '';
-  const country = sale?.country?.code ? `${countryFlag(sale.country.code)} ${sale.country.name || sale.country.code}` : 'Country pending';
-  const attribution = sale?.matched_ad?.ad_name || sale?.attribution_label || 'Unattributed in Shopify';
-  return <section className={`sale-monitor ${monitor.fresh ? 'fresh' : ''}`}>
-    <div className="sale-main">
-      <span className={`sale-dot ${monitor.status === 'live' ? 'on' : ''}`} />
-      <div>
-        <b><BellRing size={15} />{monitor.fresh ? 'New Shopify sale' : statusText}</b>
-        <small className="sale-summary-line">{detail} · {country}</small>
-        {orderTime ? <span className="sale-order-time"><CalendarDays size={13} />Order time <strong>{orderTime}</strong></span> : null}
-        {items.length ? <div className="sale-items">{items.map((item) => <em key={`${item.title}-${item.quantity}`}>{item.quantity}x {item.title}</em>)}</div> : sale?.product_title ? <em>{sale.product_title}</em> : null}
-        {sale ? <strong className="sale-source">Ad/source: {attribution}</strong> : null}
-      </div>
-    </div>
-    <div className="sale-actions">
-      <small>{monitor.checkedAt ? `Checked ${saleTime(monitor.checkedAt)}` : monitor.error || 'Starting monitor'}</small>
-      <button type="button" className={soundEnabled ? 'sound-on' : ''} onClick={onEnableSound}>{soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}{soundEnabled ? 'Sound on' : 'Enable sound'}</button>
-    </div>
-  </section>;
-}
-
-function DateWindowControl({ range, bounds, preset, isOpen, customRange, onToggle, onPreset, onCustomChange, onApplyCustom }) {
-  const presets = datePresets.map((p) => [p.value, p.label, p.description]);
-  return <div className={`date-control ${isOpen ? 'open' : ''}`}>
-    <button type="button" className="date-trigger" onClick={onToggle} aria-expanded={isOpen}>
-      <CalendarDays size={16} />
-      <span>{dateRangeLabel(range, preset, bounds)}</span>
-      <i>{isOpen ? '−' : '+'}</i>
-    </button>
-    {isOpen ? <div className="date-menu">
-      {presets.map(([key, label, helper]) => <button type="button" key={key} className={preset === key ? 'active' : ''} onClick={() => onPreset(key)}>
-        <b>{label}</b>
-        <span>{helper}</span>
-        <small>{key === 'custom' ? presetSubLabel('custom', bounds) : presetSubLabel(key, bounds)}</small>
-      </button>)}
-      {preset === 'custom' ? <div className="custom-range">
-        <label><span>Start</span><input type="date" min={bounds.calendar_since || bounds.since || undefined} max={bounds.calendar_until || bounds.until || undefined} value={customRange.since || ''} onInput={(event) => onCustomChange((current) => ({ ...current, since: event.currentTarget.value }))} onChange={(event) => onCustomChange((current) => ({ ...current, since: event.target.value }))} /></label>
-        <label><span>End</span><input type="date" min={bounds.calendar_since || bounds.since || undefined} max={bounds.calendar_until || bounds.until || undefined} value={customRange.until || ''} onInput={(event) => onCustomChange((current) => ({ ...current, until: event.currentTarget.value }))} onChange={(event) => onCustomChange((current) => ({ ...current, until: event.target.value }))} /></label>
-        <button type="button" className="apply-range" onClick={onApplyCustom}>Apply range</button>
-      </div> : null}
-      <p>
-        Calendar: {bounds.calendar_since || bounds.since || 'n/a'} - {bounds.calendar_until || bounds.until || 'n/a'}
-        {bounds.reporting_timezone ? ` · Today uses ${bounds.reporting_timezone}` : ''}
-        {bounds.since ? ` · Loaded: ${bounds.since} - ${bounds.until}` : ''}
-        {bounds.common_since ? ` · Matched Meta+Shopify: ${bounds.common_since} - ${bounds.common_until}` : ''}
-        {bounds.meta_until ? ` · Meta latest ${bounds.meta_until}` : ''}
-        {bounds.shopify_until ? ` · Shopify latest ${bounds.shopify_until}` : ''}
-      </p>
-    </div> : null}
-  </div>;
-}
-
-function CoverageStrip({ coverage }) {
-  const items = [
-    ['All ad sets', coverage?.all_adsets || 0],
-    ['USA ad sets', coverage?.usa_adsets || 0],
-    ['Ads', coverage?.ads || 0],
-    ['Countries', coverage?.countries || 0],
-    ['Adset-country rows', coverage?.adset_country_daily_rows || 0],
-    ['Ad-country rows', coverage?.ad_country_daily_rows || 0],
-  ];
-  return <section className="coverage-strip">{items.map(([label, value]) => <div key={label}><span>{label}</span><b>{compact(value)}</b></div>)}</section>;
-}
-
-function mixTooltip(family, units, total, subtypes = {}) {
-  const familyShare = total ? Math.round((units / total) * 100) : 0;
-  const subtypeEntries = Object.entries(subtypes[family] || {}).sort((a, b) => b[1] - a[1]);
-  const subtypeText = subtypeEntries.length
-    ? subtypeEntries.map(([subtype, count]) => `${subtype}: ${count} (${Math.round((count / units) * 100)}% of ${family}, ${Math.round((count / total) * 100)}% of country)`).join('\n')
-    : 'No subtype split available';
-  return `${family}: ${units} units (${familyShare}% of country)\n${subtypeText}`;
-}
-
-function MixBars({ mix, total, subtypes }) {
-  const entries = Object.entries(mix || {}).sort((a, b) => b[1] - a[1]);
-  return <div className="mix-bars">{entries.map(([family, units]) => <span key={family} style={{ width: `${Math.max(4, total ? (units / total) * 100 : 0)}%`, background: familyStyle[family]?.color || familyStyle.Other.color }} title={mixTooltip(family, units, total, subtypes)} />)}</div>;
-}
-
-function ProductTotals({ families }) {
-  return <div className="product-totals">{families.map((f) => <div key={f.family} className="product-chip"><i style={{ background: familyStyle[f.family]?.color || familyStyle.Other.color }} /><span>{f.family}</span><b>{f.units}</b></div>)}</div>;
-}
-
-function OverallProducts({ products }) {
-  return <div className="overall-products"><div><b>Total products sold overall</b><span>Actual Shopify product names, not families</span></div><div className="overall-product-list">{(products || []).slice(0, 9).map((p) => <small key={p.product}><span>{p.product}</span><b>{p.units}</b></small>)}</div></div>;
-}
-
-function TipSummary({ tips }) {
-  const count = Number(tips?.people || tips?.orders || 0);
-  const total = Number(tips?.total_usd || 0);
-  if (!count && !total) return <small className="tip-summary">Tips: none recorded in this launch window</small>;
-  return <small className="tip-summary">Tips: {compact(count)} {count === 1 ? 'person' : 'people'} · {money.format(total)} total</small>;
-}
-
 function dateListForRange(range) {
   if (!range?.since || !range?.until) return [];
   const out = [];
@@ -1801,21 +1264,6 @@ function topWinners(items, primaryKey, secondaryKey) {
   if (!top) return { winners: [], tieCount: 0 };
   const tied = sorted.filter((item) => Number(item[primaryKey] || 0) === Number(top[primaryKey] || 0));
   return { winners: tied, tieCount: tied.length };
-}
-
-function rateLabel(value) {
-  return Number.isFinite(Number(value)) ? `${Math.round(Number(value || 0) * 100)}%` : 'n/a';
-}
-
-function confidenceSlug(value = '') {
-  return slug(value || 'Insufficient');
-}
-
-function behaviorMedian(values = []) {
-  const arr = values.map(Number).filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
-  if (!arr.length) return 0;
-  const mid = Math.floor(arr.length / 2);
-  return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
 }
 
 function scoreBehaviorRows(rows, { priorStrength = 20, globalRate = 0 } = {}) {
@@ -2003,38 +1451,6 @@ function filterBehaviorByDateRange(behavior, range, reportingToday = currentRepo
   };
 }
 
-function nextSort(current, key) {
-  return { key, dir: current?.key === key && current?.dir === 'desc' ? 'asc' : 'desc' };
-}
-
-function sortRowsBy(rows, sort, labelFn = () => '') {
-  const key = sort?.key || 'spend_usd';
-  const dir = sort?.dir === 'asc' ? 1 : -1;
-  return [...(rows || [])].sort((a, b) => {
-    const deltaValue = Number(a[key] || 0) - Number(b[key] || 0);
-    if (deltaValue) return deltaValue * dir;
-    return String(labelFn(a) || '').localeCompare(String(labelFn(b) || ''));
-  });
-}
-
-function sortStatus(sort, options) {
-  const option = options.find((item) => item.key === sort?.key);
-  return `${option?.label || sort?.key || 'Metric'} ${sort?.dir === 'asc' ? 'ascending' : 'descending'}`;
-}
-
-function SortControlStrip({ label, options, sortState, onSort }) {
-  return <div className="sort-control-strip">
-    <span>{label}</span>
-    {options.map((option) => {
-      const active = sortState?.key === option.key;
-      return <button type="button" key={option.key} className={active ? 'active' : ''} onClick={() => onSort(option.key)}>
-        {option.label}
-        <i>{active ? (sortState.dir === 'asc' ? '↑' : '↓') : '↕'}</i>
-      </button>;
-    })}
-  </div>;
-}
-
 function dailySalesHighlights(lines, range) {
   const rows = dateListForRange(range).map((date) => ({ date, products: new Map(), ads: new Map() }));
   const byDate = new Map(rows.map((row) => [row.date, row]));
@@ -2075,412 +1491,6 @@ function dailySalesHighlights(lines, range) {
   });
 }
 
-function DailySalesHighlights({ lines, range }) {
-  const rows = useMemo(() => dailySalesHighlights(lines, range), [lines, range]);
-  const hasTies = rows.some((row) => row.productTieCount > 1 || row.adTieCount > 1);
-  return <section className="daily-highlights">
-    <div className="panel-title">
-      <h2>Daily sales leaders</h2>
-      <p>Top Shopify product and top Shopify-captured ad/source for each selected day.</p>
-    </div>
-    <div className={`daily-leader-board ${hasTies ? 'has-ties' : ''}`}>
-      <article className="daily-leader-panel top-product-panel">
-        <div className="daily-leader-heading"><span>Top product</span><small>By sold units</small></div>
-        <div className="daily-date-stack">
-          {rows.map((row) => <div className="daily-date-row" key={`product-${row.date}`}>
-            <b>{row.date}</b>
-            <div className="daily-winner-stack">
-              {row.products?.length ? row.products.map((product) => <div className="daily-product daily-winner-row" key={product.product}>
-                {product.image_url ? <img src={product.image_url} alt="" /> : <span className="thumb-fallback">{product.family?.slice(0, 1) || 'S'}</span>}
-                <div>
-                  <strong>{product.product}</strong>
-                  <small>{product.units} unit{product.units === 1 ? '' : 's'} sold · {money.format(product.revenue_usd || 0)}{row.productTieCount > 1 ? ' · tied winner' : ''}</small>
-                </div>
-              </div>) : <div className="daily-product empty daily-winner-row"><span className="thumb-fallback">0</span><div><strong>No Shopify sale</strong><small>No paid order lines that day</small></div></div>}
-            </div>
-          </div>)}
-        </div>
-      </article>
-      <article className="daily-leader-panel top-ad-panel">
-        <div className="daily-leader-heading"><span>Top ad</span><small>By Shopify-captured sales</small></div>
-        <div className="daily-date-stack">
-          {rows.map((row) => <div className="daily-date-row" key={`ad-${row.date}`}>
-            <b>{row.date}</b>
-            <div className="daily-winner-stack">
-              {row.ads?.length ? row.ads.map((ad) => <div className="daily-ad-winner daily-winner-row" key={ad.ad}>
-                <strong>{ad.ad}</strong>
-                <small>{ad.order_count} sale{ad.order_count === 1 ? '' : 's'} · {money.format(ad.revenue_usd || 0)}{row.adTieCount > 1 ? ' · tied winner' : ''}</small>
-              </div>) : <div className="daily-ad-winner empty daily-winner-row">
-                <strong>No ad captured in Shopify</strong>
-                <small>Additional details did not identify an ad</small>
-              </div>}
-            </div>
-          </div>)}
-        </div>
-      </article>
-    </div>
-  </section>;
-}
-
-function ExtractionStatus({ behavior }) {
-  const items = [
-    ['Checkout abandon', behavior?.extraction?.abandoned_checkouts],
-    ['Payment abandon', behavior?.extraction?.meta_payment],
-    ['Gender slice', behavior?.extraction?.meta_demographics],
-    ['Session pixel', behavior?.extraction?.session_events],
-  ];
-  return <div className="behavior-status-strip">
-    {items.map(([label, status]) => {
-      const ok = Boolean(status?.ok);
-      return <span key={label} className={ok ? 'ready' : 'building'} title={status?.error || status?.note || ''}>
-        <i>{ok ? '●' : '○'}</i>
-        <b>{label}</b>
-        <small>{ok ? `${compact(status?.count || status?.sessions || 0)} rows` : 'extracting path ready'}</small>
-      </span>;
-    })}
-  </div>;
-}
-
-function BehaviorStepCell({ row, label, global }) {
-  if (!row || !Number(row.exposed || 0)) return <div className="behavior-step-cell empty"><b>{label}</b><strong>n/a</strong><small>No events reached this step yet</small></div>;
-  return <div className={`behavior-step-cell ${confidenceSlug(row.confidence)}`}>
-    <b>{label}</b>
-    <strong>{row.abandoned}/{row.exposed}</strong>
-    <small>{rateLabel(row.shrunk_rate)} shrunk abandon rate · site {rateLabel(global?.rate || 0)}</small>
-    <div className="behavior-mini-facts">
-      <span>{Number(row.vs_site_pp || 0) >= 0 ? '+' : ''}{Number(row.vs_site_pp || 0).toFixed(1)}pp vs site</span>
-      <span>{Number(row.excess_abandons || 0).toFixed(1)} excess</span>
-    </div>
-    <em>{row.confidence}</em>
-  </div>;
-}
-
-function BehaviorProductMatrix({ behavior }) {
-  const checkoutRows = behavior?.matrix?.checkout?.products || [];
-  const paymentRows = behavior?.matrix?.submit_payment?.products || [];
-  const checkoutByKey = new Map(checkoutRows.map((row) => [row.key, row]));
-  const paymentByKey = new Map(paymentRows.map((row) => [row.key, row]));
-  const keys = [...new Set([...checkoutByKey.keys(), ...paymentByKey.keys()])];
-  const rows = keys.map((key) => {
-    const checkout = checkoutByKey.get(key);
-    const payment = paymentByKey.get(key);
-    const main = checkout || payment || {};
-    return { key, main, checkout, payment, score: Number(checkout?.excess_abandons || 0) + Number(payment?.excess_abandons || 0) };
-  }).filter(({ checkout, payment }) => Number(checkout?.abandoned || 0) > 0 || Number(payment?.abandoned || 0) > 0)
-    .sort((a, b) => b.score - a.score || Number(b.main.exposed || 0) - Number(a.main.exposed || 0)).slice(0, 6);
-  return <div className="behavior-matrix">
-    {rows.length ? rows.map(({ key, main, checkout, payment }) => <article className="behavior-product-row" key={key}>
-      <div className="behavior-product-cell">
-        {main.image_url ? <img src={main.image_url} alt="" /> : <span className="thumb-fallback">{(main.family || 'S').slice(0, 1)}</span>}
-        <div>
-          <b>{main.product || 'Unknown product'}</b>
-          <small>{main.family || 'Other'} · {main.subtype || 'Unknown'}</small>
-        </div>
-      </div>
-      <BehaviorStepCell row={checkout} label="Checkout" global={behavior?.matrix?.checkout?.global} />
-      <BehaviorStepCell row={payment} label="Submit payment" global={behavior?.matrix?.submit_payment?.global} />
-      <div className="behavior-annotation-strip">
-        {(checkout?.countries || payment?.countries || []).slice(0, 3).map((country) => <span className="behavior-chip" key={country.country_code}>{countryFlag(country.country_code)} {country.country_code || 'UNK'} {country.abandoned}/{country.exposed}</span>)}
-        {!(checkout?.countries || payment?.countries || []).length ? <span className="behavior-chip muted">No country split yet</span> : null}
-      </div>
-    </article>) : <div className="behavior-empty">
-      <b>No abandonment rows in this date window yet</b>
-      <span>Checkout abandonments come from Shopify abandoned checkouts. Submit-payment rows come from Meta AddPaymentInfo now, with exact session-level rows added when the customer-events pixel sends `payment_info_submitted`.</span>
-    </div>}
-  </div>;
-}
-
-function BehaviorSegmentPanel({ title, rows, type }) {
-  const visibleRows = (rows || []).filter((row) => Number(row.exposed || 0) > 0 && Number(row.abandoned || 0) > 0).slice(0, 5);
-  return <article className="behavior-segment-panel">
-    <div className="behavior-panel-head"><h3>{title}</h3><small>Rate + denominator, not raw count</small></div>
-    <div className="behavior-segment-list">
-      {visibleRows.map((row) => <div className="behavior-segment-row" key={`${type}-${row.key || row.segment || row.country_code}`}>
-        <b>{type === 'country' ? <><span className="flag">{countryFlag(row.country_code)}</span>{row.country || row.country_code || 'Unknown'}</> : row.segment || row.gender || 'Unknown'}</b>
-        <span>{row.abandoned}/{row.exposed}</span>
-        <small>{rateLabel(row.shrunk_rate)} · {row.confidence}</small>
-      </div>)}
-      {!visibleRows.length ? <div className="behavior-empty compact"><b>No actionable segment rows yet</b><span>Rows with zero abandonments are hidden until they become useful.</span></div> : null}
-    </div>
-  </article>;
-}
-
-function DwellPagesPanel({ pages }) {
-  const visiblePages = (pages || []).filter((page) => Number(page.sessions || 0) > 0 && Number(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0) > 0).slice(0, 6);
-  return <article className="behavior-panel">
-    <div className="behavior-panel-head"><h3>Where people get stuck</h3><small>Time on page · non-buyers vs buyers</small></div>
-    <div className="behavior-dwell-grid">
-      {visiblePages.map((page) => {
-        const dwell = Number(page.non_purchaser_median_dwell_seconds || page.median_dwell_seconds || 0);
-        const buyerDwell = Number(page.purchaser_median_dwell_seconds || 0);
-        const buyerSessions = Number(page.purchaser_sessions || 0);
-        const width = Math.min(100, Math.max(8, dwell / 6));
-        const label = pagePathLabel(page.path);
-        const insight = page.insight || dwellPageInsight(page);
-        return <div className="dwell-page-card" key={normalizePagePath(page.path)}>
-          <b>{label}</b>
-          <span>{formatDwellSeconds(dwell)} non-buyer median{buyerSessions > 0 ? ` · ${formatDwellSeconds(buyerDwell)} buyer median` : ''}</span>
-          <div className="dwell-meter"><i style={{ width: `${width}%` }} /></div>
-          <small><strong>{insight.headline}</strong> {insight.detail}</small>
-          {page.confidence ? <em className="dwell-confidence">{page.confidence}{page.p_value_adjusted != null ? ` · p=${Number(page.p_value_adjusted).toFixed(3)} adj` : ''}</em> : null}
-        </div>;
-      })}
-      {!visiblePages.length ? <div className="behavior-empty compact"><b>No dwell rows yet</b><span>The session pixel will calculate dwell once page-view sessions are populated.</span></div> : null}
-    </div>
-  </article>;
-}
-
-function JourneyComparisonPanel({ journeys }) {
-  const steps = journeys?.steps || [];
-  return <article className="behavior-panel journey-panel">
-    <div className="behavior-panel-head"><h3>Purchaser vs non-purchaser journey</h3><small>Shared page sequence and divergence</small></div>
-    <div className="journey-compare">
-      <div className="journey-column">
-        <b>Purchasers common path</b>
-        {steps.filter((row) => row.purchasers > 0).slice(0, 5).map((row) => <div className="journey-step" key={`p-${row.step}-${normalizePagePath(row.path)}`}>
-          <span>{row.step}</span><strong>{pagePathLabel(row.path)}</strong><small>{journeyStepInsight(row)}</small>
-        </div>)}
-        {!steps.some((row) => row.purchasers > 0) ? <div className="behavior-empty compact"><b>No purchaser path yet</b><span>Waiting for session path + checkout_completed events.</span></div> : null}
-      </div>
-      <div className="journey-column">
-        <b>Non-purchasers common path</b>
-        {steps.filter((row) => row.non_purchasers > 0).slice(0, 5).map((row) => <div className="journey-step" key={`n-${row.step}-${normalizePagePath(row.path)}`}>
-          <span>{row.step}</span><strong>{pagePathLabel(row.path)}</strong><small>{journeyStepInsight(row)}</small>
-        </div>)}
-        {!steps.some((row) => row.non_purchasers > 0) ? <div className="behavior-empty compact"><b>No non-purchaser path yet</b><span>Waiting for page_viewed events from sessions that do not purchase.</span></div> : null}
-      </div>
-    </div>
-  </article>;
-}
-
-function BehaviorAnalyticsModule({ behavior, collapsed = false }) {
-  const [open, setOpen] = useState(!collapsed);
-  const checkoutCountries = behavior?.matrix?.checkout?.countries || [];
-  const paymentCountries = behavior?.matrix?.submit_payment?.countries || [];
-  const checkoutGender = behavior?.matrix?.checkout?.gender || [];
-  const paymentGender = behavior?.matrix?.submit_payment?.gender || [];
-  return <section className="behavior-zone behavior-dev-zone">
-    <article className={`behavior-dev-details ${open ? 'is-open' : ''}`}>
-      <button type="button" className="behavior-dev-summary" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
-        <div>
-          <span>Still in development</span>
-          <b>Session intelligence, abandonment, and journeys</b>
-          <small>Collapsed by default so unfinished behavior data stays out of the main operating view.</small>
-        </div>
-        <em>{behavior?.period?.since} - {behavior?.period?.until}</em>
-      </button>
-      {open ? <div className="behavior-dev-body">
-        <div className="panel-title product-title">
-          <div>
-            <h2>Behavior friction matrix</h2>
-            <p>Checkout abandonment comes from Shopify abandoned checkouts + paid checkout exposures. Submit-payment uses Meta AddPaymentInfo now; dwell and page journeys use first-party session events.</p>
-          </div>
-          <span>{behavior?.period?.since} - {behavior?.period?.until}</span>
-        </div>
-        <ExtractionStatus behavior={behavior} />
-        <BehaviorProductMatrix behavior={behavior} />
-        <div className="behavior-overview-grid">
-          <BehaviorSegmentPanel title="Checkout countries" rows={checkoutCountries} type="country" />
-          <BehaviorSegmentPanel title="Submit-payment countries" rows={paymentCountries} type="country" />
-          <BehaviorSegmentPanel title="Checkout age / gender" rows={checkoutGender} type="gender" />
-          <BehaviorSegmentPanel title="Payment age / gender" rows={paymentGender} type="gender" />
-        </div>
-        <div className="behavior-lower-grid">
-          <DwellPagesPanel pages={behavior?.dwell_pages || []} />
-          <JourneyComparisonPanel journeys={behavior?.journeys || {}} />
-        </div>
-      </div> : null}
-    </article>
-  </section>;
-}
-
-function MetricChip({ label, value, sub = '', tone = '', sortKey = '', sortState, onSort }) {
-  const sortable = Boolean(sortKey && onSort);
-  const active = sortable && sortState?.key === sortKey;
-  const className = `metric-chip ${tone} ${sortable ? 'sortable' : ''} ${active ? 'active' : ''}`;
-  const content = <>
-    <small>{label}{sortable ? <i>{active ? (sortState.dir === 'asc' ? '↑' : '↓') : '↕'}</i> : null}</small>
-    <b>{value}</b>
-    {sub ? <em>{sub}</em> : null}
-  </>;
-  if (sortable) return <button type="button" className={className} onClick={() => onSort(sortKey)}>{content}</button>;
-  return <span className={className}>{content}</span>;
-}
-
-const PRODUCT_SORT_OPTIONS = [
-  { key: 'units', label: 'Units' },
-  { key: 'revenue_usd', label: 'Revenue' },
-];
-
-const AD_SORT_OPTIONS = [
-  { key: 'shopify_sales', label: 'Sales' },
-  { key: 'shopify_roas', label: 'ROAS' },
-  { key: 'ctr', label: 'CTR' },
-  { key: 'add_to_cart', label: 'ATC' },
-  { key: 'checkout_initiated', label: 'IC' },
-  { key: 'spend_usd', label: 'Spend' },
-];
-
-const CAMPAIGN_SORT_OPTIONS = [
-  { key: 'spend_usd', label: 'Spend' },
-  { key: 'ctr', label: 'CTR' },
-  { key: 'add_to_cart', label: 'ATC' },
-  { key: 'checkout_initiated', label: 'IC' },
-  { key: 'meta_sales', label: 'Meta sales' },
-  { key: 'true_shopify_sales', label: 'Shopify' },
-  { key: 'inferred_shopify_sales', label: 'Mapped sales' },
-  { key: 'meta_roas', label: 'Meta ROAS' },
-  { key: 'true_roas', label: 'Shopify ROAS' },
-  { key: 'inferred_roas', label: 'Mapped ROAS' },
-];
-
-function LeadershipTables({ products, ads }) {
-  const [productSort, setProductSort] = useState({ key: 'units', dir: 'desc' });
-  const [adSort, setAdSort] = useState({ key: 'shopify_sales', dir: 'desc' });
-  const productRows = useMemo(() => sortRowsBy(products, productSort, (row) => row.product), [products, productSort]);
-  const adRows = useMemo(() => sortRowsBy(ads, adSort, (row) => row.ad_name), [ads, adSort]);
-  const toggleProductSort = (key) => setProductSort((current) => nextSort(current, key));
-  const toggleAdSort = (key) => setAdSort((current) => nextSort(current, key));
-  return <section className="leadership-tables card-leadership">
-    <div className="mini-table leadership-card-panel">
-      <div className="leader-panel-head"><h3>Product sales</h3><small>{sortStatus(productSort, PRODUCT_SORT_OPTIONS)}</small></div>
-      <SortControlStrip label="Sort products" options={PRODUCT_SORT_OPTIONS} sortState={productSort} onSort={toggleProductSort} />
-      <div className="leadership-card-list">{productRows.slice(0, 12).map((p) => <article className="leader-card product-leader-card" key={p.product}>
-        {p.image_url ? <img src={p.image_url} alt="" /> : <span className="thumb-fallback">{(p.family || 'S').slice(0, 1)}</span>}
-        <div className="leader-copy">
-          <b>{p.product}</b>
-          <small>{p.family || 'Unknown'} · {p.subtype || 'Unknown'}</small>
-        </div>
-        <div className="leader-metrics">
-          <MetricChip label="Units" value={p.units || 0} sortKey="units" sortState={productSort} onSort={toggleProductSort} />
-          <MetricChip label="Revenue" value={money.format(p.revenue_usd || 0)} tone="good" sortKey="revenue_usd" sortState={productSort} onSort={toggleProductSort} />
-        </div>
-      </article>)}</div>
-    </div>
-    <div className="mini-table leadership-card-panel">
-      <div className="leader-panel-head"><h3>Ads leadership</h3><small>{sortStatus(adSort, AD_SORT_OPTIONS)}</small></div>
-      <SortControlStrip label="Sort ads" options={AD_SORT_OPTIONS} sortState={adSort} onSort={toggleAdSort} />
-      <div className="leadership-card-list">{adRows.slice(0, 12).map((a) => <article className="leader-card ad-leader-card" key={a.ad_id || a.ad_name}>
-        <div className="leader-copy">
-          <b>{a.ad_name}</b>
-          <small>{a.product_family || 'unknown_product'} · {a.product_subtype || 'Unknown'}{a.campaign_count ? ` · ${a.campaign_count} campaign${a.campaign_count === 1 ? '' : 's'}` : ''}</small>
-        </div>
-        <div className="leader-metrics ad-leader-metrics">
-          <MetricChip label="Sales" value={a.shopify_sales || 0} sub="Shopify" sortKey="shopify_sales" sortState={adSort} onSort={toggleAdSort} />
-          <MetricChip label="ROAS" value={`${Number(a.shopify_roas || 0).toFixed(2)}x`} sub="Shopify" tone={Number(a.shopify_roas || 0) >= 2 ? 'good' : 'warn'} sortKey="shopify_roas" sortState={adSort} onSort={toggleAdSort} />
-          <MetricChip label="CTR" value={`${Number(a.ctr || 0).toFixed(2)}%`} sortKey="ctr" sortState={adSort} onSort={toggleAdSort} />
-          <MetricChip label="ATC" value={a.add_to_cart || 0} sortKey="add_to_cart" sortState={adSort} onSort={toggleAdSort} />
-          <MetricChip label="IC" value={a.checkout_initiated || 0} sortKey="checkout_initiated" sortState={adSort} onSort={toggleAdSort} />
-          <MetricChip label="Spend" value={money.format(a.spend_usd || 0)} sortKey="spend_usd" sortState={adSort} onSort={toggleAdSort} />
-        </div>
-      </article>)}</div>
-    </div>
-  </section>;
-}
-
-function roasText(value) {
-  return Number(value || 0) ? `${Number(value || 0).toFixed(2)}x` : '0.00x';
-}
-
-function MappingBadge({ row }) {
-  if (row.has_sales_gap) return <span className="danger-chip">Meta &gt; Shopify by {row.meta_sales_over_shopify_sales}</span>;
-  if (row.has_best_fit_inference) return <span className="bestfit-chip">{row.inferred_warning_sales} best-fit inferred</span>;
-  if (row.has_inferred_sales) return <span className="inferred-chip">{row.shopify_product_inferred_sales} inferred</span>;
-  if (row.unresolved_sales) return <span className="unresolved-chip">{row.unresolved_sales} unresolved</span>;
-  return <span className="resolved-chip">clean</span>;
-}
-
-function CampaignStatsGrid({ row, sortState, onSort }) {
-  return <div className="campaign-stats-grid">
-    <MetricChip label="Spend" value={money.format(row.spend_usd || 0)} sortKey="spend_usd" sortState={sortState} onSort={onSort} />
-    <MetricChip label="CTR" value={`${Number(row.ctr || 0).toFixed(2)}%`} sortKey="ctr" sortState={sortState} onSort={onSort} />
-    <MetricChip label="ATC" value={row.add_to_cart || 0} sortKey="add_to_cart" sortState={sortState} onSort={onSort} />
-    <MetricChip label="IC" value={row.checkout_initiated || 0} sortKey="checkout_initiated" sortState={sortState} onSort={onSort} />
-    <MetricChip label="Meta sales" value={row.meta_sales || 0} sub="Meta" sortKey="meta_sales" sortState={sortState} onSort={onSort} />
-    <MetricChip label="Shopify" value={row.true_shopify_sales || 0} sub="direct/country" sortKey="true_shopify_sales" sortState={sortState} onSort={onSort} />
-    <MetricChip label="Mapped sales" value={row.inferred_shopify_sales || 0} sub="after inference" tone={row.has_inferred_sales ? 'inferred' : ''} sortKey="inferred_shopify_sales" sortState={sortState} onSort={onSort} />
-    <MetricChip label="Meta ROAS" value={roasText(row.meta_roas)} sortKey="meta_roas" sortState={sortState} onSort={onSort} />
-    <MetricChip label="Shopify ROAS" value={roasText(row.true_roas)} tone={row.true_roas >= row.meta_roas ? 'good' : 'warn'} sortKey="true_roas" sortState={sortState} onSort={onSort} />
-    <MetricChip label="Mapped ROAS" value={roasText(row.inferred_roas)} tone={row.inferred_roas >= row.true_roas ? 'good' : 'warn'} sortKey="inferred_roas" sortState={sortState} onSort={onSort} />
-  </div>;
-}
-
-function CampaignNodeCard({ row, level, isOpen, onToggle, sortState, onSort, children }) {
-  const isLeaf = level === 'ad';
-  const label = level === 'campaign' ? 'Campaign' : level === 'adset' ? 'Ad set' : 'Ad';
-  const title = level === 'campaign' ? row.campaign_name : level === 'adset' ? row.adset_name : row.ad_name;
-  const context = level === 'ad' ? `${row.product_family || 'unknown'} / ${row.product_subtype || 'unknown'}` : row.campaign_name;
-  return <article className={`campaign-node-card ${level}`}>
-    <div className="campaign-node-head">
-      <div className="campaign-node-title">
-        {!isLeaf ? <button type="button" className="tree-toggle" onClick={onToggle}>{isOpen ? '−' : '+'}</button> : <span className="ad-dot" />}
-        <div>
-          <span className="level-pill">{label}</span>
-          <b>{title}</b>
-          {context && context !== title ? <small>{context}</small> : null}
-        </div>
-      </div>
-      <MappingBadge row={row} />
-    </div>
-    {row.inference_notes?.length ? <div className="campaign-notes">{row.inference_notes.slice(0, 2).map((note) => <small key={note}>{note}</small>)}</div> : null}
-    <CampaignStatsGrid row={row} sortState={sortState} onSort={onSort} />
-    {children ? <div className="campaign-children">{children}</div> : null}
-  </article>;
-}
-
-function CampaignPerformanceTable({ attribution }) {
-  const sourceCampaigns = attribution?.campaigns || [];
-  const [treeSort, setTreeSort] = useState({ key: 'spend_usd', dir: 'desc' });
-  const campaigns = useMemo(() => sortRowsBy(sourceCampaigns, treeSort, (row) => row.campaign_name), [sourceCampaigns, treeSort]);
-  const [openCampaigns, setOpenCampaigns] = useState(() => new Set(campaigns.slice(0, 3).map((c) => c.campaign_id || c.campaign_name)));
-  const [openAdsets, setOpenAdsets] = useState(new Set());
-  const toggleTreeSort = (key) => setTreeSort((current) => nextSort(current, key));
-  useEffect(() => {
-    if (!campaigns.length) return;
-    setOpenCampaigns((current) => current.size ? current : new Set(campaigns.slice(0, 3).map((c) => c.campaign_id || c.campaign_name)));
-    setOpenAdsets((current) => {
-      if (current.size) return current;
-      const next = new Set();
-      campaigns.slice(0, 2).forEach((campaign) => {
-        (campaign.adsets || []).slice(0, 1).forEach((adset) => next.add(adset.adset_id || `${campaign.campaign_id || campaign.campaign_name}-${adset.adset_name}`));
-      });
-      return next;
-    });
-  }, [campaigns]);
-  function toggle(setter, key) {
-    setter((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
-  return <section className="campaign-tree-panel">
-    <div className="panel-title product-title"><div><h2>Campaign Shopify ROAS tree</h2><p>Campaign ROAS uses Meta spend as denominator and Shopify order-line revenue as numerator. Product/country matches flow into inferred ROAS and stay labeled as inferred instead of direct.</p></div><span>{campaigns.length} campaigns</span></div>
-    <div className="campaign-rules">
-      <small><b>CTR:</b> click-through/link CTR, not CTR all.</small>
-      <small><b>Shopify ROAS:</b> Shopify revenue assigned directly or by country campaign ownership.</small>
-      <small><b>Mapped ROAS:</b> Shopify ROAS plus product/country inferred ad assignment.</small>
-    </div>
-    <SortControlStrip label={`Sort tree · ${sortStatus(treeSort, CAMPAIGN_SORT_OPTIONS)}`} options={CAMPAIGN_SORT_OPTIONS} sortState={treeSort} onSort={toggleTreeSort} />
-    <div className="campaign-card-tree">{campaigns.map((campaign) => {
-      const cKey = campaign.campaign_id || campaign.campaign_name;
-      const cOpen = openCampaigns.has(cKey);
-      return <CampaignNodeCard key={cKey} row={campaign} level="campaign" isOpen={cOpen} onToggle={() => toggle(setOpenCampaigns, cKey)} sortState={treeSort} onSort={toggleTreeSort}>
-        {cOpen ? sortRowsBy(campaign.adsets || [], treeSort, (row) => row.adset_name).map((adset) => {
-          const aKey = adset.adset_id || `${cKey}-${adset.adset_name}`;
-          const aOpen = openAdsets.has(aKey);
-          return <CampaignNodeCard key={aKey} row={adset} level="adset" isOpen={aOpen} onToggle={() => toggle(setOpenAdsets, aKey)} sortState={treeSort} onSort={toggleTreeSort}>
-            {aOpen ? sortRowsBy(adset.ads || [], treeSort, (row) => row.ad_name).map((ad) => <CampaignNodeCard key={ad.ad_id || `${aKey}-${ad.ad_name}`} row={ad} level="ad" sortState={treeSort} onSort={toggleTreeSort} />) : null}
-          </CampaignNodeCard>;
-        }) : null}
-      </CampaignNodeCard>;
-    })}</div>
-    {attribution?.sales_gaps?.length ? <div className="unresolved-note danger-note"><b>{attribution.sales_gaps.length} rows where Meta sales exceed Shopify-mapped sales.</b><span>This is a mapping/extraction warning; expand the row before trusting mapped ROAS.</span></div> : null}
-    {attribution?.unresolved?.length ? <div className="unresolved-note"><b>{attribution.unresolved.length} Shopify order line has no matching Meta ad candidate.</b><span>It remains inside campaign Shopify ROAS when country ownership is clear, but it cannot be placed into an ad/ad set until a product-to-ad candidate exists.</span></div> : null}
-  </section>;
-}
-
 
 function App() {
   const [raw, setRaw] = useState(null);
@@ -2502,6 +1512,8 @@ function App() {
   const [saleMonitor, setSaleMonitor] = useState({ status: 'checking', sale: null, checkedAt: null, fresh: false, error: '', todaySummary: null, purchases: [] });
   const [metaMonitor, setMetaMonitor] = useState({ status: 'checking', live: null, checkedAt: null, error: '' });
   const [activeTab, setActiveTab] = useState('overview');
+  const [autoPresetApplied, setAutoPresetApplied] = useState(false);
+  const autoPresetRef = useRef(false);
   const saleAudioRef = useRef(null);
   const saleSoundEnabledRef = useRef(true);
   const lastSaleIdRef = useRef('');
@@ -2640,6 +1652,20 @@ function App() {
   );
   const baseBehaviorData = behaviorRaw || fallbackBehavior();
   const loadedBounds = useMemo(() => loadedDateRange(baseData, baseProductData), [baseData, baseProductData]);
+  // Opening on "Today" when the cache has not reached today yet shows an all-zero
+  // dashboard that looks like a collapse in the business rather than a gap in the data.
+  // Once both sources have settled, fall back once to the latest day that has rows.
+  // Any explicit preset choice latches this off so we never fight the user.
+  useEffect(() => {
+    if (autoPresetRef.current) return;
+    if (!metaDataLoaded || !shopifyDataLoaded) return;
+    if (!loadedBounds.latest_data_day) return;
+    autoPresetRef.current = true;
+    if (!loadedBounds.has_today_data) {
+      setDatePreset('latest');
+      setAutoPresetApplied(true);
+    }
+  }, [metaDataLoaded, shopifyDataLoaded, loadedBounds.latest_data_day, loadedBounds.has_today_data]);
   useEffect(() => {
     if (!loadedBounds.since || !loadedBounds.until) return;
     if (datePreset !== 'custom') {
@@ -2681,6 +1707,8 @@ function App() {
     [baseBehaviorData, behaviorPanelDateRange, reportingToday],
   );
   function handleDatePreset(nextPreset) {
+    autoPresetRef.current = true;
+    setAutoPresetApplied(false);
     setDatePreset(nextPreset);
     if (nextPreset === 'custom') {
       setCustomRange(activeDateRange);
@@ -2763,6 +1791,20 @@ function App() {
   const businessRows = useMemo(() => mergeBusinessRows(accountDaily, applyRevenueScope(productData.daily || [], businessRevenueScope, emailDailyIndex)), [accountDaily, productData, businessRevenueScope, emailDailyIndex]);
   const allBusinessRows = useMemo(() => mergeBusinessRows(allLoadedAccountDaily, applyRevenueScope(allLoadedProductDaily, businessRevenueScope, emailDailyIndex)), [allLoadedAccountDaily, allLoadedProductDaily, businessRevenueScope, emailDailyIndex]);
   const business = businessStats(businessRows);
+  // No merged rows at all means the window sits outside loaded data. Deltas, records
+  // and projections derived from it would be arithmetic on absence, so they are hidden
+  // rather than rendered as a -100% collapse or an "all-time low".
+  const windowHasData = businessRows.length > 0;
+  // Latest day inside the selected window that carries rows. "Top movers" and any
+  // other single-day leader view should land here rather than on an empty end date.
+  const movesAnchorDay = useMemo(() => {
+    const withData = businessRows
+      .filter((row) => Number(row.revenue_usd || 0) > 0 || Number(row.orders || 0) > 0 || Number(row.spend_usd || 0) > 0)
+      .map((row) => row.date)
+      .filter(Boolean)
+      .sort();
+    return withData.at(-1) || activeDateRange?.until || reportingToday;
+  }, [businessRows, activeDateRange?.until, reportingToday]);
   const businessDeltas = useMemo(() => ({
     revenue: businessPeriodDelta(allBusinessRows, 'revenue_usd', activeDateRange),
     sales: businessPeriodDelta(allBusinessRows, 'orders', activeDateRange),
@@ -2771,6 +1813,47 @@ function App() {
     cac: businessPeriodDelta(allBusinessRows, 'cac', activeDateRange),
     roas: businessPeriodDelta(allBusinessRows, 'roas', activeDateRange),
   }), [allBusinessRows, activeDateRange]);
+  // Same-length window immediately before the selected one, used for the
+  // period-over-period drivers in Key findings.
+  const previousDateRange = useMemo(() => {
+    if (!activeDateRange?.since || !activeDateRange?.until) return { since: '', until: '' };
+    const days = dayCount(activeDateRange);
+    return { since: shiftDate(activeDateRange.since, -days), until: shiftDate(activeDateRange.until, -days) };
+  }, [activeDateRange]);
+  const previousProductData = useMemo(
+    () => filterShopifyByDateRange(baseProductData, previousDateRange),
+    [baseProductData, previousDateRange],
+  );
+  const insightDrivers = useMemo(() => {
+    const toItems = (rows, nameKey, valueKey) => (rows || [])
+      .map((row) => ({ name: row[nameKey] || 'Unknown', value: Number(row[valueKey] || 0) }));
+    const currentCountries = toItems(productData.countries, 'country', 'revenue_usd');
+    return {
+      revenue: {
+        countries: topDrivers(currentCountries, toItems(previousProductData.countries, 'country', 'revenue_usd')),
+        products: topDrivers(
+          toItems(productData.products, 'product', 'revenue_usd'),
+          toItems(previousProductData.products, 'product', 'revenue_usd'),
+        ),
+      },
+      orders: {
+        countries: topDrivers(
+          toItems(productData.countries, 'country', 'units'),
+          toItems(previousProductData.countries, 'country', 'units'),
+        ),
+      },
+      concentration: currentCountries,
+    };
+  }, [productData, previousProductData]);
+  const keyFindings = useMemo(() => buildKeyFindings({
+    windowRows: businessRows,
+    historyRows: allBusinessRows,
+    range: activeDateRange,
+    reportingToday,
+    revenueDrivers: insightDrivers.revenue,
+    orderDrivers: insightDrivers.orders,
+    concentrationItems: insightDrivers.concentration,
+  }), [businessRows, allBusinessRows, activeDateRange, reportingToday, insightDrivers]);
   const campaignAttribution = useMemo(() => buildCampaignAttribution(data, productData), [data, productData]);
   const productRows = productData.products || [];
   const adRows = useMemo(() => enrichAdsWithShopifySales(data.ads || [], productData.order_lines || []), [data.ads, productData.order_lines]);
@@ -2830,7 +1913,7 @@ function App() {
   const shopifyHealthLabel = !shopifyDataLoaded ? 'Loading' : shopifyFallbackActive ? 'Fallback' : 'Live';
   const healthTone = (h) => (h === 'Live' ? 'good' : h === 'Offline' ? 'bad' : 'warn');
 
-  const dayRows = adapt.toDayRows(businessRows);
+  const dayRows = adapt.toDayRows(businessRows, reportingToday);
   // Performance trend is a multi-day view with its own 3D/7D/14D/All control, so it draws
   // from the full loaded history rather than the active date filter (which can be a
   // single day under the "Today" preset and would leave nothing to connect into a line).
@@ -2858,8 +1941,8 @@ function App() {
     ),
     [baseData, baseProductData],
   );
-  const kpiProjection = (key) => buildKpiProjectionDisplay(monthProjection, key);
-  const kpiRecord = (key) => buildKpiRecordDisplay(kpiRecords, key);
+  const kpiProjection = (key) => (windowHasData ? buildKpiProjectionDisplay(monthProjection, key) : null);
+  const kpiRecord = (key) => (windowHasData ? buildKpiRecordDisplay(kpiRecords, key) : null);
   const trendDayRows = adapt.toDayRows(allBusinessRows).filter(
     (r) => r.date && r.date !== reportingToday && r.date >= CAMPAIGN_LAUNCH_DATE,
   );
@@ -2872,7 +1955,13 @@ function App() {
   const benchmarks = adapt.toBenchmarks(overall, march, marchDelta, overallDelta);
   const productLeaders = adapt.toProductLeaders(productRows);
   const adLeaders = adapt.toAdLeaders(adRows);
-  const deliveryShape = adapt.toDeliveryShape(deliveryTrendRows);
+  // The current reporting day has only part of its delivery recorded, so including it
+  // ends the reach curve in a false cliff. Same exclusion rule as the performance trend.
+  const deliveryRowsExcludingToday = deliveryTrendRows.filter((row) => row.date !== reportingToday);
+  const deliveryDevelopingDay = deliveryTrendRows.length > deliveryRowsExcludingToday.length
+    ? reportingToday
+    : '';
+  const deliveryShape = adapt.toDeliveryShape(deliveryRowsExcludingToday);
   const growth = adapt.toProductDevelopment(launchProductData);
   const decisions = adapt.toAdSetDecisions(filtered, adsetPerfById, statusLabels);
   const productDemand = adapt.toProductDemand(launchProductData, launchDateRange.since);
@@ -2896,7 +1985,10 @@ function App() {
   // Mobile "Top movers" — today's leader as the hero, with the current week and
   // previous week as comparison windows (paid-ads only; email orders excluded).
   const topMovers = useMemo(() => {
-    const anchor = activeDateRange?.until || reportingToday;
+    // Anchor on the last day in the window that actually has data. Anchoring on the
+    // window's end date made every card read "No sale captured" whenever the range
+    // ran past the latest data — including the launch preset, which ends today.
+    const anchor = movesAnchorDay;
     const leadersFor = (win) => {
       const ws = filterShopifyByDateRange(baseProductData, win, { excludeEmail: true });
       const wm = filterMetaDataByDateRange(baseData, win);
@@ -2919,7 +2011,7 @@ function App() {
       currentWeek: leadersFor(currentWeekWin),
       prevWeek: leadersFor(prevWeekWin),
     };
-  }, [baseProductData, baseData, loadedBounds, activeDateRange?.until, reportingToday]);
+  }, [baseProductData, baseData, loadedBounds, movesAnchorDay]);
   const topMoverCards = useMemo(() => ([
     {
       kind: 'product',
@@ -2943,9 +2035,9 @@ function App() {
       prevWeek: topMovers.prevWeek.country,
     },
   ]), [topMovers]);
-  const topMoverFocusLabel = dayCount(activeDateRange) === 1
-    ? (activeDateRange.until === reportingToday ? 'Today' : activeDateRange.until)
-    : 'Selected range';
+  const topMoverFocusLabel = movesAnchorDay === reportingToday
+    ? 'Today'
+    : movesAnchorDay || 'Selected range';
 
   const todayOrderMovers = useMemo(() => {
     const lines = baseProductData?.order_lines || [];
@@ -2998,6 +2090,15 @@ function App() {
         shopifyHealthTone={healthTone(shopifyHealthLabel)}
       />
     ),
+    keyFindings: (
+      <KeyFindings
+        verdict={keyFindings.verdict}
+        findings={keyFindings.findings}
+        rangeLabel={activeDateRange.since === activeDateRange.until
+          ? activeDateRange.since
+          : `${activeDateRange.since} → ${activeDateRange.until}`}
+      />
+    ),
     kpis: (
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -3017,12 +2118,12 @@ function App() {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-6">
-        <KpiCard label="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} delta={businessDeltas.revenue.pct} series={adapt.sparkSeries(businessRows, 'revenue_usd', allBusinessRows)} accent="brand" projection={kpiProjection('revenue_usd')} record={kpiRecord('revenue_usd')} />
-        <KpiCard label="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} delta={businessDeltas.sales.pct} series={adapt.sparkSeries(businessRows, 'orders', allBusinessRows)} accent="violet" projection={kpiProjection('orders')} record={kpiRecord('orders')} />
-        <KpiCard label="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} delta={businessDeltas.aov.pct} series={adapt.sparkSeries(businessRows, 'aov', allBusinessRows)} accent="blue" projection={kpiProjection('aov')} record={kpiRecord('aov')} />
-        <KpiCard label="Meta spend" value={money.format(business.spend_usd)} delta={businessDeltas.spend.pct} series={adapt.sparkSeries(businessRows, 'spend_usd', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('spend_usd')} record={kpiRecord('spend_usd')} />
-        <KpiCard label="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} delta={businessDeltas.cac.pct} series={adapt.sparkSeries(businessRows, 'cac', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('cac')} record={kpiRecord('cac')} />
-        <KpiCard label="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} delta={businessDeltas.roas.pct} series={adapt.sparkSeries(businessRows, 'roas', allBusinessRows)} accent="positive" projection={kpiProjection('roas')} record={kpiRecord('roas')} />
+        <KpiCard label="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} delta={businessDeltas.revenue.pct} deltaLabel={businessDeltas.revenue.label} series={adapt.sparkSeries(businessRows, 'revenue_usd', allBusinessRows)} accent="brand" projection={kpiProjection('revenue_usd')} record={kpiRecord('revenue_usd')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.revenue)} {...metricDefinition('revenue_usd')} />
+        <KpiCard label="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} delta={businessDeltas.sales.pct} deltaLabel={businessDeltas.sales.label} series={adapt.sparkSeries(businessRows, 'orders', allBusinessRows)} accent="violet" projection={kpiProjection('orders')} record={kpiRecord('orders')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.sales)} {...metricDefinition('orders')} />
+        <KpiCard label="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} delta={businessDeltas.aov.pct} deltaLabel={businessDeltas.aov.label} series={adapt.sparkSeries(businessRows, 'aov', allBusinessRows)} accent="blue" projection={kpiProjection('aov')} record={kpiRecord('aov')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.aov)} {...metricDefinition('aov')} />
+        <KpiCard label="Meta spend" value={money.format(business.spend_usd)} delta={businessDeltas.spend.pct} deltaLabel={businessDeltas.spend.label} series={adapt.sparkSeries(businessRows, 'spend_usd', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('spend_usd')} record={kpiRecord('spend_usd')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.spend)} {...metricDefinition('spend_usd')} />
+        <KpiCard label="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} delta={businessDeltas.cac.pct} deltaLabel={businessDeltas.cac.label} series={adapt.sparkSeries(businessRows, 'cac', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('cac')} record={kpiRecord('cac')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.cac)} {...metricDefinition('cac')} />
+        <KpiCard label="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} delta={businessDeltas.roas.pct} deltaLabel={businessDeltas.roas.label} series={adapt.sparkSeries(businessRows, 'roas', allBusinessRows)} accent="positive" projection={kpiProjection('roas')} record={kpiRecord('roas')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.roas)} {...metricDefinition('roas')} />
         </div>
       </section>
     ),
@@ -3095,7 +2196,7 @@ function App() {
     usa: usaOk ? <UsaComparison comparison={usaComparison} curve={usaCurve} /> : null,
     delivery: (
       <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
-        <DailyDelivery data={deliveryShape} />
+        <DailyDelivery data={deliveryShape} developingDay={deliveryDevelopingDay} />
         <DevelopingGrowth data={growth.data} lines={growth.lines} />
       </div>
     ),
@@ -3122,13 +2223,15 @@ function App() {
     funnel: <FunnelAnalytics data={funnelData} />,
   };
   const dashboardGroups = [
-    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'orderDrop', 'orderLift', 'revenue', 'mobileTops'] },
+    // "data" (Daily breakdown) belongs under the trend chart it drills into, not on
+    // Behavior — it is business performance per day, not session behavior.
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'keyFindings', 'orderDrop', 'orderLift', 'revenue', 'data', 'mobileTops'] },
     { key: 'funnel', label: 'Funnel', icon: Filter, ids: ['funnel'] },
     { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'emailCampaign', 'leaders', 'edits', 'decision'] },
     { key: 'launch', label: 'Launch', icon: Rocket, ids: ['usa', 'delivery'] },
     { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['salesBench', 'product', 'country'] },
     { key: 'historical', label: 'Historical insights', icon: BarChart3, ids: ['historicalInsights'] },
-    { key: 'behavior', label: 'Behavior', icon: Activity, ids: ['behavior', 'data'] },
+    { key: 'behavior', label: 'Behavior', icon: Activity, ids: ['behavior'] },
   ];
   const activeGroup = dashboardGroups.find((g) => g.key === activeTab) || dashboardGroups[0];
 

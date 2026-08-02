@@ -8,7 +8,7 @@ Use this file to find code by feature. Open the listed paths directly instead of
 
 | Tab | Section IDs | Primary files |
 |-----|-------------|---------------|
-| Overview | ordersMap, kpis, orderDrop, revenue | `src/App.jsx`, `KpiCard.tsx`, `RevenueChart.tsx`, `OrdersMap.tsx` |
+| Overview | ordersMap, kpis, keyFindings, orderDrop, revenue | `src/App.jsx`, `KpiCard.tsx`, `KeyFindings.tsx`, `analyticsInsights.js`, `RevenueChart.tsx`, `OrdersMap.tsx` |
 | Ads | tree, emailCampaign, leaders, edits, decision | `CampaignRoasTree.tsx`, `EmailCampaign.tsx`, `App.jsx` |
 | Launch | salesBench, product, country | `ProductDemand.tsx`, `CountrySalesPanel.tsx`, `adapt.js` |
 | Market | (same as Launch group) | `launchProductData`, `launchDateRange` in `App.jsx` |
@@ -44,6 +44,7 @@ Use this file to find code by feature. Open the listed paths directly instead of
 
 | Task | Edit these | Do not touch unless asked |
 |------|------------|---------------------------|
+| Key findings / anomalies | `analyticsInsights.js`, `KeyFindings.tsx`, `metricDefinitions.js` | KPI record logic, behavior rollups |
 | Behavior / dwell | `dwellStats.js`, `pagePath.js`, `BehaviorAnalytics.tsx`, `SessionReplayPanel.tsx`, `sessionReplay.js`, `fetch-behavior-intelligence.mjs`, `shopify/theme-session-replay.js` | KPI cards, `RevenueChart`, unrelated `App.jsx` |
 | KPI badges | `businessKpiInsights.js`, `KpiCard.tsx`, `kpiRecord*` in `App.jsx` | Behavior rollups |
 | Location labels | `orderLocality.js`, `orderResolver.mjs` | KPI, charts |
@@ -56,6 +57,12 @@ Use this file to find code by feature. Open the listed paths directly instead of
 3. **Item count** — use `orderMerchandise.js` / `merchandiseItemCount()`; tips excluded from merchandise count.
 4. **UAE/EU locations** — `orderLocality.js`: compound city strings fall back to province; country-as-city falls back to province.
 5. **Merge without Gemini review** — always poll `gemini-code-assist` before merge (see `AGENTS.md`).
+6. **Unwindowed fallback series** — every series returned by `filterMetaDataByDateRange` must be
+   date-filtered. `daily_metrics` was not, so a window with no Meta rows fell through to
+   full-history spend and reported it as that window's spend.
+7. **Anchoring a single-day view on the range end** — use the last day in the window that has
+   rows (`movesAnchorDay`), not `range.until`, or every leader card reads "No sale captured"
+   whenever the range ends past the latest data.
 
 ## Tests by area
 
@@ -66,6 +73,7 @@ npm run test:session-events
 npm run test:session-replay
 npm run test:dwell-stats
 npm run test:kpi-insights
+npm run test:insights
 npm run test:dashboard
 npm run build
 ```

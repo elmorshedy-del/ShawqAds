@@ -859,13 +859,16 @@ export function BehaviorAnalytics({
 
   return (
     <div className="panel overflow-hidden">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-4 p-6 text-left"
-      >
-        <div className="flex items-center gap-3">
+      {/* The header is a row, not one big button: the scope toggle renders its own
+          buttons, and nesting them inside a button is invalid HTML that also made
+          every scope click collapse the panel. */}
+      <div className="flex w-full items-center justify-between gap-4 p-6">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
             <FlaskConical className="h-4 w-4" />
           </span>
@@ -882,7 +885,7 @@ export function BehaviorAnalytics({
               Product &amp; country friction, pages, dwell, and journeys · collapsed by default
             </p>
           </div>
-        </div>
+        </button>
         <div className="flex shrink-0 items-center gap-3">
           {onScopeChange ? (
             <PanelScopeToggle scope={scope} onScopeChange={onScopeChange} className="hidden sm:flex" />
@@ -892,11 +895,17 @@ export function BehaviorAnalytics({
               {rangeLabel || `${period.since} – ${period.until}`}
             </span>
           ) : null}
-          <ChevronDown
-            className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")}
-          />
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-label={open ? "Collapse behavior panel" : "Expand behavior panel"}
+            onClick={() => setOpen((current) => !current)}
+            className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
+          >
+            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+          </button>
         </div>
-      </button>
+      </div>
 
       {open ? (
         <div className="space-y-7 border-t border-border px-6 pb-6 pt-5">

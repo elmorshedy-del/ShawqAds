@@ -1,6 +1,8 @@
+import { CalendarRange } from "lucide-react";
 import { fmtCurrency, fmtNumber } from "@/lib/dashboard-data";
 import type { DayRow } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/dashboard/EmptyState";
 
 const cols = [
   { key: "revenue", label: "Revenue" },
@@ -21,6 +23,13 @@ export function DataTable({ rows }: { rows: DayRow[] }) {
           <p className="text-xs text-muted-foreground">Per-day performance across the selected window</p>
         </div>
       </div>
+      {!rows.length ? (
+        <EmptyState
+          icon={CalendarRange}
+          title="No days in the selected window"
+          hint="Widen the date window, or switch to a preset that overlaps the loaded Meta and Shopify data."
+        />
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -66,6 +75,7 @@ export function DataTable({ rows }: { rows: DayRow[] }) {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

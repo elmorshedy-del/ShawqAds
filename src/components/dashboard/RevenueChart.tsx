@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, Waves } from "lucide-react";
 import { fmtCurrency, fmtNumber, fmtX, type DayRow } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
@@ -41,13 +41,18 @@ function smoothWindow(pointCount: number, range: Range) {
   return pointCount > 30 ? 7 : 3;
 }
 
-function ChartTooltip({ active, payload, label }: any) {
+function ChartTooltip({ active, payload, label, smoothing }: any) {
   if (!active || !payload?.length) return null;
   const row = payload[0]?.payload;
   if (!row) return null;
   return (
     <div className="panel min-w-[180px] px-3.5 py-3 text-xs shadow-[var(--shadow-elegant)]">
       <p className="mb-2 font-semibold text-foreground">{label}</p>
+      {smoothing ? (
+        <p className="mb-2 -mt-1 text-[0.65rem] leading-tight text-muted-foreground">
+          Actual values — the line is a {smoothing}-day average
+        </p>
+      ) : null}
       <div className="space-y-1.5">
         <Row dot="var(--color-brand)" name="Revenue" value={fmtCurrency(row.revenue)} />
         <Row dot="var(--color-gold)" name="Meta spend" value={fmtCurrency(row.spend)} />
@@ -133,8 +138,13 @@ export function RevenueChart({ rows }: { rows: DayRow[] }) {
     return `${focus}Plot` as const;
   }, [data.length, range, focus]);
 
+  // The plotted curve is a moving average whenever this is non-zero. It has to be
+  // stated: a smoothed line flattens single-day collapses that the findings panel
+  // reports as anomalies, and a chart that disagrees with the analysis is worse
+  // than no chart.
+  const smoothing = smoothWindow(data.length, range);
   const showSpend = focus === "revenue" || focus === "profit";
-  const spendPlotKey = smoothWindow(data.length, range) ? "spendPlot" : "spend";
+  const spendPlotKey = smoothing ? "spendPlot" : "spend";
   const showDots = data.length <= 21;
 
   const avg = useMemo(() => {
@@ -163,6 +173,12 @@ export function RevenueChart({ rows }: { rows: DayRow[] }) {
             {showSpend ? " vs. Meta spend" : ""} · dashed line ={" "}
             {focus === "roas" ? "spend-weighted period ROAS" : "period average"}
           </p>
+          {smoothing ? (
+            <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-gold/10 px-2 py-0.5 text-[0.65rem] font-medium text-gold">
+              <Waves className="h-3 w-3" />
+              Line is a {smoothing}-day moving average · hover for actual daily values
+            </p>
+          ) : null}
         </div>
 
         <div className="inline-flex self-start rounded-full border border-border bg-surface-2 p-1">
@@ -231,7 +247,10 @@ export function RevenueChart({ rows }: { rows: DayRow[] }) {
                 focus === "roas" ? `${v}x` : focus === "orders" ? `${v}` : `$${(v / 1000).toFixed(1)}k`
               }
             />
-            <Tooltip content={<ChartTooltip />} cursor={{ stroke: "var(--color-border)", strokeWidth: 1 }} />
+            <Tooltip
+              content={<ChartTooltip smoothing={smoothing} />}
+              cursor={{ stroke: "var(--color-border)", strokeWidth: 1 }}
+            />
             <ReferenceLine
               y={Number(avg.toFixed(2))}
               stroke={def.color}

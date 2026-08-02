@@ -7,6 +7,7 @@ import {
   type CampaignNode,
 } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/dashboard/EmptyState";
 
 type SortKey = "spend" | "ctr" | "shopifyRoas" | "mappedRoas" | "shopify";
 const sorts: { key: SortKey; label: string }[] = [
@@ -173,6 +174,13 @@ export function CampaignRoasTree({ data }: { data: CampaignNode[] }) {
         </div>
       )}
 
+      {!ordered.length ? (
+        <EmptyState
+          icon={GitBranch}
+          title="No campaigns delivered in this window"
+          hint="The tree is built from Meta ad-level rows inside the selected dates. Pick a window with delivery, or use the June 3 launch preset."
+        />
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full min-w-[920px] text-sm">
           <thead>
@@ -231,6 +239,7 @@ export function CampaignRoasTree({ data }: { data: CampaignNode[] }) {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

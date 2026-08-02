@@ -39,6 +39,13 @@ function monthLabelFromDate(date) {
   return parsed.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
 }
 
+function previousDay(date) {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return '';
+  parsed.setUTCDate(parsed.getUTCDate() - 1);
+  return parsed.toISOString().slice(0, 10);
+}
+
 function weekStartMonday(date) {
   const parsed = new Date(`${date}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return date;
@@ -175,6 +182,7 @@ export function detectKpiRecord(rows, key, { today, intraday = false } = {}) {
           favorable: favorableWhenUp,
           value: todayValue,
           date: today,
+          asOf: today,
           recordKey: `${key}:all-high-intraday:${today}`,
       };
     }
@@ -227,6 +235,7 @@ export function detectKpiRecord(rows, key, { today, intraday = false } = {}) {
     favorable: favorable ? favorableWhenUp : !favorableWhenUp,
     value: latest.v,
     date: latest.date,
+    asOf: today,
     recordKey: `${key}:${kind}:${latest.date}`,
   };
 }
@@ -269,7 +278,14 @@ export function buildKpiRecordDisplay(records, key) {
   const record = records?.[key];
   if (!record) return null;
   const high = record.kind === 'all-high' || record.kind === 'week-high';
-  const when = record.intraday ? 'Today' : 'Yesterday';
+  // The record day is the last day with data before the window's end, which is only
+  // literally "yesterday" when the cache is current. Naming the date otherwise stops
+  // the badge from claiming a seven-week-old record happened yesterday.
+  const when = record.intraday
+    ? 'Today'
+    : record.date && record.asOf && record.date === previousDay(record.asOf)
+      ? 'Yesterday'
+      : record.date || 'Latest day';
   const text = record.scope === 'week'
     ? (high ? 'Week high' : 'Week low')
     : (high ? 'All-time high' : 'All-time low');
@@ -281,9 +297,9 @@ export function buildKpiRecordDisplay(records, key) {
   if (record.intraday) {
     tip = `New all-time high today${atValue} — still climbing`;
   } else if (record.scope === 'week') {
-    tip = `Yesterday was the ${high ? 'highest' : 'lowest'} this week${atValue}`;
+    tip = `${when} was the ${high ? 'highest' : 'lowest'} this week${atValue}`;
   } else {
-    tip = `Yesterday was an all-time ${high ? 'high' : 'low'}${atValue}`;
+    tip = `${when} was an all-time ${high ? 'high' : 'low'}${atValue}`;
   }
   return {
     text,
