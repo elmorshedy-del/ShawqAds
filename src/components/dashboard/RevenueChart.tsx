@@ -212,7 +212,14 @@ export function RevenueChart({ rows }: { rows: DayRow[] }) {
                   ? "border-transparent text-foreground shadow-sm"
                   : "border-border bg-surface-2 text-muted-foreground hover:text-foreground",
               )}
-              style={on ? { background: "color-mix(in oklab, " + f.color + " 14%, white)" } : undefined}
+              // Mixed against the themed surface, not a literal white: on a dark
+              // background the white mix produced a near-white pill carrying
+              // light foreground text, which made the active chip unreadable.
+              style={
+                on
+                  ? { background: `color-mix(in oklab, ${f.color} 18%, var(--color-surface-2))` }
+                  : undefined
+              }
             >
               <span className="h-2 w-2 rounded-full" style={{ background: f.color }} />
               {f.label}

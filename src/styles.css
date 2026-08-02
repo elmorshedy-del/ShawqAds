@@ -124,6 +124,113 @@
   --gradient-glow: radial-gradient(120% 120% at 0% 0%, oklch(0.58 0.23 352 / 0.12), transparent 60%);
   --shadow-elegant: 0 24px 60px -28px oklch(0.5 0.12 352 / 0.22);
   --shadow-card: 0 1px 2px 0 oklch(0.2 0.02 270 / 0.04), 0 8px 24px -16px oklch(0.2 0.02 270 / 0.12);
+
+  /* Categorical series palette. Lives here rather than in component files so both
+     themes can restate it — the same hue that reads on white is too dark on a
+     dark surface. */
+  --cat-1: #6366f1;
+  --cat-2: #0ea5e9;
+  --cat-3: #10b981;
+  --cat-4: #f59e0b;
+  --cat-5: #ef4444;
+  --cat-6: #a855f7;
+  --cat-7: #14b8a6;
+  --cat-8: #ec4899;
+
+  --week-1: #c084fc;
+  --week-2: #818cf8;
+  --week-3: #38bdf8;
+  --week-4: #34d399;
+
+  --page-glow-1: oklch(0.51 0.23 277 / 0.05);
+  --page-glow-2: oklch(0.6 0.13 220 / 0.04);
+}
+
+/* ---------------------------------------------------------------------------
+ * Dark theme.
+ *
+ * Media buyers sit in this tool for hours at a stretch, often beside Ads
+ * Manager, and a full-white dashboard is the most common complaint about tools
+ * in this category. Elevation is carried by lightness rather than shadow, which
+ * does not read on a dark surface, and every accent is lifted so it keeps
+ * contrast against the darker background instead of muddying into it.
+ * ------------------------------------------------------------------------ */
+.dark {
+  --background: oklch(0.17 0.012 280);
+  --foreground: oklch(0.95 0.008 280);
+
+  --surface: oklch(0.21 0.014 280);
+  --surface-2: oklch(0.25 0.016 280);
+
+  --card: oklch(0.21 0.014 280);
+  --card-foreground: oklch(0.95 0.008 280);
+  --popover: oklch(0.23 0.015 280);
+  --popover-foreground: oklch(0.95 0.008 280);
+
+  --brand: oklch(0.72 0.19 352);
+  --brand-strong: oklch(0.78 0.17 352);
+  --brand-soft: oklch(0.32 0.09 352);
+
+  --primary: oklch(0.72 0.19 352);
+  --primary-foreground: oklch(0.17 0.012 280);
+
+  --secondary: oklch(0.25 0.016 280);
+  --secondary-foreground: oklch(0.92 0.01 280);
+
+  --muted: oklch(0.25 0.016 280);
+  --muted-foreground: oklch(0.71 0.02 280);
+
+  --accent: oklch(0.32 0.09 352);
+  --accent-foreground: oklch(0.88 0.1 352);
+
+  --destructive: oklch(0.71 0.19 17);
+  --destructive-foreground: oklch(0.17 0.012 280);
+
+  --positive: oklch(0.75 0.15 163);
+  --positive-foreground: oklch(0.17 0.012 280);
+
+  --gold: oklch(0.81 0.15 70);
+
+  --border: oklch(0.3 0.014 280);
+  --input: oklch(0.32 0.015 280);
+  --ring: oklch(0.72 0.19 352);
+
+  --chart-1: oklch(0.72 0.19 352);
+  --chart-2: oklch(0.75 0.15 163);
+  --chart-3: oklch(0.81 0.15 70);
+  --chart-4: oklch(0.72 0.17 300);
+  --chart-5: oklch(0.72 0.13 220);
+
+  --sidebar: oklch(0.19 0.013 280);
+  --sidebar-foreground: oklch(0.92 0.01 280);
+  --sidebar-primary: oklch(0.72 0.19 352);
+  --sidebar-primary-foreground: oklch(0.17 0.012 280);
+  --sidebar-accent: oklch(0.25 0.016 280);
+  --sidebar-accent-foreground: oklch(0.88 0.1 352);
+  --sidebar-border: oklch(0.28 0.014 280);
+  --sidebar-ring: oklch(0.72 0.19 352);
+
+  --gradient-primary: linear-gradient(135deg, oklch(0.72 0.2 350), oklch(0.58 0.2 330));
+  --gradient-glow: radial-gradient(120% 120% at 0% 0%, oklch(0.72 0.19 352 / 0.16), transparent 60%);
+  --shadow-elegant: 0 24px 60px -28px oklch(0 0 0 / 0.7);
+  --shadow-card: 0 1px 2px 0 oklch(0 0 0 / 0.4), 0 8px 24px -16px oklch(0 0 0 / 0.55);
+
+  --cat-1: #818cf8;
+  --cat-2: #38bdf8;
+  --cat-3: #34d399;
+  --cat-4: #fbbf24;
+  --cat-5: #f87171;
+  --cat-6: #c084fc;
+  --cat-7: #2dd4bf;
+  --cat-8: #f472b6;
+
+  --week-1: #d8b4fe;
+  --week-2: #a5b4fc;
+  --week-3: #7dd3fc;
+  --week-4: #6ee7b7;
+
+  --page-glow-1: oklch(0.51 0.23 277 / 0.13);
+  --page-glow-2: oklch(0.6 0.13 220 / 0.1);
 }
 
 @layer base {
@@ -137,9 +244,17 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     background-image:
-      radial-gradient(70% 50% at 100% 0%, oklch(0.51 0.23 277 / 0.05), transparent 55%),
-      radial-gradient(60% 50% at 0% 0%, oklch(0.6 0.13 220 / 0.04), transparent 50%);
+      radial-gradient(70% 50% at 100% 0%, var(--page-glow-1), transparent 55%),
+      radial-gradient(60% 50% at 0% 0%, var(--page-glow-2), transparent 50%);
     background-attachment: fixed;
+    color-scheme: light;
+  }
+
+  .dark body {
+    /* Tells the browser to render native controls — date inputs, scrollbars,
+       select popups — in their dark variants. Without it the date pickers stay
+       white and punch holes in the theme. */
+    color-scheme: dark;
   }
 
   ::-webkit-scrollbar {

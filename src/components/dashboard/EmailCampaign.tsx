@@ -86,7 +86,7 @@ export function EmailCampaign({
         <div className="flex items-center gap-2">
           <span
             className="flex h-7 w-7 items-center justify-center rounded-lg"
-            style={{ background: `color-mix(in oklab, ${ACCENT} 16%, white)`, color: ACCENT }}
+            style={{ background: `color-mix(in oklab, ${ACCENT} 16%, var(--color-surface-2))`, color: ACCENT }}
           >
             <Mail className="h-4 w-4" />
           </span>
@@ -104,7 +104,7 @@ export function EmailCampaign({
         <div className="flex items-center justify-between gap-3">
           <span
             className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.1em]"
-            style={{ background: `color-mix(in oklab, ${ACCENT} 14%, white)`, color: ACCENT }}
+            style={{ background: `color-mix(in oklab, ${ACCENT} 14%, var(--color-surface-2))`, color: ACCENT }}
           >
             <Send className="h-3 w-3" /> Email channel
           </span>

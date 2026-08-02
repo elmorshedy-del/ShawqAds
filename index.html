@@ -11,6 +11,19 @@
       rel="stylesheet"
     />
     <title>ShawQ Business Monitoring</title>
+    <script>
+      // Applied before first paint so a dark-mode user never sees a white flash.
+      // Mirrors resolveTheme() in src/lib/theme.js.
+      (function () {
+        try {
+          var saved = localStorage.getItem('shawq-theme');
+          var dark = saved
+            ? saved === 'dark'
+            : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
