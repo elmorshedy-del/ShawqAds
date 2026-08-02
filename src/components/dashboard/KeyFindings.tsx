@@ -69,6 +69,75 @@ const findingIcon: Record<FindingTone, any> = {
   neutral: Minus,
 };
 
+function FindingRow({ finding }: { finding: Finding }) {
+  const style = toneStyles[finding.tone];
+  const Icon = findingIcon[finding.tone];
+  return (
+    <li
+      className={cn(
+        "relative px-6 py-4 pl-7 transition-colors hover:bg-surface-2/40",
+        "before:absolute before:left-0 before:top-4 before:bottom-4 before:w-1 before:rounded-full",
+        style.rail,
+      )}
+    >
+      <div className="flex items-start gap-2.5">
+        <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", style.text)} />
+        <div className="min-w-0 space-y-1">
+          <p className="text-sm font-semibold leading-snug text-foreground">{finding.headline}</p>
+          {finding.context ? (
+            <p className="text-xs leading-relaxed text-muted-foreground">{finding.context}</p>
+          ) : null}
+          {finding.driver ? (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              <span className="font-medium text-foreground/70">Driver · </span>
+              {finding.driver}
+            </p>
+          ) : null}
+          {finding.action ? (
+            <p className="flex items-start gap-1.5 pt-0.5 text-xs font-medium leading-relaxed text-brand">
+              <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {finding.action}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * Compact findings strip for a single tab. Same finding contract as the Overview
+ * panel, without the verdict header — each tab answers a narrower question and
+ * does not need its own overall grade.
+ */
+export function PanelFindings({
+  title,
+  findings,
+  hint,
+}: {
+  title: string;
+  findings: Finding[];
+  hint?: string;
+}) {
+  if (!findings.length) return null;
+  return (
+    <section className="panel overflow-hidden">
+      <header className="flex flex-wrap items-center gap-2 border-b border-border px-6 py-3.5">
+        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-brand-soft text-brand">
+          <Lightbulb className="h-3.5 w-3.5" />
+        </span>
+        <h2 className="font-display text-sm font-semibold tracking-tight">{title}</h2>
+        {hint ? <span className="text-xs text-muted-foreground">· {hint}</span> : null}
+      </header>
+      <ul className="divide-y divide-border/70">
+        {findings.map((finding) => (
+          <FindingRow key={finding.id} finding={finding} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function KeyFindings({
   verdict,
   findings,
@@ -116,44 +185,9 @@ export function KeyFindings({
 
       {findings.length ? (
         <ul className="divide-y divide-border/70">
-          {findings.map((finding) => {
-            const style = toneStyles[finding.tone];
-            const Icon = findingIcon[finding.tone];
-            return (
-              <li
-                key={finding.id}
-                className={cn(
-                  "relative px-6 py-4 pl-7 transition-colors hover:bg-surface-2/40",
-                  "before:absolute before:left-0 before:top-4 before:bottom-4 before:w-1 before:rounded-full",
-                  style.rail,
-                )}
-              >
-                <div className="flex items-start gap-2.5">
-                  <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", style.text)} />
-                  <div className="min-w-0 space-y-1">
-                    <p className="text-sm font-semibold leading-snug text-foreground">
-                      {finding.headline}
-                    </p>
-                    {finding.context ? (
-                      <p className="text-xs leading-relaxed text-muted-foreground">{finding.context}</p>
-                    ) : null}
-                    {finding.driver ? (
-                      <p className="text-xs leading-relaxed text-muted-foreground">
-                        <span className="font-medium text-foreground/70">Driver · </span>
-                        {finding.driver}
-                      </p>
-                    ) : null}
-                    {finding.action ? (
-                      <p className="flex items-start gap-1.5 pt-0.5 text-xs font-medium leading-relaxed text-brand">
-                        <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        {finding.action}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              </li>
-            );
-          })}
+          {findings.map((finding) => (
+            <FindingRow key={finding.id} finding={finding} />
+          ))}
         </ul>
       ) : (
         <div className="flex items-start gap-3 px-6 py-6">

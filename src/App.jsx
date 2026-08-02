@@ -10,7 +10,13 @@ import {
 } from './lib/businessKpiInsights.js';
 import { metricDefinition } from './lib/metricDefinitions.js';
 import { buildKeyFindings, topDrivers } from './lib/analyticsInsights.js';
-import { KeyFindings } from './components/dashboard/KeyFindings';
+import {
+  buildAdsFindings,
+  buildFunnelFindings,
+  buildLaunchFindings,
+  buildMarketFindings,
+} from './lib/tabInsights.js';
+import { KeyFindings, PanelFindings } from './components/dashboard/KeyFindings';
 import { buildShopifyHistoricalDaily } from './lib/historicalInsights.js';
 import { buildFunnelAnalytics } from './lib/funnelAnalytics.js';
 import { buildEmailDailyIndex, applyRevenueScope } from './lib/revenueScope.js';
@@ -2074,6 +2080,22 @@ function App() {
   };
   const usaOk = Boolean(deliveryComparison.ok) && usaCurve.length > 0;
 
+  // Per-tab findings. Each tab answers a narrower question than Overview, so each
+  // gets its own conclusion rather than leaving the reader to derive it from charts.
+  const funnelFindings = useMemo(() => buildFunnelFindings(funnelData), [funnelData]);
+  const adsFindings = useMemo(
+    () => buildAdsFindings({ adSets: decisions, campaigns: campaignTree }),
+    [decisions, campaignTree],
+  );
+  const marketFindings = useMemo(
+    () => buildMarketFindings({ countries: countrySales }),
+    [countrySales],
+  );
+  const launchFindings = useMemo(
+    () => buildLaunchFindings({ delivery: deliveryShape, phases: usaOk ? usaComparison : null }),
+    [deliveryShape, usaOk, usaComparison],
+  );
+
   const sectionEls = {
     ordersMap: (
       <OrdersMap
@@ -2221,15 +2243,27 @@ function App() {
       />
     ),
     funnel: <FunnelAnalytics data={funnelData} />,
+    funnelFindings: (
+      <PanelFindings title="What the funnel is telling you" findings={funnelFindings} hint="since launch" />
+    ),
+    adsFindings: (
+      <PanelFindings title="What to cut and what to scale" findings={adsFindings} hint="selected window" />
+    ),
+    marketFindings: (
+      <PanelFindings title="Where to push and where to pull back" findings={marketFindings} hint="since launch" />
+    ),
+    launchFindings: (
+      <PanelFindings title="How the launch is delivering" findings={launchFindings} hint="launch window" />
+    ),
   };
   const dashboardGroups = [
     // "data" (Daily breakdown) belongs under the trend chart it drills into, not on
     // Behavior — it is business performance per day, not session behavior.
     { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'keyFindings', 'orderDrop', 'orderLift', 'revenue', 'data', 'mobileTops'] },
-    { key: 'funnel', label: 'Funnel', icon: Filter, ids: ['funnel'] },
-    { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['tree', 'emailCampaign', 'leaders', 'edits', 'decision'] },
-    { key: 'launch', label: 'Launch', icon: Rocket, ids: ['usa', 'delivery'] },
-    { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['salesBench', 'product', 'country'] },
+    { key: 'funnel', label: 'Funnel', icon: Filter, ids: ['funnelFindings', 'funnel'] },
+    { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['adsFindings', 'tree', 'emailCampaign', 'leaders', 'edits', 'decision'] },
+    { key: 'launch', label: 'Launch', icon: Rocket, ids: ['launchFindings', 'usa', 'delivery'] },
+    { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['marketFindings', 'salesBench', 'product', 'country'] },
     { key: 'historical', label: 'Historical insights', icon: BarChart3, ids: ['historicalInsights'] },
     { key: 'behavior', label: 'Behavior', icon: Activity, ids: ['behavior'] },
   ];
