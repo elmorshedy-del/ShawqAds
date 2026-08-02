@@ -22,6 +22,7 @@ import {
   MIN_COMPARABLE_SESSIONS,
   SAMPLE_TIER_LEGEND,
 } from "@/lib/sampleTiers";
+import { dwellPageInsight } from "@/lib/dwellStats";
 import { BRAND_PAGES_LABEL, brandPageName } from "@/lib/pageCategory";
 import { PanelScopeToggle, type PanelScope } from "@/components/dashboard/PanelScopeToggle";
 import { SessionReplayPanel } from "@/components/dashboard/SessionReplayPanel";
@@ -30,7 +31,9 @@ interface BehaviorStep {
   products?: any[];
   countries?: any[];
   gender?: any[];
-  global?: { rate?: number; exposed?: number; abandoned?: number };
+  global?: { rate?: number | null; exposed?: number; abandoned?: number };
+  /** Meta-derived baseline for the age/gender cohorts, which use a different denominator. */
+  gender_global?: { rate?: number | null; exposed?: number; abandoned?: number };
 }
 interface BehaviorData {
   period?: { since?: string; until?: string };
@@ -53,8 +56,7 @@ interface BehaviorData {
 // so a tab left open overnight cannot report "30 min" for every page.
 const DWELL_CAP_LABEL = "10 min";
 
-function rateLabel(value: any, { exposed }: { exposed?: number } = {}) {
-  if (exposed === 0) return "n/a";
+function rateLabel(value: any) {
   if (value == null || !Number.isFinite(Number(value))) return "n/a";
   return `${Math.round(Number(value) * 100)}%`;
 }
@@ -80,6 +82,43 @@ function ratePoints(value: any) {
 function segmentKey(row: any) {
   return row.key || row.country_code || row.segment || "";
 }
+
+/**
+ * The site-wide rate is only a baseline when sessions actually reached the step.
+ *
+ * `global.rate` is null on a developing day and 0 when nothing was exposed, and
+ * `Number(null)` is 0 — which passes an isFinite check. Every row was therefore
+ * compared against a 0% site average that did not exist, and rendered red for
+ * being "above" it.
+ */
+function siteBaseline(global: any): number | null {
+  if (!global || Number(global.exposed || 0) <= 0) return null;
+  const rate = Number(global.rate);
+  return Number.isFinite(rate) ? rate : null;
+}
+
+/** Comparison against the site baseline, or null when there is nothing to compare to. */
+function vsBaseline(rate: number, siteRate?: number | null) {
+  if (siteRate == null || !Number.isFinite(Number(siteRate))) return null;
+  return (rate - Number(siteRate)) * 100;
+}
+
+/** Exactly at the site average is neutral, not bad. */
+function comparisonTone(vs: number | null) {
+  if (vs == null || Math.abs(vs) < 0.5) return "neutral";
+  return vs > 0 ? "worse" : "better";
+}
+
+const comparisonClass: Record<string, string> = {
+  worse: "bg-destructive/10 text-destructive",
+  better: "bg-positive/10 text-positive",
+  neutral: "bg-surface-2 text-muted-foreground",
+};
+const comparisonTextClass: Record<string, string> = {
+  worse: "text-destructive",
+  better: "text-positive",
+  neutral: "text-muted-foreground",
+};
 
 // Plain-language confidence pill driven by session count (no statistical symbols).
 function TierPill({ sessions }: { sessions?: number }) {
@@ -257,7 +296,7 @@ function ExtractionStatus({ behavior }: { behavior: BehaviorData }) {
   );
 }
 
-function StepCell({ row, label, siteRate }: { row: any; label: string; siteRate?: number }) {
+function StepCell({ row, label, siteRate }: { row: any; label: string; siteRate?: number | null }) {
   if (!row || !Number(row.exposed || 0)) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-surface-2/30 p-3">
@@ -270,9 +309,9 @@ function StepCell({ row, label, siteRate }: { row: any; label: string; siteRate?
   const exposed = Number(row.exposed || 0);
   const abandoned = Number(row.abandoned || 0);
   const rate = exposed ? abandoned / exposed : 0;
-  const site = Number(siteRate);
-  const vs = Number.isFinite(site) ? (rate - site) * 100 : 0;
-  const siteLabel = Number.isFinite(site) ? rateLabel(site) : "n/a";
+  const vs = vsBaseline(rate, siteRate);
+  const tone = comparisonTone(vs);
+  const siteLabel = siteRate == null ? null : rateLabel(siteRate);
   return (
     <div className="rounded-lg border border-border bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
@@ -284,17 +323,19 @@ function StepCell({ row, label, siteRate }: { row: any; label: string; siteRate?
         <span className="ml-1 text-sm font-medium text-muted-foreground">abandon</span>
       </p>
       <p className="text-[0.65rem] leading-relaxed text-muted-foreground">
-        {abandoned} of {exposed} left here · site avg {siteLabel}
+        {abandoned} of {exposed} left here
+        {siteLabel ? ` · site avg ${siteLabel}` : ""}
       </p>
       <div className="mt-1.5">
         <span
-          title="Percentage points above or below your site-wide abandon rate at this step"
-          className={cn(
-            "rounded-full px-1.5 py-0.5 text-[0.6rem] tabular-nums",
-            vs >= 0 ? "bg-destructive/10 text-destructive" : "bg-positive/10 text-positive",
-          )}
+          title={
+            vs == null
+              ? "No site-wide rate for this step yet, so there is nothing to compare against"
+              : "Percentage points above or below your site-wide abandon rate at this step"
+          }
+          className={cn("rounded-full px-1.5 py-0.5 text-[0.6rem] tabular-nums", comparisonClass[tone])}
         >
-          {ratePoints(vs)} vs avg
+          {vs == null ? "no site average yet" : `${ratePoints(vs)} vs avg`}
         </span>
       </div>
     </div>
@@ -305,8 +346,8 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
   const developingDay = Boolean(behavior?.coverage?.developing_day);
   const checkoutRows = behavior?.matrix?.checkout?.products || [];
   const paymentRows = behavior?.matrix?.submit_payment?.products || [];
-  const checkoutGlobal = behavior?.matrix?.checkout?.global?.rate;
-  const paymentGlobal = behavior?.matrix?.submit_payment?.global?.rate;
+  const checkoutGlobal = siteBaseline(behavior?.matrix?.checkout?.global);
+  const paymentGlobal = siteBaseline(behavior?.matrix?.submit_payment?.global);
   const checkoutByKey = new Map(checkoutRows.map((row: any) => [row.key, row]));
   const paymentByKey = new Map(paymentRows.map((row: any) => [row.key, row]));
   const keys = [...new Set([...checkoutByKey.keys(), ...paymentByKey.keys()])];
@@ -331,9 +372,12 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
         Number(checkout?.exposed || 0) > 0 || Number(payment?.exposed || 0) > 0,
     );
 
+  // Highest abandonment first. This list is capped at 8, and sorting the other way
+  // meant the worst-leaking products were the ones truncated off the end — the exact
+  // rows the panel exists to surface.
   const comparableRows = merged
     .filter((row) => row.comparable)
-    .sort((a, b) => a.rate - b.rate || b.sample - a.sample) // lowest abandon first
+    .sort((a, b) => b.rate - a.rate || b.sample - a.sample)
     .slice(0, 8);
   const setAside = merged.filter((row) => !row.comparable).length;
 
@@ -342,7 +386,7 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
       <SectionHeading
         icon={Package}
         title="Friction by product"
-        subtitle="Products with a comparable sample, ordered from lowest to highest abandonment. Checkout abandonment comes from Shopify; submit-payment from Meta AddPaymentInfo plus session-pixel rows."
+        subtitle="Products with a comparable sample, worst abandonment first — the top row is where most money is leaking. Checkout abandonment comes from Shopify; submit-payment from Meta AddPaymentInfo plus session-pixel rows."
       />
       <SampleTierLegend />
       {comparableRows.length ? (
@@ -402,19 +446,18 @@ function RankRow({
 }: {
   row: any;
   type: "country" | "gender";
-  siteRate?: number;
+  siteRate?: number | null;
   rank: number;
 }) {
   const exposed = Number(row.exposed || 0);
   const abandoned = Number(row.abandoned || 0);
   const rate = exposed ? abandoned / exposed : 0;
-  const site = Number(siteRate);
-  const vs = Number.isFinite(site) ? (rate - site) * 100 : 0;
+  const vs = vsBaseline(rate, siteRate);
+  const tone = comparisonTone(vs);
   const label =
     type === "country"
       ? row.country || row.country_code || "Unknown"
       : row.segment || row.gender || "Unknown";
-  const high = vs >= 0;
   return (
     <div className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-surface px-2.5 py-2">
       <span className="flex min-w-0 items-center gap-2 text-xs">
@@ -424,16 +467,12 @@ function RankRow({
       </span>
       <div className="flex shrink-0 items-center gap-2 text-right">
         <div>
-          <p
-            className={cn(
-              "text-xs font-semibold tabular-nums",
-              high ? "text-destructive" : "text-positive",
-            )}
-          >
+          <p className={cn("text-xs font-semibold tabular-nums", comparisonTextClass[tone])}>
             {rateLabel(rate)} <span className="font-normal text-muted-foreground">abandon</span>
           </p>
           <p className="text-[0.6rem] tabular-nums text-muted-foreground">
-            {abandoned}/{exposed} · {ratePoints(vs)} vs avg
+            {abandoned}/{exposed}
+            {vs == null ? "" : ` · ${ratePoints(vs)} vs avg`}
           </p>
         </div>
         <TierPill sessions={exposed} />
@@ -451,7 +490,7 @@ function SegmentRanking({
   title: string;
   rows: any[];
   type: "country" | "gender";
-  siteRate?: number;
+  siteRate?: number | null;
 }) {
   const all = rows || [];
   const comparable = all.filter((row) => Number(row.exposed || 0) >= MIN_COMPARABLE_SESSIONS);
@@ -461,7 +500,7 @@ function SegmentRanking({
     return ra - rb; // best (fewest abandons) first
   });
   const setAside = all.length - comparable.length;
-  const siteLabel = Number.isFinite(Number(siteRate)) ? rateLabel(siteRate) : null;
+  const siteLabel = siteRate == null ? null : rateLabel(siteRate);
   const noun = type === "country" ? "country" : "segment";
   const nounPlural = type === "country" ? "countries" : "segments";
 
@@ -663,14 +702,12 @@ function SearchReach({
 }
 
 function dwellRead(page: any) {
-  const nonBuyer = Number(page.non_purchaser_median_dwell_seconds || 0);
-  const buyer = Number(page.purchaser_median_dwell_seconds || 0);
-  const buyerSessions = Number(page.purchaser_sessions || 0);
-  const gap = nonBuyer - buyer;
-  if (buyerSessions === 0) return "Only non-buyer visits so far";
-  if (gap > 20) return "Non-buyers linger longer here — worth a look";
-  if (gap < -20) return "Buyers spend more time here — a decision page";
-  return "Buyers and non-buyers spend similar time";
+  // dwellStats.js already runs Mann-Whitney U with Bonferroni-adjusted p-values,
+  // effect sizes and a confidence tier, and packages the result as a headline plus
+  // a detail line. This panel used to ignore all of it and assert a reading off a
+  // raw 20-second median gap, so a page with three sessions and no significant
+  // difference could still be reported as "non-buyers linger longer — worth a look".
+  return dwellPageInsight(page);
 }
 
 function DwellPages({ pages }: { pages: any[] }) {
@@ -703,6 +740,7 @@ function DwellPages({ pages }: { pages: any[] }) {
             const sessions = Number(page.sessions || 0);
             const width = maxDwell > 0 ? Math.min(100, Math.max(8, (dwell / maxDwell) * 100)) : 8;
             const label = brandPageName(page.path) || pagePathLabel(page.path);
+            const read = dwellRead(page);
             return (
               <div key={normalizePagePath(page.path)}>
                 <div className="mb-1 flex items-baseline justify-between gap-3">
@@ -716,12 +754,29 @@ function DwellPages({ pages }: { pages: any[] }) {
                 <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
                   <div className="h-full rounded-full bg-brand" style={{ width: `${width}%` }} />
                 </div>
-                <p className="mt-1 text-[0.65rem] font-medium text-foreground">{dwellRead(page)}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  <p className="text-[0.65rem] font-medium text-foreground">{read.headline}</p>
+                  {page.confidence ? (
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[0.55rem] font-medium",
+                        page.confidence === "High Confidence" || page.confidence === "Actionable"
+                          ? "bg-positive/10 text-positive"
+                          : page.confidence === "Directional"
+                            ? "bg-gold/10 text-gold"
+                            : "bg-surface-2 text-muted-foreground",
+                      )}
+                    >
+                      {page.confidence}
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-0.5 text-[0.65rem] leading-relaxed text-muted-foreground">
-                  Non-buyers {formatDwellSeconds(dwell)}
-                  {buyerSessions > 0 ? ` · buyers ${formatDwellSeconds(buyerDwell)}` : ""}
-                  {" · based on "}
-                  {compact(sessions)} session{sessions === 1 ? "" : "s"}
+                  {read.detail}
+                </p>
+                <p className="mt-0.5 text-[0.6rem] leading-relaxed text-muted-foreground">
+                  Based on {compact(sessions)} session{sessions === 1 ? "" : "s"}
+                  {buyerSessions > 0 ? ` · buyers median ${formatDwellSeconds(buyerDwell)}` : ""}
                 </p>
               </div>
             );
@@ -845,8 +900,10 @@ export function BehaviorAnalytics({
   const paymentCountries = behavior?.matrix?.submit_payment?.countries || [];
   const checkoutGender = behavior?.matrix?.checkout?.gender || [];
   const paymentGender = behavior?.matrix?.submit_payment?.gender || [];
-  const checkoutGlobal = behavior?.matrix?.checkout?.global?.rate;
-  const paymentGlobal = behavior?.matrix?.submit_payment?.global?.rate;
+  const checkoutGlobal = siteBaseline(behavior?.matrix?.checkout?.global);
+  const paymentGlobal = siteBaseline(behavior?.matrix?.submit_payment?.global);
+  const checkoutGenderGlobal = siteBaseline((behavior?.matrix?.checkout as any)?.gender_global);
+  const paymentGenderGlobal = siteBaseline((behavior?.matrix?.submit_payment as any)?.gender_global);
 
   // Age/gender breakdowns only surface when at least one cohort is comparable.
   const checkoutGenderComparable = checkoutGender.some(
@@ -955,12 +1012,19 @@ export function BehaviorAnalytics({
                 subtitle="Shown only when a cohort has a comparable sample. Gender is Meta's aggregate reporting, not user-level."
               />
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {/* Compared against the Meta demographic baseline, not the Shopify
+                    site average: these rows count abandons as
+                    (checkout_initiated - purchases) from Meta's aggregate reporting,
+                    a completely different denominator. Comparing them to Shopify's
+                    abandoned-checkout rate produced a "+54 pts vs avg" badge on every
+                    single cohort, which measured the gap between two data sources
+                    rather than anything about the audience. */}
                 {checkoutGenderComparable ? (
                   <SegmentRanking
                     title="Checkout"
                     rows={checkoutGender}
                     type="gender"
-                    siteRate={checkoutGlobal}
+                    siteRate={checkoutGenderGlobal}
                   />
                 ) : null}
                 {paymentGenderComparable ? (
@@ -968,7 +1032,7 @@ export function BehaviorAnalytics({
                     title="Submit payment"
                     rows={paymentGender}
                     type="gender"
-                    siteRate={paymentGlobal}
+                    siteRate={paymentGenderGlobal}
                   />
                 ) : null}
               </div>

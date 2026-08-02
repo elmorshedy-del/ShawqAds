@@ -154,6 +154,21 @@ function CheckoutTimeline({ rows }: { rows: ReplayTimelineRow[] }) {
   );
 }
 
+/**
+ * Reads a JSON response without letting a non-JSON body reach the UI as a raw
+ * parser message. A proxy error page or a dev-server 404 used to surface
+ * "Unexpected token '<'" inside the replay card.
+ */
+async function readJson(res: Response, label: string) {
+  const text = await res.text();
+  if (!text) return {} as any;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${label} returned an unexpected response`);
+  }
+}
+
 export function SessionReplayPanel() {
   const [sessions, setSessions] = useState<ReplaySessionRow[]>([]);
   const [selectedKey, setSelectedKey] = useState("");
@@ -178,9 +193,9 @@ export function SessionReplayPanel() {
         fetch("/api/session-replay/status", { cache: "no-store" }),
         fetch("/api/shopify/recorder/status", { cache: "no-store" }),
       ]);
-      const indexJson = await indexRes.json();
-      const statusJson = await statusRes.json();
-      const recorderJson = await recorderRes.json();
+      const indexJson = await readJson(indexRes, "Replay index");
+      const statusJson = await readJson(statusRes, "Replay status");
+      const recorderJson = await readJson(recorderRes, "Recorder status");
       if (!indexRes.ok) throw new Error(indexJson.error || "Could not load replay sessions");
       const rows = Array.isArray(indexJson.sessions) ? indexJson.sessions : [];
       setSessions(rows);
@@ -201,7 +216,7 @@ export function SessionReplayPanel() {
     try {
       const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
       const res = await fetch(`/api/session-replay/${sessionKey}${query}`, { cache: "no-store" });
-      const json = await res.json();
+      const json = await readJson(res, "Session replay");
       if (!res.ok) throw new Error(json.error || "Could not load session replay");
       setPayload(json);
     } catch (loadError: any) {

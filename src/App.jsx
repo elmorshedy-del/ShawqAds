@@ -1387,9 +1387,23 @@ function demographicsBehaviorRollup(rows = []) {
   const paymentAbandoned = sum(rowsList, 'abandoned_payment');
   const checkoutRows = rowsList.filter((row) => Number(row.exposed_checkout || 0) > 0);
   const paymentRows = rowsList.filter((row) => Number(row.exposed_payment || 0) > 0);
+  // These cohorts are built from Meta's demographic reporting, whose abandon
+  // denominator is nothing like Shopify's abandoned-checkout denominator. Their own
+  // pooled rate travels with them so the UI compares Meta rows against a Meta
+  // baseline instead of against the Shopify site average.
   return {
     checkout: scoreBehaviorRows(checkoutRows.map((row) => ({ ...row, exposed: row.exposed_checkout, abandoned: row.abandoned_checkout })), { priorStrength: 40, globalRate: checkoutExposure ? checkoutAbandoned / checkoutExposure : 0 }).slice(0, 8),
     submit_payment: scoreBehaviorRows(paymentRows.map((row) => ({ ...row, exposed: row.exposed_payment, abandoned: row.abandoned_payment })), { priorStrength: 40, globalRate: paymentExposure ? paymentAbandoned / paymentExposure : 0 }).slice(0, 8),
+    checkout_global: {
+      exposed: checkoutExposure,
+      abandoned: checkoutAbandoned,
+      rate: checkoutExposure ? checkoutAbandoned / checkoutExposure : null,
+    },
+    payment_global: {
+      exposed: paymentExposure,
+      abandoned: paymentAbandoned,
+      rate: paymentExposure ? paymentAbandoned / paymentExposure : null,
+    },
   };
 }
 
@@ -1456,12 +1470,14 @@ function filterBehaviorByDateRange(behavior, range, reportingToday = currentRepo
         products: developingEmpty ? [] : checkoutProducts.rows,
         countries: developingEmpty ? [] : checkoutCountries.rows,
         gender: developingEmpty ? [] : demographics.checkout,
+        gender_global: developingEmpty ? emptyBehaviorGlobal() : demographics.checkout_global,
       },
       submit_payment: {
         global: paymentGlobal,
         products: developingEmpty ? [] : paymentProducts.rows,
         countries: developingEmpty ? [] : paymentCountries.rows,
         gender: developingEmpty ? [] : demographics.submit_payment,
+        gender_global: developingEmpty ? emptyBehaviorGlobal() : demographics.payment_global,
       },
     },
     dwell_pages: developingEmpty ? [] : dwellBehaviorRollup(pageFacts),
