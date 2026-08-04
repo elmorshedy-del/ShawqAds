@@ -487,10 +487,12 @@ function shopifyConfig() {
   };
 }
 
+const DEFAULT_META_AD_ACCOUNT_ID = '1026963365133388';
+
 function metaConfig() {
   return {
-    token: process.env.SHAWQ_META_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN,
-    account: (process.env.SHAWQ_META_AD_ACCOUNT_ID || process.env.META_AD_ACCOUNT_ID || '').replace(/^act_/, ''),
+    token: process.env.SHAWQ_META_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN || '',
+    account: (process.env.SHAWQ_META_AD_ACCOUNT_ID || process.env.META_AD_ACCOUNT_ID || DEFAULT_META_AD_ACCOUNT_ID).replace(/^act_/, ''),
     graphVersion: process.env.META_GRAPH_VERSION || 'v20.0',
   };
 }
@@ -1735,14 +1737,34 @@ async function serveData(req, res, name, script) {
 }
 
 async function warmData() {
-  if (!refreshOnStart) return;
-  const jobs = [];
-  if (process.env.SHAWQ_META_ACCESS_TOKEN && process.env.SHAWQ_META_AD_ACCOUNT_ID) jobs.push(runScript('fetch:meta'));
-  if (process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN && process.env.SHAWQ_SHOPIFY_STORE) {
-    jobs.push(runShopifyFetch());
+  if (!refreshOnStart) {
+    console.warn('Startup data refresh disabled (REFRESH_ON_START=false).');
+    return;
   }
+  const { token: metaToken, account: metaAccount } = metaConfig();
+  const { token: shopifyToken, store: shopifyStore } = shopifyConfig();
+  const jobs = [];
+
+  if (metaToken && metaAccount) {
+    jobs.push(runScript('fetch:meta'));
+  } else {
+    const missing = [!metaToken && 'SHAWQ_META_ACCESS_TOKEN or META_ACCESS_TOKEN', !metaAccount && 'SHAWQ_META_AD_ACCOUNT_ID or META_AD_ACCOUNT_ID']
+      .filter(Boolean)
+      .join(' and ');
+    console.warn(`Skipping Meta warm fetch: ${missing} not set.`);
+  }
+
+  if (shopifyToken && shopifyStore) {
+    jobs.push(runShopifyFetch());
+  } else {
+    const missing = [!shopifyToken && 'SHAWQ_SHOPIFY_ACCESS_TOKEN', !shopifyStore && 'SHAWQ_SHOPIFY_STORE']
+      .filter(Boolean)
+      .join(' and ');
+    console.warn(`Skipping Shopify warm fetch: ${missing} not set.`);
+  }
+
   const results = jobs.length ? await Promise.all(jobs) : [];
-  if (process.env.SHAWQ_META_ACCESS_TOKEN || process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN) {
+  if (metaToken || shopifyToken) {
     results.push(await runScript('fetch:behavior', behaviorBackfillEnv()));
   }
   results.forEach((r) => { if (r.code !== 0) console.warn(r.output); });

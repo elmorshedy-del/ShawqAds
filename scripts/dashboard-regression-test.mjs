@@ -48,8 +48,20 @@ assertIncludes(
 
 assertIncludes(
   server,
-  'frankfurterRateWithBackoff',
-  'Frankfurter conversion must explicitly walk backward to the previous available rate for holidays/missing days.'
+  'metaConfig()',
+  'Startup Meta warm fetch must resolve credentials the same way live-spend and fetch scripts do.',
+);
+
+assertIncludes(
+  server,
+  'Skipping Meta warm fetch',
+  'Server must log which Meta credential is missing when boot sync is skipped.',
+);
+
+assertIncludes(
+  app,
+  'metaMonitorStatus',
+  'Frontend must map Meta live-spend payloads to monitor status without treating structured 503s as a blind offline.',
 );
 
 assertIncludes(
