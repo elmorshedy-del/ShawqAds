@@ -65,8 +65,8 @@ assertIncludes(
 
 assertIncludes(
   app,
-  'const countryRoasDateRange',
-  'Country ROAS must use an explicit overlapping Meta+Shopify range.',
+  'const matchedDateRange',
+  'Country ROAS and blended metrics must use the row-backed overlapping Meta+Shopify range.',
 );
 
 assertIncludes(
