@@ -19,6 +19,7 @@
     "test:email-channel": "node scripts/email-channel-smoke-test.mjs",
     "inspect:live-order": "node scripts/inspect-live-order.mjs",
     "test:dashboard": "node scripts/dashboard-regression-test.mjs",
+    "test:render": "vitest run src/App.render.test.jsx",
     "test:campaign-attribution": "node scripts/campaign-attribution-test.mjs",
     "test:reporting-data": "node scripts/reporting-data-contract-test.mjs",
     "test:kpi-insights": "node scripts/business-kpi-insights-test.mjs",
@@ -76,6 +77,10 @@
     "world-atlas": "^2.0.2"
   },
   "devDependencies": {
-    "@ravbyte/agent-memory-system": "^0.2.0"
+    "@ravbyte/agent-memory-system": "^0.2.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "jsdom": "^29.1.1",
+    "vitest": "^4.1.10"
   }
 }
