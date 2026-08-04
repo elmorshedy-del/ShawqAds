@@ -17,8 +17,8 @@ function assertIncludes(source, needle, message) {
 
 assertIncludes(
   app,
-  'adapt.toDayRows(allBusinessRows)',
-  'Business trend chart must receive allBusinessRows so 3D/7D/14D/All buttons can expand beyond the selected date.'
+  'adapt.toDayRows(businessRows, reportingToday)',
+  'Business trend must stay inside the selected global window and mark the developing day.'
 );
 
 assertIncludes(
