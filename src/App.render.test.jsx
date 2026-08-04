@@ -50,7 +50,7 @@ describe('dashboard tab rendering', () => {
       ['Overview', 'Key findings'],
       ['Funnel', 'What the funnel is telling you'],
       ['Ads', 'What to cut and what to scale'],
-      ['Budget', 'Budget pacing'],
+      ['Budget', 'Campaign pacing'],
       ['Launch', 'How the launch is delivering'],
       ['Market', 'Where demand is strongest'],
       ['Historical insights', 'Historical insights'],

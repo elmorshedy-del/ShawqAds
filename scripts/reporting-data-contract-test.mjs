@@ -58,6 +58,24 @@ assertIncludes(
 );
 
 assertIncludes(
+  metaFetch,
+  "'campaigns'",
+  'Meta fetch must load campaign budget owners for campaign-flight pacing.',
+);
+
+assertIncludes(
+  metaFetch,
+  'hourly_stats_aggregated_by_advertiser_time_zone',
+  'Meta fetch must persist advertiser-timezone hourly spend for intraday pacing.',
+);
+
+assertIncludes(
+  server,
+  'pacing_hourly',
+  'Live Meta polling must refresh hourly pacing data between full backfills.',
+);
+
+assertIncludes(
   app,
   'const metricAdRows = adDailyRows.length ? adDailyRows : adRows',
   'Frontend Meta range filtering must prefer no-breakdown ad rows and fall back to country rows.',
