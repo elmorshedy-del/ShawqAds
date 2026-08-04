@@ -57,10 +57,10 @@ assert(balanced.length === 0, 'funnel: a balanced, flat funnel produces no findi
 
 const adsFindings = buildAdsFindings({
   adSets: [
-    { adSet: 'Winner', status: 'Healthy', roas: 4.2, spend: 900, freq: 1.1, cpm: 12, cpmVsMar: 2 },
-    { adSet: 'Loser', status: 'Fatigue risk', roas: 0.6, spend: 700, freq: 2.4, cpm: 22, cpmVsMar: 40 },
+    { adSet: 'Winner', status: 'Healthy', roas: 4.2, spend: 900, sales: 12, freq: 1.1, cpm: 12, cpmVsMar: 2 },
+    { adSet: 'Loser', status: 'Fatigue risk', roas: 0.6, spend: 700, sales: 5, freq: 2.4, cpm: 22, cpmVsMar: 40 },
     // Below the spend floor: must not be picked as best or worst.
-    { adSet: 'Tiny', status: 'Healthy', roas: 19, spend: 12, freq: 1, cpm: 8, cpmVsMar: 0 },
+    { adSet: 'Tiny', status: 'Healthy', roas: 19, spend: 12, sales: 1, freq: 1, cpm: 8, cpmVsMar: 0 },
   ],
   campaigns: [
     { name: 'USA_CBO', flag: 'warning', spend: 1600, shopifyRoas: 1.4 },
@@ -72,7 +72,7 @@ const adSpread = byId(adsFindings, 'ads-spread');
 assert(adSpread, 'ads: a spread finding should be produced');
 assert(adSpread.headline.includes('Loser') && adSpread.headline.includes('Winner'), 'ads: both ends should be named');
 assert(!adSpread.headline.includes('Tiny'), 'ads: below-floor spend must not be crowned best');
-assert(adSpread.action.includes('Cut or rework'), 'ads: a sub-1x ad set should be a cut recommendation');
+assert(adSpread.action.includes('Investigate'), 'ads: a sub-1x ad set should trigger investigation, not a causal cut command');
 const fatigue = byId(adsFindings, 'ads-fatigue');
 assert(fatigue && fatigue.headline.includes('1 ad set'), 'ads: fatigue should be counted');
 const attribution = byId(adsFindings, 'ads-attribution');
@@ -85,12 +85,12 @@ assert(concentration.action.includes('hard look'), 'ads: a big-spend, low-ROAS c
 
 const marketFindings = buildMarketFindings({
   countries: [
-    { country: 'United States', roas: 3.8, units: 82, revenue: 9000, spend: 2400 },
-    { country: 'Singapore', roas: 0.8, units: 12, revenue: 400, spend: 500 },
-    { country: 'Switzerland', roas: 0.5, units: 1, revenue: 60, spend: 120 },
-    { country: 'Norway', roas: 0, units: 0, revenue: 0, spend: 300 },
-    { country: 'Oman', roas: 4, units: 3, revenue: 200, spend: 50 },
-    { country: 'Qatar', roas: 4.8, units: 4, revenue: 240, spend: 50 },
+    { country: 'United States', roas: 3.8, orders: 40, units: 82, revenue: 9000, spend: 2400 },
+    { country: 'Singapore', roas: 0.8, orders: 8, units: 12, revenue: 400, spend: 500 },
+    { country: 'Switzerland', roas: 0.5, orders: 1, units: 1, revenue: 60, spend: 120 },
+    { country: 'Norway', roas: 0, orders: 0, units: 0, revenue: 0, spend: 300 },
+    { country: 'Oman', roas: 4, orders: 2, units: 3, revenue: 200, spend: 50 },
+    { country: 'Qatar', roas: 4.8, orders: 2, units: 4, revenue: 240, spend: 50 },
   ],
 });
 const best = byId(marketFindings, 'market-best');
@@ -107,11 +107,11 @@ assert(marketFindings.length <= 4, 'market: findings are capped so the panel sta
 // actionable findings fill the panel. It surfaces when there is room for it.
 const quietMarket = buildMarketFindings({
   countries: [
-    { country: 'United States', roas: 2.5, units: 40, revenue: 1000, spend: 400 },
-    { country: 'Canada', roas: 2.4, units: 38, revenue: 950, spend: 400 },
-    { country: 'Oman', roas: 4, units: 3, revenue: 200, spend: 50 },
-    { country: 'Qatar', roas: 4.8, units: 4, revenue: 240, spend: 50 },
-    { country: 'Switzerland', roas: 0.5, units: 1, revenue: 60, spend: 120 },
+    { country: 'United States', roas: 2.5, orders: 20, units: 40, revenue: 1000, spend: 400 },
+    { country: 'Canada', roas: 2.4, orders: 18, units: 38, revenue: 950, spend: 400 },
+    { country: 'Oman', roas: 4, orders: 2, units: 3, revenue: 200, spend: 50 },
+    { country: 'Qatar', roas: 4.8, orders: 2, units: 4, revenue: 240, spend: 50 },
+    { country: 'Switzerland', roas: 0.5, orders: 1, units: 1, revenue: 60, spend: 120 },
   ],
 });
 const lowSample = byId(quietMarket, 'market-lowsample');
