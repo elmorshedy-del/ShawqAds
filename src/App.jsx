@@ -216,8 +216,21 @@ async function fetchLiveMeta() {
   const res = await fetch('/api/meta/live-spend', { cache: 'no-store' });
   const text = await res.text();
   const payload = text ? JSON.parse(text) : {};
-  if (!res.ok) throw new Error(payload.error || `Meta live spend ${res.status}`);
+  if (!res.ok) {
+    if (payload && typeof payload === 'object' && Object.keys(payload).length) return payload;
+    throw new Error(payload.error || `Meta live spend ${res.status}`);
+  }
   return payload;
+}
+
+function metaMonitorStatus(payload = {}) {
+  if (payload.configured === false) return 'not_configured';
+  if (!payload.ok) {
+    if (payload.status === 'meta_api_error') return 'offline';
+    return payload.status || 'unavailable';
+  }
+  if (payload.status === 'partial' || payload.status === 'fresh') return 'live';
+  return payload.status || 'live';
 }
 
 function aggregateRows(adsets) {
@@ -2610,8 +2623,8 @@ function App() {
         const payload = await fetchLiveMeta();
         if (cancelled) return;
         setMetaMonitor({
-          status: payload.configured === false ? 'not_configured' : payload.status || (payload.ok ? 'live' : 'unavailable'),
-          live: payload,
+          status: metaMonitorStatus(payload),
+          live: payload.ok ? payload : null,
           checkedAt: payload.checked_at || new Date().toISOString(),
           error: payload.error || '',
         });
@@ -2826,7 +2839,19 @@ function App() {
     : saleMonitor.status === 'checking'
       ? 'Checking Shopify sales'
       : 'Sale monitor paused';
-  const syncHealthLabel = !metaDataLoaded ? 'Loading' : metaFallbackActive ? 'Fallback' : metaMonitor.status === 'offline' ? 'Offline' : 'Live';
+  const syncHealthLabel = !metaDataLoaded
+    ? 'Loading'
+    : metaFallbackActive
+      ? 'Fallback'
+      : metaMonitor.status === 'not_configured'
+        ? 'Not configured'
+        : metaMonitor.status === 'offline'
+          ? 'Offline'
+          : metaMonitor.status === 'unavailable'
+            ? 'Degraded'
+            : metaMonitor.status === 'checking'
+              ? 'Checking'
+              : 'Live';
   const shopifyHealthLabel = !shopifyDataLoaded ? 'Loading' : shopifyFallbackActive ? 'Fallback' : 'Live';
   const healthTone = (h) => (h === 'Live' ? 'good' : h === 'Offline' ? 'bad' : 'warn');
 

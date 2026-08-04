@@ -14,13 +14,14 @@ for (const envPath of envPaths) {
   }
 }
 
+const DEFAULT_META_AD_ACCOUNT_ID = '1026963365133388';
 const token = process.env.SHAWQ_META_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN;
-const account = (process.env.SHAWQ_META_AD_ACCOUNT_ID || process.env.META_AD_ACCOUNT_ID || '').replace(/^act_/, '');
+const account = (process.env.SHAWQ_META_AD_ACCOUNT_ID || process.env.META_AD_ACCOUNT_ID || DEFAULT_META_AD_ACCOUNT_ID).replace(/^act_/, '');
 const requestedSince = process.env.META_SINCE || process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
 const requestedUntil = process.env.META_UNTIL || process.env.UNTIL || '';
 const graphVersion = process.env.META_GRAPH_VERSION || 'v20.0';
-if (!token || !account) {
-  console.error('Missing SHAWQ_META_ACCESS_TOKEN or SHAWQ_META_AD_ACCOUNT_ID.');
+if (!token) {
+  console.error('Missing SHAWQ_META_ACCESS_TOKEN or META_ACCESS_TOKEN.');
   process.exit(1);
 }
 
