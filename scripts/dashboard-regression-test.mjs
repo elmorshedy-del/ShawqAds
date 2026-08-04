@@ -89,8 +89,8 @@ assertIncludes(
 
 assertIncludes(
   app,
-  'launchProductData',
-  'Product demand after launch must be backed by a launch-window Shopify dataset, not the selected daily productData.'
+  'adapt.toProductDemand(productData, activeDateRange.since)',
+  'Product demand must follow the selected global date window.'
 );
 
 assertIncludes(
@@ -143,8 +143,8 @@ assertIncludes(
 
 assertIncludes(
   app,
-  'adapt.toProductDevelopment(launchProductData)',
-  'Developing growth chart must use Shopify product data from campaign launch onward.'
+  'adapt.toProductDevelopment(productData)',
+  'Product growth must follow the selected global date window.'
 );
 
 assertIncludes(

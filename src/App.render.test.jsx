@@ -45,20 +45,22 @@ describe('dashboard tab rendering', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Sales & Ads Performance' })).toBeTruthy();
     });
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
+
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Overview' }), { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Media' }).getAttribute('aria-selected')).toBe('true');
+    });
 
     const tabs = [
       ['Overview', 'Key findings'],
-      ['Funnel', 'What the funnel is telling you'],
-      ['Ads', 'What to cut and what to scale'],
-      ['Budget', 'Campaign pacing'],
-      ['Launch', 'How the launch is delivering'],
-      ['Market', 'Where demand is strongest'],
-      ['Historical insights', 'Historical insights'],
-      ['Behavior', 'Behavior friction & journeys'],
+      ['Media', 'Media actions'],
+      ['Conversion', 'Conversion signals'],
+      ['Demand', 'Demand signals'],
     ];
 
     for (const [tab, evidence] of tabs) {
-      fireEvent.click(screen.getByRole('button', { name: tab }));
+      fireEvent.click(screen.getByRole('tab', { name: tab }));
       await waitFor(() => {
         expect(screen.getAllByText(evidence, { exact: false }).length).toBeGreaterThan(0);
       });

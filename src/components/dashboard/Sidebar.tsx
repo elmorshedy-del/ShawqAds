@@ -55,6 +55,7 @@ export interface SidebarProps {
   bounds: DateRange;
   sourceLabel?: string;
   refreshText?: string;
+  showMediaFilters?: boolean;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -190,49 +191,53 @@ function Controls(props: SidebarProps) {
         />
       </Field>
 
-      <Field label="Campaign / ad set">
-        <Select value={props.selected} onValueChange={props.onSelected}>
-          <SelectTrigger className="w-full bg-surface-2">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All ad sets</SelectItem>
-            {props.adSets.map((a) => (
-              <SelectItem key={a.id} value={a.id}>
-                {a.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+      {props.showMediaFilters ? (
+        <>
+          <Field label="Campaign / ad set">
+            <Select value={props.selected} onValueChange={props.onSelected}>
+              <SelectTrigger className="w-full bg-surface-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All ad sets</SelectItem>
+                {props.adSets.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
 
-      <Field label="Status">
-        <Select value={props.statusFilter} onValueChange={props.onStatusFilter}>
-          <SelectTrigger className="w-full bg-surface-2">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {props.statuses.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+          <Field label="Status">
+            <Select value={props.statusFilter} onValueChange={props.onStatusFilter}>
+              <SelectTrigger className="w-full bg-surface-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {props.statuses.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
 
-      <Field label="Search">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={props.query}
-            onChange={(e) => props.onQuery(e.target.value)}
-            placeholder="Ad set or campaign"
-            className="bg-surface-2 pl-9"
-          />
-        </div>
-      </Field>
+          <Field label="Search">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={props.query}
+                onChange={(e) => props.onQuery(e.target.value)}
+                placeholder="Ad set or campaign"
+                className="bg-surface-2 pl-9"
+              />
+            </div>
+          </Field>
+        </>
+      ) : null}
     </>
   );
 }

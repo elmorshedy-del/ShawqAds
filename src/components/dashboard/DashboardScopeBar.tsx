@@ -33,7 +33,7 @@ export function DashboardScopeBar({
         <div className="flex min-w-0 items-center gap-2">
           <CalendarRange className="h-4 w-4 shrink-0 text-brand" />
           <div className="min-w-0">
-            <p className="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               Selected window · {presetLabel}
             </p>
             <p className="truncate text-xs font-medium tabular-nums text-foreground">{dateLabel(range)}</p>
@@ -47,7 +47,7 @@ export function DashboardScopeBar({
             <Database className="h-4 w-4 shrink-0 text-positive" />
           )}
           <div>
-            <p className="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               Matched coverage
             </p>
             <p className={cn("text-xs font-medium tabular-nums", laggingSource ? "text-gold" : "text-foreground")}>
@@ -61,7 +61,7 @@ export function DashboardScopeBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
           Revenue scope
         </span>
         <div className="inline-flex rounded-full border border-border bg-surface-2 p-1 text-xs">

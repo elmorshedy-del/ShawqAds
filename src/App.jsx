@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, BarChart3, Filter, GitBranch, LayoutDashboard, Rocket, ShoppingBag, SlidersHorizontal, Wallet } from 'lucide-react';
+import { Filter, LayoutDashboard, Megaphone, ShoppingBag, SlidersHorizontal } from 'lucide-react';
 import { compact, money, pct } from './lib/format.js';
 import { buildCampaignAttribution } from './lib/campaignAttribution.js';
 import {
@@ -38,7 +38,6 @@ import { RevenueChart } from './components/dashboard/RevenueChart';
 import { SalesLeaders } from './components/dashboard/SalesLeaders';
 import { Benchmarks } from './components/dashboard/Benchmarks';
 import { CampaignRoasTree } from './components/dashboard/CampaignRoasTree';
-import { LeadershipTables as LeadershipBoard } from './components/dashboard/LeadershipTables';
 import { UsaComparison } from './components/dashboard/UsaComparison';
 import { DailyDelivery } from './components/dashboard/DailyDelivery';
 import { DevelopingGrowth } from './components/dashboard/DevelopingGrowth';
@@ -977,15 +976,6 @@ function behaviorPanelRangeLabel(scope, launchRange, activeRange, preset, behavi
   }
   return base;
 }
-function dateRangeLabel(range, preset, bounds) {
-  if (!range?.since || !range?.until) return 'Choose dates';
-  const calendarYesterday = shiftDate(bounds?.today || currentReportingDay(), -1);
-  const isLoadedYesterdayFallback = preset === 'yesterday' && range.since === range.until && range.until && range.until < calendarYesterday;
-  const prefix = isLoadedYesterdayFallback
-    ? 'Yesterday (latest loaded)'
-    : datePresets.find((p) => p.value === preset)?.label || 'Custom';
-  return `${prefix}: ${range.since} - ${range.until}`;
-}
 function countryFlag(code) {
   const cc = String(code || '').trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(cc)) return '•';
@@ -994,34 +984,6 @@ function countryFlag(code) {
 function saleTime(value) {
   if (!value) return 'No timestamp';
   return new Date(value).toLocaleString([], { timeZone: REPORTING_TIMEZONE, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-}
-
-export function businessWindowRows(rows, windowKey) {
-  const sorted = [...(rows || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
-  if (windowKey === 'all') return sorted;
-  const count = Number(windowKey || 0);
-  return count > 0 ? sorted.slice(-count) : sorted;
-}
-
-export function markDevelopingBusinessRows(rows, reportingDay) {
-  return (rows || []).map((row) => ({
-    ...row,
-    is_developing: Boolean(reportingDay && row.date === reportingDay),
-  }));
-}
-
-export function businessTrendPresentationRows(rows, reportingDay) {
-  const markedRows = markDevelopingBusinessRows(rows, reportingDay);
-  const developingIndex = markedRows.findIndex((row) => row.is_developing);
-  return {
-    rows: markedRows,
-    hasDeveloping: developingIndex >= 0,
-    developingIndex,
-    solidRows: markedRows.map((row, index) => (index === developingIndex ? null : row)),
-    developingRows: markedRows.map((row, index) => (
-      developingIndex >= 0 && (index === developingIndex || index === developingIndex - 1) ? row : null
-    )),
-  };
 }
 
 function businessStats(rows) {
@@ -1567,8 +1529,6 @@ function App() {
   const [selected, setSelected] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [query, setQuery] = useState('');
-  const [activeBusiness, setActiveBusiness] = useState('revenue');
-  const [businessWindow, setBusinessWindow] = useState('all');
   const [datePreset, setDatePreset] = useState('today');
   const [emailPanelScope, setEmailPanelScope] = useState('launch');
   const [behaviorPanelScope, setBehaviorPanelScope] = useState('launch');
@@ -1767,7 +1727,6 @@ function App() {
     [baseProductData, matchedDateRange],
   );
   const launchData = useMemo(() => filterMetaDataByDateRange(baseData, launchDateRange), [baseData, launchDateRange]);
-  const launchProductData = useMemo(() => filterShopifyByDateRange(baseProductData, launchDateRange), [baseProductData, launchDateRange]);
   const emailPanelDateRange = useMemo(
     () => (emailPanelScope === 'launch' ? launchDateRange : activeDateRange),
     [emailPanelScope, launchDateRange, activeDateRange],
@@ -1949,11 +1908,6 @@ function App() {
     () => buildCampaignAttribution(matchedData, matchedProductData),
     [matchedData, matchedProductData],
   );
-  const productRows = productData.products || [];
-  const adRows = useMemo(
-    () => enrichAdsWithShopifySales(matchedData.ads || [], matchedProductData.order_lines || []),
-    [matchedData.ads, matchedProductData.order_lines],
-  );
   const deliveryComparison = baseData.delivery_comparison || {};
   const deliveryShopifyComparison = baseProductData.delivery_comparison || {};
   const adsetPerfById = useMemo(() => new Map((data.all_adsets || []).map((row) => [row.adset_id, row])), [data]);
@@ -1982,6 +1936,7 @@ function App() {
     bounds: loadedBounds,
     sourceLabel,
     refreshText,
+    showMediaFilters: activeTab === 'media',
   };
 
   const sale = saleMonitor.sale;
@@ -2058,8 +2013,6 @@ function App() {
   const campaignTree = adapt.toCampaignTree(campaignAttribution);
   const salesLeader = adapt.toSalesLeader(dailySalesHighlights(productData.order_lines || [], activeDateRange));
   const benchmarks = adapt.toBenchmarks(overall, march, marchDelta, overallDelta);
-  const productLeaders = adapt.toProductLeaders(productRows);
-  const adLeaders = adapt.toAdLeaders(adRows);
   // The current reporting day has only part of its delivery recorded, so including it
   // ends the reach curve in a false cliff. Same exclusion rule as the performance trend.
   const deliveryRowsExcludingToday = deliveryTrendRows.filter((row) => row.date !== reportingToday);
@@ -2067,7 +2020,7 @@ function App() {
     ? reportingToday
     : '';
   const deliveryShape = adapt.toDeliveryShape(deliveryRowsExcludingToday);
-  const growth = adapt.toProductDevelopment(launchProductData);
+  const growth = adapt.toProductDevelopment(productData);
   const decisions = adapt.toAdSetDecisions(filtered, adsetPerfById, statusLabels);
   const productDemand = adapt.toProductDemand(productData, activeDateRange.since);
   const countrySales = adapt.toCountrySales(matchedProductData.countries || [], countryRoasMetaByCode);
@@ -2271,14 +2224,9 @@ function App() {
       />
     ) : null,
     revenue: <RevenueChart rows={trendDayRows} />,
-    salesBench: (
-      <div className="grid grid-cols-1 gap-7 lg:grid-cols-3">
-        <div className="lg:col-span-2"><SalesLeaders leader={salesLeader} /></div>
-        <Benchmarks data={benchmarks} />
-      </div>
-    ),
+    salesLeader: <SalesLeaders leader={salesLeader} />,
+    benchmarks: <Benchmarks data={benchmarks} />,
     tree: <CampaignRoasTree data={campaignTree} />,
-    leaders: <LeadershipBoard products={productLeaders} ads={adLeaders} />,
     emailCampaign: (
       <EmailCampaign
         summary={emailCampaignData.summary}
@@ -2311,12 +2259,8 @@ function App() {
       </section>
     ),
     usa: usaOk ? <UsaComparison comparison={usaComparison} curve={usaCurve} /> : null,
-    delivery: (
-      <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
-        <DailyDelivery data={deliveryShape} developingDay={deliveryDevelopingDay} />
-        <DevelopingGrowth data={growth.data} lines={growth.lines} />
-      </div>
-    ),
+    delivery: <DailyDelivery data={deliveryShape} developingDay={deliveryDevelopingDay} />,
+    growth: <DevelopingGrowth data={growth.data} lines={growth.lines} />,
     decision: <AdSetDecisionTable rows={decisions} />,
     product: <ProductDemand data={productDemand} />,
     country: (
@@ -2345,51 +2289,89 @@ function App() {
       />
     ),
     campaignPacing: <CampaignPacing model={campaignPacing} />,
-    campaignPacingFindings: (
+    mediaFindings: (
       <PanelFindings
-        title="Which campaigns need a delivery check"
-        findings={campaignPacingFindings}
-        hint="current budget period"
-        emptyText={campaignPacing.configured
-          ? 'All active campaigns are inside their pacing guardrails.'
-          : 'Pacing appears after Meta returns campaign or ad-set budget targets.'}
+        title="Media actions"
+        findings={[...campaignPacingFindings, ...adsFindings, ...launchFindings].slice(0, 6)}
+        hint="selected window + campaign delivery"
+        emptyText="No material media movement or pacing risk is supported by the current evidence."
       />
     ),
     customerClock: <CustomerClock data={customerClock} />,
-    customerClockFindings: (
+    demandFindings: (
       <PanelFindings
-        title="What customer-local timing is telling you"
-        findings={customerClockFindings}
+        title="Demand signals"
+        findings={[...marketFindings, ...customerClockFindings].slice(0, 6)}
         hint="selected window"
+        emptyText="No material product, market, or timing signal is supported by this window yet."
       />
     ),
     funnel: <FunnelAnalytics data={funnelData} />,
-    funnelFindings: (
-      <PanelFindings title="What the funnel is telling you" findings={funnelFindings} hint="since launch" />
-    ),
-    adsFindings: (
-      <PanelFindings title="What to cut and what to scale" findings={adsFindings} hint="selected window" />
-    ),
-    marketFindings: (
-      <PanelFindings title="Where demand is strongest" findings={marketFindings} hint="selected window" />
-    ),
-    launchFindings: (
-      <PanelFindings title="How the launch is delivering" findings={launchFindings} hint="launch window" />
+    conversionFindings: (
+      <PanelFindings
+        title="Conversion signals"
+        findings={funnelFindings}
+        hint="funnel since launch"
+        emptyText="No material funnel movement is supported by the current evidence."
+      />
     ),
   };
   const dashboardGroups = [
-    // "data" (Daily breakdown) belongs under the trend chart it drills into, not on
-    // Behavior — it is business performance per day, not session behavior.
-    { key: 'overview', label: 'Overview', icon: LayoutDashboard, ids: ['ordersMap', 'kpis', 'keyFindings', 'orderDrop', 'orderLift', 'revenue', 'data', 'mobileTops'] },
-    { key: 'funnel', label: 'Funnel', icon: Filter, ids: ['funnelFindings', 'funnel'] },
-    { key: 'ads', label: 'Ads', icon: GitBranch, ids: ['adsFindings', 'tree', 'emailCampaign', 'leaders', 'edits', 'decision'] },
-    { key: 'budget', label: 'Budget', icon: Wallet, ids: ['campaignPacingFindings', 'campaignPacing'] },
-    { key: 'launch', label: 'Launch', icon: Rocket, ids: ['launchFindings', 'usa', 'delivery'] },
-    { key: 'market', label: 'Market', icon: ShoppingBag, ids: ['marketFindings', 'salesBench', 'product', 'country'] },
-    { key: 'historical', label: 'Historical insights', icon: BarChart3, ids: ['historicalInsights', 'customerClockFindings', 'customerClock'] },
-    { key: 'behavior', label: 'Behavior', icon: Activity, ids: ['behavior'] },
+    {
+      key: 'overview',
+      label: 'Overview',
+      icon: LayoutDashboard,
+      question: 'What changed, and what needs attention first?',
+      detail: 'Selected-window business outcomes, supporting trend, and live order evidence.',
+      ids: ['keyFindings', 'kpis', 'orderDrop', 'orderLift', 'revenue', 'mobileTops', 'ordersMap', 'data'],
+    },
+    {
+      key: 'media',
+      label: 'Media',
+      icon: Megaphone,
+      question: 'Where should delivery or spend be investigated?',
+      detail: 'Campaign pacing, attribution, ad-set decisions, delivery health, and change history.',
+      ids: ['mediaFindings', 'campaignPacing', 'decision', 'tree', 'delivery', 'usa', 'benchmarks', 'edits'],
+    },
+    {
+      key: 'conversion',
+      label: 'Conversion',
+      icon: Filter,
+      question: 'Where are buyers dropping before purchase?',
+      detail: 'Funnel movement, checkout friction, customer journeys, dwell, and session evidence.',
+      ids: ['conversionFindings', 'funnel', 'behavior'],
+    },
+    {
+      key: 'demand',
+      label: 'Demand',
+      icon: ShoppingBag,
+      question: 'What sells, where, and when?',
+      detail: 'Product and market demand, channel contribution, historical patterns, and local purchase timing.',
+      ids: ['demandFindings', 'product', 'country', 'growth', 'salesLeader', 'emailCampaign', 'historicalInsights', 'customerClock'],
+    },
   ];
   const activeGroup = dashboardGroups.find((g) => g.key === activeTab) || dashboardGroups[0];
+  const calendarYesterday = shiftDate(loadedBounds?.today || currentReportingDay(), -1);
+  const scopePresetLabel = datePreset === 'yesterday'
+    && activeDateRange.since === activeDateRange.until
+    && activeDateRange.until < calendarYesterday
+    ? 'Yesterday (latest loaded)'
+    : datePresets.find((preset) => preset.value === datePreset)?.label || 'Custom';
+  function moveTabFocus(event, index) {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const last = dashboardGroups.length - 1;
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? last
+        : event.key === 'ArrowRight'
+          ? (index + 1) % dashboardGroups.length
+          : (index - 1 + dashboardGroups.length) % dashboardGroups.length;
+    const next = dashboardGroups[nextIndex];
+    setActiveTab(next.key);
+    window.requestAnimationFrame(() => document.getElementById(`dashboard-tab-${next.key}`)?.focus());
+  }
 
   return (
     <div className="flex min-h-screen text-foreground">
@@ -2405,14 +2387,14 @@ function App() {
                 Sales &amp; Ads Performance
               </h1>
               <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">
-                Live Shopify sales, Meta spend, and launch momentum in one command view · {dateRangeLabel(activeDateRange, datePreset, loadedBounds)}
+                Shopify outcomes, Meta delivery, conversion, and demand in one decision view.
               </p>
             </div>
           </header>
 
           <DashboardScopeBar
             range={activeDateRange}
-            presetLabel={datePresets.find((preset) => preset.value === datePreset)?.label || 'Custom'}
+            presetLabel={scopePresetLabel}
             metaUntil={loadedBounds.latest_meta_day}
             shopifyUntil={loadedBounds.latest_shopify_day}
             laggingSource={loadedBounds.lagging_source}
@@ -2420,27 +2402,44 @@ function App() {
             onRevenueScopeChange={setBusinessRevenueScope}
           />
 
-          <nav className="sticky top-0 z-30 -mx-5 border-b border-border bg-background/85 px-5 py-2.5 backdrop-blur-md sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10">
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {dashboardGroups.map((g) => {
+          <nav
+            aria-label="Dashboard areas"
+            className="sticky top-0 z-30 -mx-5 border-b border-border bg-background/90 px-5 py-2.5 backdrop-blur-md sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10"
+          >
+            <div role="tablist" className="grid grid-cols-4 gap-1.5">
+              {dashboardGroups.map((g, index) => {
                 const Icon = g.icon;
                 const on = g.key === activeGroup.key;
                 return (
                   <button
                     key={g.key}
+                    id={`dashboard-tab-${g.key}`}
                     type="button"
                     onClick={() => setActiveTab(g.key)}
-                    aria-pressed={on}
-                    className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors ${on ? 'bg-brand text-white shadow-sm' : 'bg-surface-2 text-muted-foreground hover:bg-surface-2/80'}`}
+                    onKeyDown={(event) => moveTabFocus(event, index)}
+                    role="tab"
+                    aria-selected={on}
+                    aria-controls="dashboard-tabpanel"
+                    tabIndex={on ? 0 : -1}
+                    className={`flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-semibold transition-colors sm:px-3 ${on ? 'bg-brand text-white shadow-sm' : 'bg-surface-2 text-muted-foreground hover:bg-surface-2/80 hover:text-foreground'}`}
                   >
                     <Icon className="h-3.5 w-3.5" />
-                    {g.label}
+                    <span className="truncate">{g.label}</span>
                   </button>
                 );
               })}
             </div>
           </nav>
-          <div className="space-y-7">
+          <div
+            id="dashboard-tabpanel"
+            role="tabpanel"
+            aria-labelledby={`dashboard-tab-${activeGroup.key}`}
+            className="space-y-7"
+          >
+            <header className="border-l-2 border-brand pl-3">
+              <h2 className="font-display text-lg font-semibold tracking-tight">{activeGroup.question}</h2>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{activeGroup.detail}</p>
+            </header>
             {activeGroup.ids.map((id) => (
               <Fragment key={id}>{sectionEls[id]}</Fragment>
             ))}

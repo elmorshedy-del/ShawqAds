@@ -1,6 +1,5 @@
 import {
   AlertTriangle,
-  ArrowRight,
   CheckCircle2,
   Eye,
   Lightbulb,
@@ -20,6 +19,7 @@ export interface Finding {
   context?: string;
   driver?: string;
   action?: string;
+  evidence?: "Observed" | "Compared" | "Heuristic" | "Modelled";
 }
 
 export interface Verdict {
@@ -83,7 +83,14 @@ function FindingRow({ finding }: { finding: Finding }) {
       <div className="flex items-start gap-2.5">
         <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", style.text)} />
         <div className="min-w-0 space-y-1">
-          <p className="text-sm font-semibold leading-snug text-foreground">{finding.headline}</p>
+          <div className="flex flex-wrap items-start gap-1.5">
+            <p className="text-sm font-semibold leading-snug text-foreground">{finding.headline}</p>
+            {finding.evidence ? (
+              <span className="shrink-0 rounded-full border border-border bg-surface-2 px-1.5 py-0.5 text-[0.65rem] font-medium text-muted-foreground">
+                {finding.evidence}
+              </span>
+            ) : null}
+          </div>
           {finding.context ? (
             <p className="text-xs leading-relaxed text-muted-foreground">{finding.context}</p>
           ) : null}
@@ -94,8 +101,8 @@ function FindingRow({ finding }: { finding: Finding }) {
             </p>
           ) : null}
           {finding.action ? (
-            <p className="flex items-start gap-1.5 pt-0.5 text-xs font-medium leading-relaxed text-brand">
-              <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <p className="pt-0.5 text-xs leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-foreground/75">Next check · </span>
               {finding.action}
             </p>
           ) : null}

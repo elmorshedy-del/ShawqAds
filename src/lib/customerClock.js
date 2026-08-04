@@ -220,6 +220,7 @@ export function buildCustomerClockFindings(clock, { minOrders = 30 } = {}) {
     findings.push({
       id: 'clock-peak',
       tone: 'positive',
+      evidence: 'Observed',
       headline: `${Math.round(peak.share * 100)}% of orders land between ${formatHourWindow(peak)} customer-local time`,
       context: `${peak.orders} of ${clock.mapped} mapped order completions fall in that ${peak.width}-hour window, using a representative timezone for each destination country.`,
       driver: '',
@@ -231,6 +232,7 @@ export function buildCustomerClockFindings(clock, { minOrders = 30 } = {}) {
     findings.push({
       id: 'clock-drift',
       tone: 'watch',
+      evidence: 'Compared',
       headline: `${Math.round(clock.disagreementRate * 100)}% of orders fall on a different weekday for the customer than in the books`,
       context: `Reporting days close at ${clock.merchantZone} midnight, which lands mid-evening for Western buyers. Daily revenue, spend and ROAS are unaffected — Meta and Shopify both report on this clock — but weekday effects are measured on a boundary that cuts through the buying peak.`,
       driver: '',
@@ -245,6 +247,7 @@ export function buildCustomerClockFindings(clock, { minOrders = 30 } = {}) {
     findings.push({
       id: 'clock-weekday',
       tone: 'neutral',
+      evidence: 'Observed',
       headline: `${top.name} is the strongest customer-local day by volume, ${bottom.name} the weakest`,
       context: `${top.orders} total orders against ${bottom.orders}, bucketed by each buyer's own weekday. The chart above ranks by average orders per occurrence, which is a different question on a short history.`,
       driver: '',

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, Info, Minus, Sparkles, TrendingDown } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { cn } from "@/lib/utils";
@@ -75,6 +75,7 @@ export function KpiCard({
   const gradId = `spark-${label.replace(/\s+/g, "")}`;
   const data = series.map((v, i) => ({ i, v }));
   const cardRef = useRef<HTMLDivElement>(null);
+  const [definitionOpen, setDefinitionOpen] = useState(false);
 
   useEffect(() => {
     if (!record?.celebrate || !record.recordKey || celebratedRecords.has(record.recordKey)) return;
@@ -115,20 +116,32 @@ export function KpiCard({
       className="panel group relative flex flex-col overflow-hidden p-5 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-elegant)]"
       style={{ containerType: "inline-size" }}
     >
-      <p className="flex min-h-[2.25rem] items-center justify-center gap-1 text-[0.7rem] font-semibold uppercase leading-tight tracking-[0.12em] text-muted-foreground">
-        {label}
+      <div className="flex min-h-[2.25rem] items-center justify-center gap-1 text-[0.7rem] font-semibold uppercase leading-tight tracking-[0.12em] text-muted-foreground">
+        <span>{label}</span>
         {definition ? (
-          <span
-            tabIndex={0}
-            role="note"
-            aria-label={`${label}: ${definition}${whyItMatters ? `. ${whyItMatters}` : ""}`}
-            title={`${definition}${whyItMatters ? `\n\nWhy it matters: ${whyItMatters}` : ""}`}
-            className="cursor-help text-muted-foreground/60 transition-colors hover:text-brand focus-visible:text-brand focus-visible:outline-none"
+          <button
+            type="button"
+            aria-label={`Explain ${label}`}
+            aria-expanded={definitionOpen}
+            onClick={() => setDefinitionOpen((open) => !open)}
+            className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground/70 transition-colors hover:bg-surface-2 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Info className="h-3 w-3" />
-          </span>
+            <Info className="h-3.5 w-3.5" />
+          </button>
         ) : null}
-      </p>
+      </div>
+
+      {definitionOpen && definition ? (
+        <div className="mb-1 rounded-lg border border-border bg-surface-2/70 px-3 py-2 text-left normal-case tracking-normal">
+          <p className="text-xs font-medium leading-relaxed text-foreground">{definition}</p>
+          {whyItMatters ? (
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              <span className="font-medium text-foreground/75">Why it matters · </span>
+              {whyItMatters}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <p
         className="mt-1 whitespace-nowrap font-display text-[clamp(1.15rem,13cqw,1.875rem)] font-semibold leading-none tracking-tight tabular-nums text-foreground"

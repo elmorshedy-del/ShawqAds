@@ -294,6 +294,7 @@ export function buildKeyFindings({
       id: 'revenue',
       metric: 'revenue_usd',
       tone: revenueDelta == null ? 'neutral' : revenueDelta >= 0 ? 'positive' : 'negative',
+      evidence: revenueDelta == null ? 'Observed' : 'Compared',
       priority: revenueDelta == null ? 40 : Math.min(90, 40 + Math.abs(revenueDelta)),
       headline: revenueDelta == null
         ? `Revenue ${fmtMoney(current.revenue_usd)} across ${current.days} day${current.days === 1 ? '' : 's'}`
@@ -321,6 +322,7 @@ export function buildKeyFindings({
         id: 'demand-mix',
         metric: 'orders',
         tone: demandLed ? (orderDelta >= 0 ? 'positive' : 'negative') : 'neutral',
+        evidence: 'Compared',
         priority: 55 + Math.abs(orderDelta - aovDelta) / 2,
         headline: demandLed
           ? `Demand-led: orders ${fmtPct(orderDelta)} while basket size moved ${fmtPct(aovDelta)}`
@@ -356,6 +358,7 @@ export function buildKeyFindings({
       id: 'efficiency',
       metric: 'roas',
       tone: current.roas >= 2.5 ? 'positive' : current.roas >= 1.8 ? 'watch' : 'negative',
+      evidence: hasComparison ? 'Compared' : 'Observed',
       priority: current.roas < 1.8 ? 95 : roasDelta != null ? Math.min(85, 45 + Math.abs(roasDelta)) : 50,
       headline: roasDelta == null
         ? `Blended ROAS ${fmtX(current.roas)} on ${fmtMoney(current.spend_usd)} of Meta spend`
@@ -398,6 +401,7 @@ export function buildKeyFindings({
       id: `anomaly-${series.key}-${hit.date}`,
       metric: series.key,
       tone,
+      evidence: 'Compared',
       priority: 70 + Math.min(20, Math.abs(hit.z) * 3),
       headline: `${hit.date}: ${series.label} ${series.format(hit.value)} was ${above ? 'far above' : 'far below'} normal`,
       context: `Typical day around ${series.format(hit.expected)} (usual range ${series.format(hit.low)}–${series.format(hit.high)}). This is a ${Math.abs(hit.z).toFixed(1)}σ move.`,
@@ -419,6 +423,7 @@ export function buildKeyFindings({
       id: 'concentration',
       metric: 'revenue_usd',
       tone: 'watch',
+      evidence: 'Observed',
       priority: 45 + (top.share - 50) / 2,
       headline: `${top.name} is ${top.share.toFixed(0)}% of revenue in this window`,
       context: 'A single market carrying most of the revenue means one market\'s bad week is the whole account\'s bad week.',

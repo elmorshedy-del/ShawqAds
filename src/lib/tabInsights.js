@@ -55,6 +55,7 @@ export function buildFunnelFindings(funnel) {
     findings.push({
       id: 'funnel-bottleneck',
       tone: worstIndex < 95 ? 'negative' : 'watch',
+      evidence: 'Compared',
       headline: `${worst.label} is the weaker step at ${fmtIdx(worstIndex)}`,
       context: `${best.label} sits at ${fmtIdx(best.data.summary.currentIndex)}. Both are indexed to the launch baseline of 100, so they are directly comparable.`,
       driver: worst.data.summary.currentRaw != null
@@ -73,6 +74,7 @@ export function buildFunnelFindings(funnel) {
     findings.push({
       id: `funnel-trend-${step.key}`,
       tone: improving ? 'positive' : 'negative',
+      evidence: 'Compared',
       headline: `${step.label} has ${improving ? 'improved' : 'degraded'} ${Math.abs(Math.round(num(since)))} points since launch`,
       context: `Now ${fmtIdx(step.data.summary.currentIndex)} against ${fmtIdx(step.data.summary.launchIndex)} at launch. 7-day rolling, shrinkage-stabilised.`,
       driver: '',
@@ -104,6 +106,7 @@ export function buildFunnelFindings(funnel) {
     findings.push({
       id: `funnel-spread-${step.key}`,
       tone: 'watch',
+      evidence: 'Compared',
       headline: `${step.label} varies ${Math.round(spread)} points across campaigns`,
       context: `${top.name} converts at ${fmtIdx(top.value)} while ${bottom.name} sits at ${fmtIdx(bottom.value)}.`,
       driver: '',
@@ -141,6 +144,7 @@ export function buildAdsFindings({
       findings.push({
         id: 'ads-spread',
         tone: num(worst.roas) < 1 ? 'negative' : 'watch',
+        evidence: 'Compared',
         headline: `${worst.adSet} returns ${fmtX(worst.roas)} while ${best.adSet} returns ${fmtX(best.roas)}`,
         context: `Both cleared ${fmtMoney(minSpend)} of spend and ${minConversions} conversions. ${worst.adSet} has spent ${fmtMoney(worst.spend)}.`,
         driver: '',
@@ -157,6 +161,7 @@ export function buildAdsFindings({
     findings.push({
       id: 'ads-fatigue',
       tone: 'negative',
+      evidence: 'Heuristic',
       headline: `${risky.length} ad set${risky.length === 1 ? '' : 's'} showing delivery fatigue`,
       context: `${worst.adSet} is the most exposed at ${fmtMoney(worst.spend)} spent, frequency ${num(worst.freq).toFixed(2)} and CPM ${fmtMoney(worst.cpm)}.`,
       driver: num(worst.cpmVsMar) ? `CPM is ${fmtPct(worst.cpmVsMar)} against the March benchmark.` : '',
@@ -171,6 +176,7 @@ export function buildAdsFindings({
     findings.push({
       id: 'ads-attribution',
       tone: 'watch',
+      evidence: 'Observed',
       headline: `${flagged.length} campaign${flagged.length === 1 ? '' : 's'} report more Meta sales than Shopify can match`,
       context: 'Meta counts a sale its own attribution window claims; Shopify counts orders that actually landed. A gap means the mapping is incomplete, not that revenue is missing.',
       driver: '',
@@ -180,6 +186,7 @@ export function buildAdsFindings({
     findings.push({
       id: 'ads-inferred',
       tone: 'neutral',
+      evidence: 'Observed',
       headline: `${inferred.length} campaign${inferred.length === 1 ? '' : 's'} rely on inferred product/country matching`,
       context: 'Those orders carried no ad reference, so they were assigned by product and country ownership rather than a direct match.',
       driver: '',
@@ -195,6 +202,7 @@ export function buildAdsFindings({
     findings.push({
       id: 'ads-concentration',
       tone: 'neutral',
+      evidence: 'Observed',
       headline: `${topSpender.name} takes ${share.toFixed(0)}% of spend`,
       context: `${fmtMoney(topSpender.spend)} of ${fmtMoney(totalSpend)} across ${campaigns.length} campaigns, returning ${fmtX(topSpender.shopifyRoas)} on Shopify revenue.`,
       driver: '',
@@ -225,6 +233,7 @@ export function buildMarketFindings({ countries = [], minOrders = 5 } = {}) {
     findings.push({
       id: 'market-best',
       tone: 'positive',
+      evidence: 'Compared',
       headline: `${best.country} is the strongest market at ${fmtX(best.roas)}`,
       context: `${num(best.orders)} orders and ${fmtMoney(best.revenue)} of revenue on ${fmtMoney(best.spend)} of spend.`,
       driver: '',
@@ -234,6 +243,7 @@ export function buildMarketFindings({ countries = [], minOrders = 5 } = {}) {
       findings.push({
         id: 'market-worst',
         tone: num(worst.roas) < 1 ? 'negative' : 'watch',
+        evidence: 'Compared',
         headline: `${worst.country} returns ${fmtX(worst.roas)} on ${fmtMoney(worst.spend)} of spend`,
         context: `${num(worst.orders)} orders — enough to compare directionally with the other measured markets.`,
         driver: '',
@@ -251,6 +261,7 @@ export function buildMarketFindings({ countries = [], minOrders = 5 } = {}) {
     findings.push({
       id: 'market-dead',
       tone: 'negative',
+      evidence: 'Observed',
       headline: `${dead.length} market${dead.length === 1 ? '' : 's'} spent with no revenue back`,
       context: `${worst.country} is the largest at ${fmtMoney(worst.spend)} spent and nothing returned.`,
       driver: '',
@@ -265,6 +276,7 @@ export function buildMarketFindings({ countries = [], minOrders = 5 } = {}) {
     findings.push({
       id: 'market-concentration',
       tone: 'watch',
+      evidence: 'Observed',
       headline: `${top.country} is ${share.toFixed(0)}% of revenue`,
       context: `${countries.length} markets are selling, but one carries most of the result.`,
       driver: '',
@@ -277,6 +289,7 @@ export function buildMarketFindings({ countries = [], minOrders = 5 } = {}) {
     findings.push({
       id: 'market-lowsample',
       tone: 'neutral',
+      evidence: 'Observed',
       headline: `${lowSample.length} markets have fewer than ${minOrders} orders`,
       context: 'Their ROAS is shown greyed out because one order can move it enough to invert the verdict.',
       driver: '',
@@ -306,6 +319,7 @@ export function buildLaunchFindings({ delivery = [], phases = null } = {}) {
       findings.push({
         id: 'launch-efficiency',
         tone: better ? 'positive' : Math.abs(delta) > 15 ? 'negative' : 'watch',
+        evidence: 'Compared',
         headline: `Launch buys ${Math.abs(delta).toFixed(0)}% ${better ? 'more' : 'less'} unique reach per dollar than ${h.name}`,
         context: `${num(l.reachPerDollar).toFixed(1)} reach/$ against ${num(h.reachPerDollar).toFixed(1)}, at ${fmtMoney(l.cpm)} CPM vs ${fmtMoney(h.cpm)}. Compared at the same delivery stage, ${num(l.days)} days in.`,
         driver: '',
@@ -328,6 +342,7 @@ export function buildLaunchFindings({ delivery = [], phases = null } = {}) {
       findings.push({
         id: 'launch-saturation',
         tone: 'negative',
+        evidence: 'Compared',
         headline: 'Audience saturation signal: reach falling while frequency climbs',
         context: `Reach is ${fmtPct(reachDelta)} and frequency ${fmtPct(freqDelta)} comparing the last ${third} days against the first ${third}. The same people are seeing the ads more often.`,
         driver: '',
@@ -337,6 +352,7 @@ export function buildLaunchFindings({ delivery = [], phases = null } = {}) {
       findings.push({
         id: 'launch-headroom',
         tone: 'positive',
+        evidence: 'Compared',
         headline: 'Still finding new people: reach growing without frequency climbing',
         context: `Reach ${fmtPct(reachDelta)} and frequency ${fmtPct(freqDelta)} across the window. The audience is not exhausted.`,
         driver: '',
