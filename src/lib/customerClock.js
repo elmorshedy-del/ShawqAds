@@ -130,10 +130,6 @@ export function buildCustomerClock(orderLines = [], { merchantZone = 'Europe/Ist
     const date = new Date(order.createdAt);
     if (Number.isNaN(date.getTime())) continue;
     const mapping = zoneForCountry(order.countryCode);
-    const merchant = partsIn(merchantZone, date);
-    const merchantIndex = WEEKDAY_SHORT.indexOf(merchant.weekdayShort);
-    if (merchantIndex >= 0) merchantWeekdays[merchantIndex].orders += 1;
-
     if (!mapping) {
       unmapped += 1;
       if (order.countryCode) unmappedCountries.add(order.countryCode);
@@ -142,6 +138,12 @@ export function buildCustomerClock(orderLines = [], { merchantZone = 'Europe/Ist
     mapped += 1;
     if (mapping.approximate) approximate += 1;
 
+    // Compare both clocks over the same mapped cohort. Counting unmapped orders
+    // only on the merchant side can create a "clock disagreement" that is really a
+    // population disagreement.
+    const merchant = partsIn(merchantZone, date);
+    const merchantIndex = WEEKDAY_SHORT.indexOf(merchant.weekdayShort);
+    if (merchantIndex >= 0) merchantWeekdays[merchantIndex].orders += 1;
     const local = partsIn(mapping.zone, date);
     hours[local.hour].orders += 1;
     hours[local.hour].revenue += order.revenue;
@@ -219,9 +221,9 @@ export function buildCustomerClockFindings(clock, { minOrders = 30 } = {}) {
       id: 'clock-peak',
       tone: 'positive',
       headline: `${Math.round(peak.share * 100)}% of orders land between ${formatHourWindow(peak)} customer-local time`,
-      context: `${peak.orders} of ${clock.mapped} mapped orders fall in that ${peak.width}-hour window, measured in each buyer's own timezone rather than the merchant's.`,
+      context: `${peak.orders} of ${clock.mapped} mapped order completions fall in that ${peak.width}-hour window, using a representative timezone for each destination country.`,
       driver: '',
-      action: 'Weight ad delivery and email sends toward this window — it is the same clock the customer is on, not the reporting clock.',
+      action: 'Use this as a scheduling test hypothesis, then compare conversion rate before changing delivery permanently.',
     });
   }
 
@@ -232,7 +234,7 @@ export function buildCustomerClockFindings(clock, { minOrders = 30 } = {}) {
       headline: `${Math.round(clock.disagreementRate * 100)}% of orders fall on a different weekday for the customer than in the books`,
       context: `Reporting days close at ${clock.merchantZone} midnight, which lands mid-evening for Western buyers. Daily revenue, spend and ROAS are unaffected — Meta and Shopify both report on this clock — but weekday effects are measured on a boundary that cuts through the buying peak.`,
       driver: '',
-      action: 'Read the weekday chart above as merchant-day, and this one as customer-day. Where they disagree, the customer view is the one to schedule against.',
+      action: 'Read the weekday chart above as merchant-day and this one as customer-day; validate the difference with a scheduled test.',
     });
   }
 

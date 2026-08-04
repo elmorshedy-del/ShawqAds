@@ -126,14 +126,14 @@ export function CustomerClock({ data }: { data: CustomerClockData }) {
             <Globe2 className="h-4 w-4" />
           </span>
           <h2 className="font-display text-lg font-semibold tracking-tight">
-            When your customers actually buy
+            When purchases complete in customer-local time
           </h2>
         </div>
         <p className="mt-1.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">
-          Every other time view on this dashboard buckets orders on the merchant clock
-          ({data.merchantZone}). This one re-buckets each order into the buyer's own timezone, so
-          the peak reflects when someone was actually sitting down to shop — the clock ad
-          dayparting and email sends run on.
+          Every other time view buckets orders on the merchant clock ({data.merchantZone}).
+          This view re-buckets purchase-completion timestamps using a representative timezone
+          for each destination country. It is an observational scheduling signal, not proof of
+          when conversion propensity is highest.
         </p>
       </header>
 
@@ -143,7 +143,7 @@ export function CustomerClock({ data }: { data: CustomerClockData }) {
             {formatHourWindow(peak)}
           </span>
           <span className="text-sm text-foreground">
-            is the peak buying window — {Math.round(peak.share * 100)}% of orders in {peak.width} hours
+            is the peak completion window — {Math.round(peak.share * 100)}% of orders in {peak.width} hours
           </span>
         </div>
       ) : null}
@@ -204,7 +204,8 @@ export function CustomerClock({ data }: { data: CustomerClockData }) {
             make <span className="font-semibold">{merchantTop.name}</span> the strongest day; in
             customer time it is <span className="font-semibold">{customerTop.name}</span>.{" "}
             {Math.round(data.disagreementRate * 100)}% of orders sit on a different weekday for the
-            buyer than in the reporting day they were booked into. Schedule against the customer view.
+            buyer than in the reporting day they were booked into. Treat the customer view as a test
+            hypothesis, not a scheduling instruction.
           </p>
         ) : null}
 

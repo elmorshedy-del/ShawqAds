@@ -35,6 +35,18 @@ export const METRIC_DEFINITIONS = {
   },
 };
 
-export function metricDefinition(key) {
+export function metricDefinition(key, revenueScope = 'shopify_email') {
+  if (key === 'cac' && revenueScope === 'shopify') {
+    return {
+      definition: 'Meta spend divided by Shopify orders after email-campaign orders are excluded.',
+      whyItMatters: 'Still blended across paid, direct and organic demand; it is not Meta-attributed CAC.',
+    };
+  }
+  if (key === 'roas' && revenueScope === 'shopify') {
+    return {
+      definition: 'Shopify revenue after email-campaign revenue is excluded, divided by Meta spend.',
+      whyItMatters: 'Still blended across paid, direct and organic demand. Use campaign attribution before changing budget.',
+    };
+  }
   return METRIC_DEFINITIONS[key] || null;
 }

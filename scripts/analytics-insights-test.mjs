@@ -30,6 +30,9 @@ assert(medianAbsoluteDeviation([10, 10, 10, 20]) === 0, 'MAD is zero when the ma
 
 const flatBand = robustBand([100, 100, 100, 100, 100]);
 assert(flatBand && flatBand.spread > 0, 'a flat series must still produce a usable band width');
+const zeroBand = robustBand([0, 0, 0, 0, 0]);
+assert(zeroBand && zeroBand.spread > 0, 'a zero baseline must still produce a usable absolute width');
+assert(zeroBand.low === 0, 'a non-negative metric must not report a negative typical range');
 assert(robustBand([1, 2]) === null, 'a band needs at least three points');
 
 const band = robustBand([100, 110, 90, 105, 95]);
@@ -65,6 +68,14 @@ assert(steady.length === 0, 'a steady series should produce no anomalies');
 
 const excluded = detectAnomalies(steadyThenSpike, 'revenue_usd', { excludeDates: ['2026-06-07'] });
 assert(excluded.length === 0, 'excluded dates (e.g. the developing day) must not be flagged');
+const zeroThenOrder = detectAnomalies(
+  [0, 0, 0, 0, 0, 100].map((orders, index) => ({
+    date: `2026-07-0${index + 1}`,
+    orders,
+  })),
+  'orders',
+);
+assert(zeroThenOrder.length === 1, 'a real event after a zero baseline must not be invisible');
 
 /* --- period totals ------------------------------------------------------ */
 
@@ -135,6 +146,37 @@ assert(
 );
 assert(result.verdict.headline.length > 0, 'a verdict headline should be produced');
 assert(result.verdict.detail.includes('ROAS'), 'the verdict should summarise blended ROAS');
+
+const developing = buildKeyFindings({
+  windowRows: [{ date: '2026-08-04', revenue_usd: 500, spend_usd: 200, orders: 5, units: 6 }],
+  historyRows: history,
+  range: { since: '2026-08-04', until: '2026-08-04' },
+  reportingToday: '2026-08-04',
+  comparisonRows: [{ date: '2026-08-03', revenue_usd: 400, spend_usd: 180, orders: 4, units: 5 }],
+  comparisonLabel: 'vs same time previous day',
+  revenueDrivers: {
+    countries: [{ name: 'USA', change: 900, share: 100 }],
+    products: [],
+  },
+});
+assert(developing.hasComparison, 'a same-time comparison supplied by the KPI contract should be used');
+assert(
+  developing.findings.some((finding) => finding.headline.includes('vs same time previous day')),
+  'findings and KPI cards must use the same comparison label',
+);
+assert(
+  developing.findings.every((finding) => !finding.driver?.includes('USA added')),
+  'full-day drivers must be suppressed on a same-time comparison',
+);
+
+const partialComparison = buildKeyFindings({
+  windowRows,
+  historyRows: history,
+  range,
+  comparisonRows: [history[16]],
+  comparisonLabel: 'vs previous period',
+});
+assert(!partialComparison.hasComparison, 'a partial prior window must not be presented as comparable');
 
 // An empty window must not invent findings.
 const empty = buildKeyFindings({

@@ -3,19 +3,10 @@ import { Globe2 } from "lucide-react";
 import { familyColors, fmtCurrency, type CountrySales } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
-const ranges = ["Today", "3D", "7D", "14D", "All"] as const;
-type Range = (typeof ranges)[number];
-
-function rangeCaption(range: Range) {
-  if (range === "All") return "since launch";
-  if (range === "Today") return "today";
-  return `trailing ${range}`;
-}
-
-// Below this many units a country's ROAS is one or two orders divided by spend. It is
-// arithmetically real but far too noisy to colour as a verdict — a single-unit market
-// rendered in alarm-red invites cutting a market that was never measured.
-const LOW_SAMPLE_UNITS = 5;
+// Conversion count, not unit quantity, determines whether a market has enough
+// independent outcomes to colour its ROAS as a verdict. One bulk order can contain
+// five units without providing five observations.
+const LOW_SAMPLE_ORDERS = 5;
 
 function roasClass(v: number, lowSample = false) {
   if (lowSample) return "text-muted-foreground";
@@ -27,7 +18,7 @@ function roasClass(v: number, lowSample = false) {
 function CountryRow({ c, delay }: { c: CountrySales; delay: number }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const lowSample = c.units < LOW_SAMPLE_UNITS;
+  const lowSample = c.orders < LOW_SAMPLE_ORDERS;
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(id);
@@ -43,7 +34,7 @@ function CountryRow({ c, delay }: { c: CountrySales; delay: number }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{c.country}</p>
           <p className="text-xs text-muted-foreground">
-            {c.units} units · {c.products} products
+            {c.orders} orders · {c.units} units · {c.products} products
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -54,7 +45,7 @@ function CountryRow({ c, delay }: { c: CountrySales; delay: number }) {
             )}
             title={
               lowSample
-                ? `Only ${c.units} unit${c.units === 1 ? "" : "s"} sold — too few to read this ROAS as a verdict`
+                ? `Only ${c.orders} order${c.orders === 1 ? "" : "s"} — too few independent outcomes to read this ROAS as a verdict`
                 : undefined
             }
           >
@@ -111,19 +102,14 @@ function CountryRow({ c, delay }: { c: CountrySales; delay: number }) {
 
 export function CountrySalesPanel({
   countries,
-  windows,
+  scopeLabel,
 }: {
   countries: CountrySales[];
-  /** Optional per-window country aggregates. Falls back to `countries` (the
-   *  full launch-window view) for any range that isn't supplied. */
-  windows?: Partial<Record<Range, CountrySales[]>>;
+  scopeLabel?: string;
 }) {
-  const [range, setRange] = useState<Range>("All");
-  const shown = windows?.[range] ?? countries;
-
   return (
     <div className="panel min-w-0 overflow-hidden p-4 sm:p-6">
-      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
@@ -134,37 +120,20 @@ export function CountrySalesPanel({
             </h2>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Per-market revenue, spend and product-mix breakdown · {rangeCaption(range)} · tap a country for detail
+            Per-market revenue, spend and product mix · {scopeLabel || "selected window"} · tap a country for detail
           </p>
-        </div>
-
-        <div className="inline-flex max-w-full self-start overflow-x-auto rounded-full border border-border bg-surface-2 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {ranges.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={cn(
-                "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-all sm:px-3",
-                range === r
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {r}
-            </button>
-          ))}
         </div>
       </div>
 
-      {shown.length ? (
+      {countries.length ? (
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {shown.map((c, i) => (
-            <CountryRow key={`${range}-${c.country}`} c={c} delay={i * 40} />
+          {countries.map((c, i) => (
+            <CountryRow key={c.country} c={c} delay={i * 40} />
           ))}
         </div>
       ) : (
         <div className="mt-5 rounded-xl border border-dashed border-border bg-surface-2/40 px-4 py-10 text-center text-sm text-muted-foreground">
-          No country sales {range === "Today" ? "today" : `in the ${rangeCaption(range)} window`}.
+          No country sales in the selected window.
         </div>
       )}
     </div>

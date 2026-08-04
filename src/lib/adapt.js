@@ -193,6 +193,7 @@ export function toCountrySales(countries, metaByCode) {
         country: c.country || c.country_code || "—",
         roas: shopifyCountryRoas(c, meta),
         units: total,
+        orders: num(c.orders),
         revenue: num(c.revenue_usd),
         spend: num(meta?.spend_usd),
         products: num(c.unique_products),

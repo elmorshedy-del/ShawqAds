@@ -122,9 +122,16 @@ export function buildFunnelFindings(funnel) {
  * I scale. Ranking by spend (the default sort) does not answer it — the tables
  * showed the inputs to that decision without ever stating it.
  */
-export function buildAdsFindings({ adSets = [], campaigns = [], minSpend = 100 } = {}) {
+export function buildAdsFindings({
+  adSets = [],
+  campaigns = [],
+  minSpend = 100,
+  minConversions = 3,
+} = {}) {
   const findings = [];
-  const funded = adSets.filter((row) => num(row.spend) >= minSpend);
+  const funded = adSets.filter(
+    (row) => num(row.spend) >= minSpend && num(row.sales) >= minConversions,
+  );
 
   if (funded.length >= 2) {
     const byRoas = [...funded].sort((a, b) => num(b.roas) - num(a.roas));
@@ -135,11 +142,11 @@ export function buildAdsFindings({ adSets = [], campaigns = [], minSpend = 100 }
         id: 'ads-spread',
         tone: num(worst.roas) < 1 ? 'negative' : 'watch',
         headline: `${worst.adSet} returns ${fmtX(worst.roas)} while ${best.adSet} returns ${fmtX(best.roas)}`,
-        context: `Both cleared ${fmtMoney(minSpend)} of spend, so the gap is not a sample-size artefact. ${worst.adSet} has spent ${fmtMoney(worst.spend)}.`,
+        context: `Both cleared ${fmtMoney(minSpend)} of spend and ${minConversions} conversions. ${worst.adSet} has spent ${fmtMoney(worst.spend)}.`,
         driver: '',
         action: num(worst.roas) < 1
-          ? `${worst.adSet} is returning less than it costs. Cut or rework it before adding budget anywhere.`
-          : `Move budget from ${worst.adSet} toward ${best.adSet}.`,
+          ? `Investigate ${worst.adSet}'s targeting and creative before adding budget.`
+          : `Test a measured shift from ${worst.adSet} toward ${best.adSet}, then verify the result.`,
       });
     }
   }
@@ -203,13 +210,12 @@ export function buildAdsFindings({ adSets = [], campaigns = [], minSpend = 100 }
 /* ============================= Market =================================== */
 
 /**
- * `minUnits` matches the low-sample guard on the country cards: below it, a
- * country's ROAS is one or two orders divided by spend and must not drive a
- * recommendation.
+ * `minOrders` matches the low-sample guard on the country cards. Units are not
+ * independent outcomes — one bulk order must not make a market look validated.
  */
-export function buildMarketFindings({ countries = [], minUnits = 5 } = {}) {
+export function buildMarketFindings({ countries = [], minOrders = 5 } = {}) {
   const findings = [];
-  const comparable = countries.filter((c) => num(c.units) >= minUnits && num(c.spend) > 0);
+  const comparable = countries.filter((c) => num(c.orders) >= minOrders && num(c.spend) > 0);
   if (!countries.length) return [];
 
   if (comparable.length >= 2) {
@@ -220,7 +226,7 @@ export function buildMarketFindings({ countries = [], minUnits = 5 } = {}) {
       id: 'market-best',
       tone: 'positive',
       headline: `${best.country} is the strongest market at ${fmtX(best.roas)}`,
-      context: `${num(best.units)} units and ${fmtMoney(best.revenue)} of revenue on ${fmtMoney(best.spend)} of spend.`,
+      context: `${num(best.orders)} orders and ${fmtMoney(best.revenue)} of revenue on ${fmtMoney(best.spend)} of spend.`,
       driver: '',
       action: 'Check whether spend here is capped before looking for growth elsewhere.',
     });
@@ -229,7 +235,7 @@ export function buildMarketFindings({ countries = [], minUnits = 5 } = {}) {
         id: 'market-worst',
         tone: num(worst.roas) < 1 ? 'negative' : 'watch',
         headline: `${worst.country} returns ${fmtX(worst.roas)} on ${fmtMoney(worst.spend)} of spend`,
-        context: `${num(worst.units)} units sold — enough to judge, unlike the low-sample markets.`,
+        context: `${num(worst.orders)} orders — enough to compare directionally with the other measured markets.`,
         driver: '',
         action: num(worst.roas) < 1
           ? 'Below break-even with a real sample. Cut or rework targeting here.'
@@ -239,7 +245,7 @@ export function buildMarketFindings({ countries = [], minUnits = 5 } = {}) {
   }
 
   // Spend with nothing to show for it is the most actionable market signal there is.
-  const dead = countries.filter((c) => num(c.spend) > 0 && num(c.revenue) === 0);
+  const dead = countries.filter((c) => num(c.spend) >= 100 && num(c.revenue) === 0);
   if (dead.length) {
     const worst = [...dead].sort((a, b) => num(b.spend) - num(a.spend))[0];
     findings.push({
@@ -266,13 +272,13 @@ export function buildMarketFindings({ countries = [], minUnits = 5 } = {}) {
     });
   }
 
-  const lowSample = countries.filter((c) => num(c.units) > 0 && num(c.units) < minUnits);
+  const lowSample = countries.filter((c) => num(c.orders) > 0 && num(c.orders) < minOrders);
   if (lowSample.length >= 3) {
     findings.push({
       id: 'market-lowsample',
       tone: 'neutral',
-      headline: `${lowSample.length} markets have fewer than ${minUnits} units`,
-      context: 'Their ROAS is shown greyed out because one order moves it enough to invert the verdict.',
+      headline: `${lowSample.length} markets have fewer than ${minOrders} orders`,
+      context: 'Their ROAS is shown greyed out because one order can move it enough to invert the verdict.',
       driver: '',
       action: 'Let them accumulate before cutting or scaling on their numbers.',
     });

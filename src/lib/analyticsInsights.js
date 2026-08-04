@@ -55,11 +55,17 @@ export function robustBand(values = [], k = 2) {
   if (mid == null || spread == null) return null;
   // A perfectly flat stretch yields MAD 0, which would flag every later wobble as
   // infinitely unusual. Fall back to a 10% band so the range stays meaningful.
-  const width = spread > 0 ? spread : Math.abs(mid) * 0.1;
+  const fallbackScale = Math.max(
+    Math.abs(mid) * 0.1,
+    Math.max(...finite.map((value) => Math.abs(value))) * 0.1,
+    1,
+  );
+  const width = spread > 0 ? spread : fallbackScale;
+  const low = mid - k * width;
   return {
     median: mid,
     spread: width,
-    low: mid - k * width,
+    low: finite.every((value) => value >= 0) ? Math.max(0, low) : low,
     high: mid + k * width,
     n: finite.length,
   };
@@ -191,7 +197,7 @@ function rangeDays(range) {
   return Math.max(1, Math.round((until - since) / 86400000) + 1);
 }
 
-function comparisonLabel(days) {
+function comparisonLabelForDays(days) {
   if (days <= 1) return 'vs the previous day';
   return `vs the previous ${days} days`;
 }
@@ -218,6 +224,8 @@ export function buildKeyFindings({
   historyRows = [],
   range,
   reportingToday = '',
+  comparisonRows = null,
+  comparisonLabel = '',
   revenueDrivers = { countries: [], products: [] },
   orderDrivers = { countries: [] },
   concentrationItems = [],
@@ -243,11 +251,13 @@ export function buildKeyFindings({
   // preset holding 10 days of rows must be compared against the previous 10 data days,
   // otherwise the comparison silently reaches back past the start of the account.
   const compareDays = current.days || days;
-  const previousRows = range?.since
-    ? sortedHistory.filter((row) => row.date < range.since).slice(-compareDays)
-    : [];
+  const previousRows = Array.isArray(comparisonRows)
+    ? comparisonRows
+    : range?.since
+      ? sortedHistory.filter((row) => row.date < range.since).slice(-compareDays)
+      : [];
   const previous = periodTotals(previousRows);
-  const hasComparison = previousRows.length > 0;
+  const hasComparison = previousRows.length > 0 && previousRows.length === current.days;
 
   // Baseline days: everything before the window, so the band describes "normal
   // before now" rather than being contaminated by the period under review.
@@ -264,7 +274,11 @@ export function buildKeyFindings({
   const roasBaseline = periodTotals(baselineRows);
 
   const findings = [];
-  const compareText = comparisonLabel(previous.days || compareDays);
+  const compareText = comparisonLabel || comparisonLabelForDays(previous.days || compareDays);
+  // Product/country driver inputs are daily aggregates, not intraday snapshots.
+  // Suppress them for same-time comparisons instead of pairing a correctly scaled
+  // KPI delta with a full previous-day driver.
+  const hasComparableDrivers = !compareText.includes('same time');
 
   /* --- Revenue --------------------------------------------------------- */
   const revenueDelta = hasComparison ? pctChange(current.revenue_usd, previous.revenue_usd) : null;
@@ -285,8 +299,10 @@ export function buildKeyFindings({
         ? `Revenue ${fmtMoney(current.revenue_usd)} across ${current.days} day${current.days === 1 ? '' : 's'}`
         : `Revenue ${fmtMoney(current.revenue_usd)}, ${fmtPct(revenueDelta)} ${compareText}`,
       context,
-      driver: driverSentence(revenueDrivers.countries, fmtMoney)
-        || driverSentence(revenueDrivers.products, fmtMoney),
+      driver: hasComparableDrivers
+        ? driverSentence(revenueDrivers.countries, fmtMoney)
+          || driverSentence(revenueDrivers.products, fmtMoney)
+        : '',
       action: revenueDelta != null && revenueDelta < -15
         ? 'Open Market → Country sales to see which market pulled back before touching budget.'
         : revenueDelta != null && revenueDelta > 15
@@ -310,7 +326,9 @@ export function buildKeyFindings({
           ? `Demand-led: orders ${fmtPct(orderDelta)} while basket size moved ${fmtPct(aovDelta)}`
           : `Basket-led: AOV ${fmtPct(aovDelta)} while order count moved ${fmtPct(orderDelta)}`,
         context: `${fmtInt(current.orders)} orders at ${fmtMoney(current.aov)} average order value.`,
-        driver: driverSentence(orderDrivers.countries, (value) => `${fmtInt(value)} units`),
+        driver: hasComparableDrivers
+          ? driverSentence(orderDrivers.countries, (value) => `${fmtInt(value)} units`)
+          : '',
         action: demandLed
           ? 'Revenue is tracking real buyer count — treat it as a durable move.'
           : 'Revenue is riding basket size, not more buyers. Confirm demand before scaling spend.',
@@ -425,7 +443,15 @@ export function buildKeyFindings({
 
 function buildVerdict({ current, revenueDelta, hasComparison, findings }) {
   const risky = findings.filter((finding) => finding.tone === 'negative');
-  const tone = risky.length ? 'negative' : findings.some((f) => f.tone === 'watch') ? 'watch' : 'positive';
+  const watchCount = findings.filter((finding) => finding.tone === 'watch').length;
+  const positiveCount = findings.filter((finding) => finding.tone === 'positive').length;
+  const tone = risky.length
+    ? 'negative'
+    : watchCount
+      ? 'watch'
+      : hasComparison && positiveCount
+        ? 'positive'
+        : 'neutral';
   // Days that actually carry data, not the calendar length of the preset — a 61-day
   // preset over 10 days of rows should not claim 61 days of evidence.
   const dayText = `${current.days} day${current.days === 1 ? '' : 's'} with data`;
@@ -438,8 +464,10 @@ function buildVerdict({ current, revenueDelta, hasComparison, findings }) {
   const headline = tone === 'negative'
     ? `${risky.length} thing${risky.length === 1 ? '' : 's'} need${risky.length === 1 ? 's' : ''} attention`
     : tone === 'watch'
-      ? 'Holding, with one thing to watch'
-      : 'Tracking well';
+      ? `${watchCount} thing${watchCount === 1 ? '' : 's'} to watch`
+      : tone === 'positive'
+        ? 'Tracking well'
+        : 'Current window, without a reliable comparison yet';
   return {
     tone,
     headline,

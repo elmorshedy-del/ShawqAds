@@ -79,10 +79,12 @@ export function HistoricalInsights({
     occurrences: row.n,
   }));
 
-  const monthTrend = insights.monthlyTable.map((month) => ({
-    x: month.monthLabel.replace(" 2026", ""),
-    y: month.avgDailyOrders ?? 0,
-  }));
+  const monthTrend = insights.monthlyTable
+    .filter((month) => !month.isPartial)
+    .map((month) => ({
+      x: month.monthLabel.replace(" 2026", ""),
+      y: month.avgDailyOrders ?? 0,
+    }));
 
   const weekKeys = WEEK_BUCKETS.map((b) => b.key);
   const groupedMonthData = insights.monthlyTable.map((month) => {

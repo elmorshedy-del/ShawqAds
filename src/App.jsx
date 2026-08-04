@@ -63,6 +63,8 @@ import {
   emptyBehaviorGlobal,
   isDevelopingReportingDayRange,
 } from './lib/reportingBounds.js';
+import { sourceCoverageBounds } from './lib/dashboardScope.js';
+import { DashboardScopeBar } from './components/dashboard/DashboardScopeBar';
 
 const SALE_POLL_MS = 30000;
 const META_POLL_MS = 120000;
@@ -473,15 +475,10 @@ function rangeFromDateSet(set) {
 function loadedDateRange(meta, shopify) {
   const metaDates = new Set();
   const shopifyDates = new Set();
-  // Row-backed dates only: `analysis_window` / `period` describe what was *requested*,
-  // which can run past the days that actually came back. Anything that decides "is there
-  // data here?" must use these sets, not the declared windows.
-  const metaRowDates = new Set();
-  const shopifyRowDates = new Set();
   const addMeta = (date) => { if (date) metaDates.add(date); };
   const addShopify = (date) => { if (date) shopifyDates.add(date); };
-  const addMetaRow = (date) => { if (date) { metaDates.add(date); metaRowDates.add(date); } };
-  const addShopifyRow = (date) => { if (date) { shopifyDates.add(date); shopifyRowDates.add(date); } };
+  const addMetaRow = (date) => { if (date) metaDates.add(date); };
+  const addShopifyRow = (date) => { if (date) shopifyDates.add(date); };
   addMeta(meta?.analysis_window?.since); addMeta(meta?.analysis_window?.until);
   addShopify(shopify?.period?.since); addShopify(shopify?.period?.until);
   (meta?.adsets || []).forEach((adset) => (adset.rows || []).forEach((row) => addMetaRow(row.date)));
@@ -496,20 +493,20 @@ function loadedDateRange(meta, shopify) {
   const unionRange = rangeFromDateSet(new Set([...metaDates, ...shopifyDates]));
   const today = currentReportingDay();
   const calendarRange = rangeFromDateSet(new Set([...unionRange.dates, today]));
-  const commonSince = [metaRange.since, shopifyRange.since].filter(Boolean).sort().at(-1) || unionRange.since;
-  const commonUntil = [metaRange.until, shopifyRange.until].filter(Boolean).sort()[0] || unionRange.until;
-  const hasCommon = Boolean(commonSince && commonUntil && commonSince <= commonUntil);
-  const commonDates = unionRange.dates.filter((date) => date >= commonSince && date <= commonUntil);
-  const metaRowRange = rangeFromDateSet(metaRowDates);
-  const shopifyRowRange = rangeFromDateSet(shopifyRowDates);
-  const latestDataDay = [metaRowRange.until, shopifyRowRange.until].filter(Boolean).sort().at(-1) || '';
+  // Blended metrics are only current through the earlier of the two row-backed
+  // source dates. Requested API windows can extend beyond returned rows, and using
+  // the later source made missing spend or revenue look like a real zero.
+  const coverage = sourceCoverageBounds(meta, shopify, today);
+  const commonDates = unionRange.dates.filter(
+    (date) => date >= coverage.common_since && date <= coverage.common_until,
+  );
   return {
     since: unionRange.since,
     until: unionRange.until,
     days: unionRange.days,
-    common_since: hasCommon ? commonSince : '',
-    common_until: hasCommon ? commonUntil : '',
-    common_days: hasCommon ? commonDates.length : 0,
+    common_since: coverage.common_since,
+    common_until: coverage.common_until,
+    common_days: coverage.has_common_data ? commonDates.length : 0,
     meta_since: metaRange.since,
     meta_until: metaRange.until,
     shopify_since: shopifyRange.since,
@@ -520,11 +517,13 @@ function loadedDateRange(meta, shopify) {
     calendar_until: calendarRange.until,
     today,
     reporting_timezone: REPORTING_TIMEZONE,
-    is_common: hasCommon,
-    latest_meta_day: metaRowRange.until,
-    latest_shopify_day: shopifyRowRange.until,
-    latest_data_day: latestDataDay,
-    has_today_data: Boolean(latestDataDay && latestDataDay >= today),
+    is_common: coverage.has_common_data,
+    latest_meta_day: coverage.meta_until,
+    latest_shopify_day: coverage.shopify_until,
+    latest_data_day: coverage.latest_common_data_day,
+    latest_any_data_day: coverage.latest_any_data_day,
+    has_today_data: coverage.has_today_data,
+    lagging_source: coverage.lagging_source,
   };
 }
 function normalizeDateRange(range, bounds) {
@@ -696,9 +695,20 @@ function filterShopifyByDateRange(shopify, range, { excludeEmail = false } = {})
     if (!productRow.image_url && line.image_url) productRow.image_url = line.image_url;
     productRow.units += units; productRow.revenue_usd += revenue; productMap.set(product, productRow);
     const countryKey = line.country_code || 'Unknown';
-    const countryRow = countryMap.get(countryKey) || { country_code: line.country_code || '', country: line.country || countryKey, units: 0, revenue_usd: 0, unique_products_set: new Set(), mix: {}, subtypes: {} };
+    const countryRow = countryMap.get(countryKey) || {
+      country_code: line.country_code || '',
+      country: line.country || countryKey,
+      units: 0,
+      orders_set: new Set(),
+      revenue_usd: 0,
+      unique_products_set: new Set(),
+      mix: {},
+      subtypes: {},
+    };
     countryRow.units += units;
     countryRow.revenue_usd += revenue;
+    const orderId = line.order_id || line.order_name;
+    if (orderId) countryRow.orders_set.add(String(orderId));
     countryRow.unique_products_set.add(product);
     countryRow.mix[family] = (countryRow.mix[family] || 0) + units;
     countryRow.subtypes[family] = countryRow.subtypes[family] || {};
@@ -717,7 +727,12 @@ function filterShopifyByDateRange(shopify, range, { excludeEmail = false } = {})
     return { date, ...running };
   });
   const countries = [...countryMap.values()].map((row) => {
-    const out = { ...row, unique_products: row.unique_products_set.size };
+    const out = {
+      ...row,
+      orders: row.orders_set.size,
+      unique_products: row.unique_products_set.size,
+    };
+    delete out.orders_set;
     delete out.unique_products_set;
     return out;
   }).sort((a, b) => b.units - a.units);
@@ -1087,11 +1102,46 @@ function fallbackPeriodDelta(rows, key) {
   return periodDeltaFromRows(currentRows, previousRows, key, sorted.length >= 4 ? 'vs prior period' : 'vs previous day');
 }
 
-function businessPeriodDelta(rows, key, activeRange) {
+function businessComparisonRows(rows, activeRange, reportingToday = currentReportingDay()) {
+  const sorted = [...(rows || [])].sort((a, b) => a.date.localeCompare(b.date));
+  if (!activeRange?.since || !activeRange?.until) return { rows: [], label: 'no prior period' };
+  const days = dayCount(activeRange);
+  const isDevelopingDay = days === 1
+    && activeRange.since === activeRange.until
+    && activeRange.until === reportingToday;
+  const currentRows = filterRowsByDateRange(sorted, activeRange);
+  const previousRange = { since: shiftDate(activeRange.since, -days), until: shiftDate(activeRange.until, -days) };
+  const previousRows = filterRowsByDateRange(sorted, previousRange);
+  if (previousRows.length && previousRows.length === currentRows.length) {
+    return {
+      rows: isDevelopingDay ? scaleBusinessRows(previousRows, elapsedReportingDayShare()) : previousRows,
+      label: isDevelopingDay
+        ? 'vs same time previous day'
+        : days === 1
+          ? 'vs previous day'
+          : 'vs previous period',
+    };
+  }
+  if (isDevelopingDay) {
+    const priorComplete = sorted.filter((row) => (row.date || '') < activeRange.until);
+    const lastComplete = priorComplete[priorComplete.length - 1];
+    if (lastComplete) {
+      return {
+        rows: scaleBusinessRows([lastComplete], elapsedReportingDayShare()),
+        label: 'vs same time, latest day',
+      };
+    }
+  }
+  return { rows: [], label: 'no prior period' };
+}
+
+function businessPeriodDelta(rows, key, activeRange, reportingToday = currentReportingDay()) {
   const sorted = [...(rows || [])].sort((a, b) => a.date.localeCompare(b.date));
   if (!activeRange?.since || !activeRange?.until) return fallbackPeriodDelta(sorted, key);
   const days = dayCount(activeRange);
-  const isDevelopingDay = days === 1 && activeRange.since === activeRange.until && activeRange.until === currentReportingDay();
+  const isDevelopingDay = days === 1
+    && activeRange.since === activeRange.until
+    && activeRange.until === reportingToday;
   let currentRows = filterRowsByDateRange(sorted, activeRange);
   if (!currentRows.length && isDevelopingDay) {
     currentRows = [{
@@ -1107,22 +1157,9 @@ function businessPeriodDelta(rows, key, activeRange) {
   } else if (!currentRows.length) {
     return emptyPeriodDelta(key, 'no current data');
   }
-  const previousRange = { since: shiftDate(activeRange.since, -days), until: shiftDate(activeRange.until, -days) };
-  const previousRows = filterRowsByDateRange(sorted, previousRange);
-  if (previousRows.length) {
-    const comparisonRows = isDevelopingDay ? scaleBusinessRows(previousRows, elapsedReportingDayShare()) : previousRows;
-    return periodDeltaFromRows(currentRows, comparisonRows, key, isDevelopingDay ? 'vs same time previous day' : days === 1 ? 'vs previous day' : 'vs previous period');
-  }
-  // Day-rollover guard: just after Istanbul midnight the immediate prior day can be
-  // missing from cache, which would otherwise produce a misleading 0% delta. Fall
-  // back to the latest complete day on record, scaled to the elapsed share of today.
-  if (isDevelopingDay) {
-    const priorComplete = sorted.filter((row) => (row.date || '') < activeRange.until);
-    const lastComplete = priorComplete[priorComplete.length - 1];
-    if (lastComplete) {
-      const comparisonRows = scaleBusinessRows([lastComplete], elapsedReportingDayShare());
-      return periodDeltaFromRows(currentRows, comparisonRows, key, 'vs same time, latest day');
-    }
+  const comparison = businessComparisonRows(sorted, activeRange, reportingToday);
+  if (comparison.rows.length) {
+    return periodDeltaFromRows(currentRows, comparison.rows, key, comparison.label);
   }
   return periodDeltaFromRows(currentRows, [], key, 'no prior period');
 }
@@ -1723,14 +1760,25 @@ function App() {
   const launchDateRange = useMemo(() => launchAnalysisDateRange(loadedBounds), [loadedBounds]);
   const data = useMemo(() => filterMetaDataByDateRange(baseData, activeDateRange), [baseData, activeDateRange]);
   const productData = useMemo(() => filterShopifyByDateRange(baseProductData, activeDateRange), [baseProductData, activeDateRange]);
+  const matchedDateRange = useMemo(() => {
+    if (!loadedBounds.common_since || !loadedBounds.common_until) {
+      return { since: '9999-12-31', until: '0000-01-01' };
+    }
+    return {
+      since: [activeDateRange.since, loadedBounds.common_since].filter(Boolean).sort().at(-1),
+      until: [activeDateRange.until, loadedBounds.common_until].filter(Boolean).sort()[0],
+    };
+  }, [activeDateRange, loadedBounds.common_since, loadedBounds.common_until]);
+  const matchedData = useMemo(
+    () => filterMetaDataByDateRange(baseData, matchedDateRange),
+    [baseData, matchedDateRange],
+  );
+  const matchedProductData = useMemo(
+    () => filterShopifyByDateRange(baseProductData, matchedDateRange),
+    [baseProductData, matchedDateRange],
+  );
   const launchData = useMemo(() => filterMetaDataByDateRange(baseData, launchDateRange), [baseData, launchDateRange]);
   const launchProductData = useMemo(() => filterShopifyByDateRange(baseProductData, launchDateRange), [baseProductData, launchDateRange]);
-  const countryRoasDateRange = useMemo(() => clampDateRange({
-    since: CAMPAIGN_LAUNCH_DATE,
-    until: loadedBounds.common_until || launchDateRange.until,
-  }, loadedBounds), [loadedBounds, launchDateRange]);
-  const countryRoasData = useMemo(() => filterMetaDataByDateRange(baseData, countryRoasDateRange), [baseData, countryRoasDateRange]);
-  const countryRoasProductData = useMemo(() => filterShopifyByDateRange(baseProductData, countryRoasDateRange), [baseProductData, countryRoasDateRange]);
   const emailPanelDateRange = useMemo(
     () => (emailPanelScope === 'launch' ? launchDateRange : activeDateRange),
     [emailPanelScope, launchDateRange, activeDateRange],
@@ -1805,9 +1853,9 @@ function App() {
     ? `Meta checked ${saleTime(metaMonitor.checkedAt)}`
     : `Refreshed ${data.generated_at ? new Date(data.generated_at).toLocaleString() : 'now'}`;
   const accountDaily = useMemo(() => {
-    const accountRows = data.account_daily_metrics?.length ? data.account_daily_metrics : accountDailyFromAdRows(data.ad_daily?.length ? data.ad_daily : (data.ad_country_daily || []));
-    return accountRows.length ? accountRows : (data.daily_metrics || aggregateRows(data.adsets || []));
-  }, [data]);
+    const accountRows = matchedData.account_daily_metrics?.length ? matchedData.account_daily_metrics : accountDailyFromAdRows(matchedData.ad_daily?.length ? matchedData.ad_daily : (matchedData.ad_country_daily || []));
+    return accountRows.length ? accountRows : (matchedData.daily_metrics || aggregateRows(matchedData.adsets || []));
+  }, [matchedData]);
   const allLoadedDateRange = useMemo(() => ({
     since: loadedBounds.since,
     until: [loadedBounds.until, loadedBounds.today, baseProductData?.period?.current_reporting_day]
@@ -1830,7 +1878,13 @@ function App() {
     return accountRows.length ? accountRows : (allLoadedData.daily_metrics || aggregateRows(allLoadedData.adsets || []));
   }, [allLoadedData]);
   const emailDailyIndex = useMemo(() => buildEmailDailyIndex(baseProductData?.order_lines || []), [baseProductData?.order_lines]);
-  const businessRows = useMemo(() => mergeBusinessRows(accountDaily, applyRevenueScope(productData.daily || [], businessRevenueScope, emailDailyIndex)), [accountDaily, productData, businessRevenueScope, emailDailyIndex]);
+  const businessRows = useMemo(
+    () => mergeBusinessRows(
+      accountDaily,
+      applyRevenueScope(matchedProductData.daily || [], businessRevenueScope, emailDailyIndex),
+    ),
+    [accountDaily, matchedProductData, businessRevenueScope, emailDailyIndex],
+  );
   const allBusinessRows = useMemo(() => mergeBusinessRows(allLoadedAccountDaily, applyRevenueScope(allLoadedProductDaily, businessRevenueScope, emailDailyIndex)), [allLoadedAccountDaily, allLoadedProductDaily, businessRevenueScope, emailDailyIndex]);
   const business = businessStats(businessRows);
   // No merged rows at all means the window sits outside loaded data. Deltas, records
@@ -1847,14 +1901,18 @@ function App() {
       .sort();
     return withData.at(-1) || activeDateRange?.until || reportingToday;
   }, [businessRows, activeDateRange?.until, reportingToday]);
+  const selectedComparison = useMemo(
+    () => businessComparisonRows(allBusinessRows, activeDateRange, reportingToday),
+    [allBusinessRows, activeDateRange, reportingToday],
+  );
   const businessDeltas = useMemo(() => ({
-    revenue: businessPeriodDelta(allBusinessRows, 'revenue_usd', activeDateRange),
-    sales: businessPeriodDelta(allBusinessRows, 'orders', activeDateRange),
-    aov: businessPeriodDelta(allBusinessRows, 'aov', activeDateRange),
-    spend: businessPeriodDelta(allBusinessRows, 'spend_usd', activeDateRange),
-    cac: businessPeriodDelta(allBusinessRows, 'cac', activeDateRange),
-    roas: businessPeriodDelta(allBusinessRows, 'roas', activeDateRange),
-  }), [allBusinessRows, activeDateRange]);
+    revenue: businessPeriodDelta(allBusinessRows, 'revenue_usd', activeDateRange, reportingToday),
+    sales: businessPeriodDelta(allBusinessRows, 'orders', activeDateRange, reportingToday),
+    aov: businessPeriodDelta(allBusinessRows, 'aov', activeDateRange, reportingToday),
+    spend: businessPeriodDelta(allBusinessRows, 'spend_usd', activeDateRange, reportingToday),
+    cac: businessPeriodDelta(allBusinessRows, 'cac', activeDateRange, reportingToday),
+    roas: businessPeriodDelta(allBusinessRows, 'roas', activeDateRange, reportingToday),
+  }), [allBusinessRows, activeDateRange, reportingToday]);
   // Same-length window immediately before the selected one, used for the
   // period-over-period drivers in Key findings.
   const previousDateRange = useMemo(() => {
@@ -1869,40 +1927,51 @@ function App() {
   const insightDrivers = useMemo(() => {
     const toItems = (rows, nameKey, valueKey) => (rows || [])
       .map((row) => ({ name: row[nameKey] || 'Unknown', value: Number(row[valueKey] || 0) }));
-    const currentCountries = toItems(productData.countries, 'country', 'revenue_usd');
+    const currentCountries = toItems(matchedProductData.countries, 'country', 'revenue_usd');
     return {
       revenue: {
         countries: topDrivers(currentCountries, toItems(previousProductData.countries, 'country', 'revenue_usd')),
         products: topDrivers(
-          toItems(productData.products, 'product', 'revenue_usd'),
+          toItems(matchedProductData.products, 'product', 'revenue_usd'),
           toItems(previousProductData.products, 'product', 'revenue_usd'),
         ),
       },
       orders: {
         countries: topDrivers(
-          toItems(productData.countries, 'country', 'units'),
+          toItems(matchedProductData.countries, 'country', 'units'),
           toItems(previousProductData.countries, 'country', 'units'),
         ),
       },
       concentration: currentCountries,
     };
-  }, [productData, previousProductData]);
+  }, [matchedProductData, previousProductData]);
   const keyFindings = useMemo(() => buildKeyFindings({
     windowRows: businessRows,
     historyRows: allBusinessRows,
     range: activeDateRange,
     reportingToday,
+    comparisonRows: selectedComparison.rows,
+    comparisonLabel: selectedComparison.label,
     revenueDrivers: insightDrivers.revenue,
     orderDrivers: insightDrivers.orders,
     concentrationItems: insightDrivers.concentration,
-  }), [businessRows, allBusinessRows, activeDateRange, reportingToday, insightDrivers]);
-  const campaignAttribution = useMemo(() => buildCampaignAttribution(data, productData), [data, productData]);
+  }), [businessRows, allBusinessRows, activeDateRange, reportingToday, selectedComparison, insightDrivers]);
+  const campaignAttribution = useMemo(
+    () => buildCampaignAttribution(matchedData, matchedProductData),
+    [matchedData, matchedProductData],
+  );
   const productRows = productData.products || [];
-  const adRows = useMemo(() => enrichAdsWithShopifySales(data.ads || [], productData.order_lines || []), [data.ads, productData.order_lines]);
+  const adRows = useMemo(
+    () => enrichAdsWithShopifySales(matchedData.ads || [], matchedProductData.order_lines || []),
+    [matchedData.ads, matchedProductData.order_lines],
+  );
   const deliveryComparison = baseData.delivery_comparison || {};
   const deliveryShopifyComparison = baseProductData.delivery_comparison || {};
   const adsetPerfById = useMemo(() => new Map((data.all_adsets || []).map((row) => [row.adset_id, row])), [data]);
-  const countryRoasMetaByCode = useMemo(() => new Map((countryRoasData.countries || []).map((row) => [row.country_code, row])), [countryRoasData]);
+  const countryRoasMetaByCode = useMemo(
+    () => new Map((matchedData.countries || []).map((row) => [row.country_code, row])),
+    [matchedData],
+  );
 
   const filterProps = {
     selected,
@@ -1970,7 +2039,14 @@ function App() {
   // Record badges follow the selected date window (its end day) so they match the
   // numbers on the cards instead of always reflecting the live reporting day.
   const kpiRecordAsOfDay = activeDateRange?.until || reportingToday;
-  const kpiRecords = useMemo(() => buildKpiRecordMap(allBusinessRows, kpiRecordAsOfDay), [allBusinessRows, kpiRecordAsOfDay]);
+  const kpiRecordRows = useMemo(
+    () => allBusinessRows.filter((row) => row.date >= CAMPAIGN_LAUNCH_DATE),
+    [allBusinessRows],
+  );
+  const kpiRecords = useMemo(
+    () => buildKpiRecordMap(kpiRecordRows, kpiRecordAsOfDay, { reportingToday }),
+    [kpiRecordRows, kpiRecordAsOfDay, reportingToday],
+  );
   // Funnel conversion (IC/ATC, Purchase/IC) is always measured since the campaign
   // launch, independent of the date picker, from per-campaign daily Meta funnel actions.
   const funnelData = useMemo(
@@ -1985,9 +2061,7 @@ function App() {
   );
   const kpiProjection = (key) => (windowHasData ? buildKpiProjectionDisplay(monthProjection, key) : null);
   const kpiRecord = (key) => (windowHasData ? buildKpiRecordDisplay(kpiRecords, key) : null);
-  const trendDayRows = adapt.toDayRows(allBusinessRows).filter(
-    (r) => r.date && r.date !== reportingToday && r.date >= CAMPAIGN_LAUNCH_DATE,
-  );
+  const trendDayRows = adapt.toDayRows(businessRows, reportingToday);
   const historicalDaily = useMemo(
     () => buildShopifyHistoricalDaily(baseProductData),
     [baseProductData],
@@ -2006,24 +2080,8 @@ function App() {
   const deliveryShape = adapt.toDeliveryShape(deliveryRowsExcludingToday);
   const growth = adapt.toProductDevelopment(launchProductData);
   const decisions = adapt.toAdSetDecisions(filtered, adsetPerfById, statusLabels);
-  const productDemand = adapt.toProductDemand(launchProductData, launchDateRange.since);
-  const countrySales = adapt.toCountrySales(countryRoasProductData.countries || [], countryRoasMetaByCode);
-  // Trailing-window country aggregates (Today / 3D / 7D / 14D) for the panel's range toggle.
-  // Each window re-runs the exact same filter + adapt pipeline as the "All" view
-  // above, just over a shorter trailing range — so no business logic is recomputed,
-  // every figure stays calculation-identical to the launch-window view.
-  const countrySalesWindows = useMemo(() => {
-    const anchor = countryRoasDateRange.until || loadedBounds.common_until || loadedBounds.until || currentReportingDay();
-    if (!anchor) return {};
-    const build = (sinceDays) => {
-      const win = clampDateRange({ since: shiftDate(anchor, sinceDays), until: anchor }, loadedBounds);
-      const ws = filterShopifyByDateRange(baseProductData, win);
-      const wm = filterMetaDataByDateRange(baseData, win);
-      const metaByCode = new Map((wm.countries || []).map((row) => [row.country_code, row]));
-      return adapt.toCountrySales(ws.countries || [], metaByCode);
-    };
-    return { Today: build(0), '3D': build(-2), '7D': build(-6), '14D': build(-13) };
-  }, [baseProductData, baseData, loadedBounds, countryRoasDateRange.until]);
+  const productDemand = adapt.toProductDemand(productData, activeDateRange.since);
+  const countrySales = adapt.toCountrySales(matchedProductData.countries || [], countryRoasMetaByCode);
   // Mobile "Top movers" — today's leader as the hero, with the current week and
   // previous week as comparison windows (paid-ads only; email orders excluded).
   const topMovers = useMemo(() => {
@@ -2131,11 +2189,12 @@ function App() {
     () => buildLaunchFindings({ delivery: deliveryShape, phases: usaOk ? usaComparison : null }),
     [deliveryShape, usaOk, usaComparison],
   );
-  // Customer-local timing uses the full launch history rather than the date picker:
-  // an hour-of-day distribution needs every order it can get to be readable.
+  // Demand panels follow the selected window. If it is too short to support a
+  // timing conclusion, CustomerClock renders an explicit low-evidence state rather
+  // than silently switching to launch history.
   const customerClock = useMemo(
-    () => buildCustomerClock(launchProductData.order_lines || [], { merchantZone: REPORTING_TIMEZONE }),
-    [launchProductData.order_lines],
+    () => buildCustomerClock(productData.order_lines || [], { merchantZone: REPORTING_TIMEZONE }),
+    [productData.order_lines],
   );
   const customerClockFindings = useMemo(
     () => buildCustomerClockFindings(customerClock),
@@ -2225,29 +2284,14 @@ function App() {
     ),
     kpis: (
       <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Business performance</p>
-          <div className="inline-flex self-start rounded-full border border-border bg-surface-2 p-1 text-xs">
-            {[['shopify', 'Shopify'], ['shopify_email', 'Shopify + Email']].map(([val, label]) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => setBusinessRevenueScope(val)}
-                aria-pressed={businessRevenueScope === val}
-                className={`rounded-full px-3 py-1 font-medium transition-all ${businessRevenueScope === val ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Business performance</p>
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-6">
-        <KpiCard label="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} delta={businessDeltas.revenue.pct} deltaLabel={businessDeltas.revenue.label} series={adapt.sparkSeries(businessRows, 'revenue_usd', allBusinessRows)} accent="brand" projection={kpiProjection('revenue_usd')} record={kpiRecord('revenue_usd')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.revenue)} {...metricDefinition('revenue_usd')} />
-        <KpiCard label="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} delta={businessDeltas.sales.pct} deltaLabel={businessDeltas.sales.label} series={adapt.sparkSeries(businessRows, 'orders', allBusinessRows)} accent="violet" projection={kpiProjection('orders')} record={kpiRecord('orders')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.sales)} {...metricDefinition('orders')} />
-        <KpiCard label="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} delta={businessDeltas.aov.pct} deltaLabel={businessDeltas.aov.label} series={adapt.sparkSeries(businessRows, 'aov', allBusinessRows)} accent="blue" projection={kpiProjection('aov')} record={kpiRecord('aov')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.aov)} {...metricDefinition('aov')} />
-        <KpiCard label="Meta spend" value={money.format(business.spend_usd)} delta={businessDeltas.spend.pct} deltaLabel={businessDeltas.spend.label} series={adapt.sparkSeries(businessRows, 'spend_usd', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('spend_usd')} record={kpiRecord('spend_usd')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.spend)} {...metricDefinition('spend_usd')} />
-        <KpiCard label="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} delta={businessDeltas.cac.pct} deltaLabel={businessDeltas.cac.label} series={adapt.sparkSeries(businessRows, 'cac', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('cac')} record={kpiRecord('cac')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.cac)} {...metricDefinition('cac')} />
-        <KpiCard label="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} delta={businessDeltas.roas.pct} deltaLabel={businessDeltas.roas.label} series={adapt.sparkSeries(businessRows, 'roas', allBusinessRows)} accent="positive" projection={kpiProjection('roas')} record={kpiRecord('roas')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.roas)} {...metricDefinition('roas')} />
+        <KpiCard label="Shopify revenue" value={money.format(business.revenue_usd)} sub={`${business.units} units sold`} delta={businessDeltas.revenue.pct} deltaLabel={businessDeltas.revenue.label} series={adapt.sparkSeries(businessRows, 'revenue_usd', allBusinessRows)} accent="brand" projection={kpiProjection('revenue_usd')} record={kpiRecord('revenue_usd')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.revenue)} {...metricDefinition('revenue_usd', businessRevenueScope)} />
+        <KpiCard label="Sales" value={compact(business.orders)} sub={`${business.units} units sold`} delta={businessDeltas.sales.pct} deltaLabel={businessDeltas.sales.label} series={adapt.sparkSeries(businessRows, 'orders', allBusinessRows)} accent="violet" projection={kpiProjection('orders')} record={kpiRecord('orders')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.sales)} {...metricDefinition('orders', businessRevenueScope)} />
+        <KpiCard label="AOV" value={business.aov ? money.format(business.aov) : 'n/a'} delta={businessDeltas.aov.pct} deltaLabel={businessDeltas.aov.label} series={adapt.sparkSeries(businessRows, 'aov', allBusinessRows)} accent="blue" projection={kpiProjection('aov')} record={kpiRecord('aov')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.aov)} {...metricDefinition('aov', businessRevenueScope)} />
+        <KpiCard label="Meta spend" value={money.format(business.spend_usd)} delta={businessDeltas.spend.pct} deltaLabel={businessDeltas.spend.label} series={adapt.sparkSeries(businessRows, 'spend_usd', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('spend_usd')} record={kpiRecord('spend_usd')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.spend)} {...metricDefinition('spend_usd', businessRevenueScope)} />
+        <KpiCard label="CAC" value={business.orders ? money.format(business.cac) : 'n/a'} delta={businessDeltas.cac.pct} deltaLabel={businessDeltas.cac.label} series={adapt.sparkSeries(businessRows, 'cac', allBusinessRows)} accent="gold" positiveWhenUp={false} projection={kpiProjection('cac')} record={kpiRecord('cac')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.cac)} {...metricDefinition('cac', businessRevenueScope)} />
+        <KpiCard label="ROAS" value={business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'} delta={businessDeltas.roas.pct} deltaLabel={businessDeltas.roas.label} series={adapt.sparkSeries(businessRows, 'roas', allBusinessRows)} accent="positive" projection={kpiProjection('roas')} record={kpiRecord('roas')} hasData={windowHasData} hasComparison={hasComparison(businessDeltas.roas)} {...metricDefinition('roas', businessRevenueScope)} />
         </div>
       </section>
     ),
@@ -2326,7 +2370,14 @@ function App() {
     ),
     decision: <AdSetDecisionTable rows={decisions} />,
     product: <ProductDemand data={productDemand} />,
-    country: <CountrySalesPanel countries={countrySales} windows={countrySalesWindows} />,
+    country: (
+      <CountrySalesPanel
+        countries={countrySales}
+        scopeLabel={activeDateRange.since === activeDateRange.until
+          ? activeDateRange.since
+          : `${activeDateRange.since} → ${activeDateRange.until}`}
+      />
+    ),
     mobileTops: <TopMovers cards={topMoverCards} focusLabel={topMoverFocusLabel} />,
     behavior: (
       <BehaviorAnalytics
@@ -2360,7 +2411,7 @@ function App() {
       <PanelFindings
         title="What customer-local timing is telling you"
         findings={customerClockFindings}
-        hint="since launch"
+        hint="selected window"
       />
     ),
     funnel: <FunnelAnalytics data={funnelData} />,
@@ -2371,7 +2422,7 @@ function App() {
       <PanelFindings title="What to cut and what to scale" findings={adsFindings} hint="selected window" />
     ),
     marketFindings: (
-      <PanelFindings title="Where to push and where to pull back" findings={marketFindings} hint="since launch" />
+      <PanelFindings title="Where demand is strongest" findings={marketFindings} hint="selected window" />
     ),
     launchFindings: (
       <PanelFindings title="How the launch is delivering" findings={launchFindings} hint="launch window" />
@@ -2398,7 +2449,7 @@ function App() {
         <div className="mx-auto max-w-7xl space-y-7">
           <MobileFilters {...filterProps} />
 
-          <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <header>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Commerce command center</p>
               <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -2408,17 +2459,17 @@ function App() {
                 Live Shopify sales, Meta spend, and launch momentum in one command view · {dateRangeLabel(activeDateRange, datePreset, loadedBounds)}
               </p>
             </div>
-            <div className="flex gap-3">
-              <div className="panel px-5 py-3">
-                <p className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">Total revenue</p>
-                <p className="font-display text-xl font-semibold tracking-tight">{money.format(business.revenue_usd)}</p>
-              </div>
-              <div className="panel px-5 py-3">
-                <p className="text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">Blended ROAS</p>
-                <p className="font-display text-xl font-semibold tracking-tight text-positive">{business.roas ? `${business.roas.toFixed(2)}x` : 'n/a'}</p>
-              </div>
-            </div>
           </header>
+
+          <DashboardScopeBar
+            range={activeDateRange}
+            presetLabel={datePresets.find((preset) => preset.value === datePreset)?.label || 'Custom'}
+            metaUntil={loadedBounds.latest_meta_day}
+            shopifyUntil={loadedBounds.latest_shopify_day}
+            laggingSource={loadedBounds.lagging_source}
+            revenueScope={businessRevenueScope}
+            onRevenueScopeChange={setBusinessRevenueScope}
+          />
 
           <nav className="sticky top-0 z-30 -mx-5 border-b border-border bg-background/85 px-5 py-2.5 backdrop-blur-md sm:-mx-8 sm:px-8 lg:-mx-10 lg:px-10">
             <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

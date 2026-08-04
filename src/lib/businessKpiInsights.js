@@ -183,6 +183,7 @@ export function detectKpiRecord(rows, key, { today, intraday = false } = {}) {
           value: todayValue,
           date: today,
           asOf: today,
+          strictBeat: true,
           recordKey: `${key}:all-high-intraday:${today}`,
       };
     }
@@ -236,14 +237,20 @@ export function detectKpiRecord(rows, key, { today, intraday = false } = {}) {
     value: latest.v,
     date: latest.date,
     asOf: today,
+    strictBeat: kind === 'all-high'
+      ? latest.v > priorMax + epsilon
+      : kind === 'all-low'
+        ? latest.v < priorMin - epsilon
+        : true,
     recordKey: `${key}:${kind}:${latest.date}`,
   };
 }
 
-export function buildKpiRecordMap(rows, today) {
+export function buildKpiRecordMap(rows, today, { reportingToday = today } = {}) {
+  const allowIntraday = today === reportingToday;
   return {
-    revenue_usd: detectKpiRecord(rows, 'revenue_usd', { today, intraday: true }),
-    orders: detectKpiRecord(rows, 'orders', { today, intraday: true }),
+    revenue_usd: detectKpiRecord(rows, 'revenue_usd', { today, intraday: allowIntraday }),
+    orders: detectKpiRecord(rows, 'orders', { today, intraday: allowIntraday }),
     aov: detectKpiRecord(rows, 'aov', { today }),
     spend_usd: detectKpiRecord(rows, 'spend_usd', { today }),
     cac: detectKpiRecord(rows, 'cac', { today }),
@@ -306,7 +313,7 @@ export function buildKpiRecordDisplay(records, key) {
     detail,
     tip,
     favorable: record.favorable,
-    celebrate: record.favorable && record.scope === 'all',
+    celebrate: record.favorable && record.scope === 'all' && record.strictBeat === true,
     recordKey: record.recordKey,
     high,
   };

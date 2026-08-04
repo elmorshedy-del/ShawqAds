@@ -114,12 +114,13 @@ export function PanelFindings({
   title,
   findings,
   hint,
+  emptyText = "No material movement found, or there is not enough comparable data yet.",
 }: {
   title: string;
   findings: Finding[];
   hint?: string;
+  emptyText?: string;
 }) {
-  if (!findings.length) return null;
   return (
     <section className="panel overflow-hidden">
       <header className="flex flex-wrap items-center gap-2 border-b border-border px-6 py-3.5">
@@ -129,11 +130,18 @@ export function PanelFindings({
         <h2 className="font-display text-sm font-semibold tracking-tight">{title}</h2>
         {hint ? <span className="text-xs text-muted-foreground">· {hint}</span> : null}
       </header>
-      <ul className="divide-y divide-border/70">
-        {findings.map((finding) => (
-          <FindingRow key={finding.id} finding={finding} />
-        ))}
-      </ul>
+      {findings.length ? (
+        <ul className="divide-y divide-border/70">
+          {findings.map((finding) => (
+            <FindingRow key={finding.id} finding={finding} />
+          ))}
+        </ul>
+      ) : (
+        <div className="flex items-start gap-2.5 px-6 py-4 text-xs leading-relaxed text-muted-foreground">
+          <Minus className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>{emptyText}</p>
+        </div>
+      )}
     </section>
   );
 }

@@ -221,6 +221,7 @@ export interface CountrySales {
   country: string;
   roas: number;
   units: number;
+  orders: number;
   revenue: number;
   spend: number;
   products: number;

@@ -1,4 +1,5 @@
 import {
+  buildKpiRecordDisplay,
   buildMonthProjection,
   detectKpiRecord,
 } from '../src/lib/businessKpiInsights.js';
@@ -33,6 +34,11 @@ const tieAllTimeRows = [
 ];
 const tieRecord = detectKpiRecord(tieAllTimeRows, 'revenue_usd', { today: '2026-06-14' });
 assert(tieRecord?.scope === 'all' && tieRecord?.kind === 'all-high', 'Tied all-time high must beat week high on the card');
+assert(tieRecord?.strictBeat === false, 'A tied all-time high is not a strict beat');
+assert(
+  buildKpiRecordDisplay({ revenue_usd: tieRecord }, 'revenue_usd')?.celebrate === false,
+  'A tied all-time high must never fire confetti',
+);
 
 const weekOnlyRows = [
   { date: '2026-06-01', revenue_usd: 2000, spend_usd: 100, orders: 10, units: 10 },
@@ -58,5 +64,6 @@ const intradayBeatRows = [
 ];
 const intradayBeat = detectKpiRecord(intradayBeatRows, 'revenue_usd', { today: '2026-06-11', intraday: true });
 assert(intradayBeat?.intraday === true && intradayBeat?.kind === 'all-high', 'A strict new high must fire the intraday all-time high');
+assert(intradayBeat?.strictBeat === true, 'A strict intraday record must carry the strict-beat marker');
 
 console.log('business KPI insights checks passed');
