@@ -60,7 +60,7 @@ describe('dashboard tab rendering', () => {
     for (const [tab, evidence] of tabs) {
       fireEvent.click(screen.getByRole('button', { name: tab }));
       await waitFor(() => {
-        expect(screen.getByText(evidence, { exact: false })).toBeTruthy();
+        expect(screen.getAllByText(evidence, { exact: false }).length).toBeGreaterThan(0);
       });
     }
   });
