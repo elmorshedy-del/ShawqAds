@@ -1,6 +1,6 @@
 # Project Overview
 
-**Last Updated:** 2026-06-26
+**Last Updated:** 2026-08-05
 
 ---
 
@@ -15,9 +15,9 @@
 | Repository       | workspace              |
 | Detected profile | mixed                  |
 | Languages        | JavaScript, TypeScript |
-| Frameworks       | React                  |
+| Frameworks       | React, Vitest          |
 | Manifests        | 3                      |
-| Source files     | 62                     |
+| Source files     | 74                     |
 
 ## Quick Start
 

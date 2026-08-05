@@ -1,9 +1,9 @@
 # Architecture Flow
 
-**Last Updated:** 2026-06-15
-**Graph Commit:** 279e713
-**Health:** F (21/100)
-**Files:** 120 | **Edges:** 68 | **Functions:** 860
+**Last Updated:** 2026-08-05
+**Graph Commit:** 1b4031f
+**Health:** F (9/100)
+**Files:** 173 | **Edges:** 110 | **Functions:** 1229
 
 ---
 
@@ -11,10 +11,10 @@
 
 | Layer | Summary |
 |---|---|
-| `utils` | 93 files | `.gitignore`, `AGENTS.md` +91 more |
+| `utils` | 139 files | `.gitignore`, `AGENTS.md` +137 more |
 | `config` | 2 files | `package.json`, `tsconfig.json` |
+| `components` | 30 files | `src/components/dashboard/AdSetDecisionTable.tsx`, `src/components/dashboard/BehaviorAnalytics.tsx` +28 more |
 | `ui` | 2 files | `src/components/ui/input.tsx`, `src/components/ui/select.tsx` |
-| `components` | 23 files | `src/components/dashboard/AdSetDecisionTable.tsx`, `src/components/dashboard/BehaviorAnalytics.tsx` +21 more |
 
 ## Critical Paths
 
@@ -26,14 +26,14 @@ Files with the most dependents — changes here have the widest blast radius.
 
 | File | Dependents | Risk |
 |---|---|---|
+| `src/lib/pagePath.js` | 8 | High |
 | `src/lib/productMapping.js` | 6 | High |
 | `src/lib/dwellStats.js` | 4 | Medium |
 | `src/lib/orderChannel.mjs` | 4 | Medium |
-| `src/lib/pagePath.js` | 4 | Medium |
 | `src/lib/statsTests.js` | 4 | Medium |
 | `src/lib/orderLocality.js` | 3 | Medium |
 | `src/lib/orderMerchandise.js` | 3 | Medium |
-| `src/lib/businessKpiInsights.js` | 2 | Medium |
+| `src/lib/reportingBounds.js` | 3 | Medium |
 
 ## Entry Points
 
@@ -49,6 +49,40 @@ Public surface — files that no other file imports:
 - `skills-lock.json`
 - `vite.config.js`
 - `.cursor/mcp.json`
+- `scripts/analytics-insights-test.mjs`
+- `scripts/behavior-actions-test.mjs`
+- `scripts/behavior-developing-day-test.mjs`
+- `scripts/behavior-persistence-test.mjs`
+- `scripts/behavior-tiers-test.mjs`
+- `scripts/business-kpi-insights-test.mjs`
+- `scripts/campaign-attribution-test.mjs`
+- `scripts/campaign-pacing-test.mjs`
+- `scripts/checkout-theater-test.mjs`
+- `scripts/customer-clock-test.mjs`
+- `scripts/dashboard-regression-test.mjs`
+- `scripts/dashboard-scope-test.mjs`
+- `scripts/dwell-stats-test.mjs`
+- `scripts/email-channel-smoke-test.mjs`
+- `scripts/export-tiktok-us-purchasers.mjs`
+- `scripts/fetch-behavior-intelligence.mjs`
+- `scripts/fetch-meta-insights.mjs`
+- `scripts/fetch-shopify-products.mjs`
+- `scripts/funnel-analytics-test.mjs`
+- `scripts/historical-insights-test.mjs`
+- `scripts/inspect-live-order.mjs`
+- `scripts/install-shopify-session-recorder.mjs`
+- `scripts/location-label-test.mjs`
+- `scripts/order-drop-rankings-test.mjs`
+- `scripts/order-locality-test.mjs`
+- `scripts/order-merchandise-test.mjs`
+- `scripts/page-path-test.mjs`
+- `scripts/reporting-data-contract-test.mjs`
+- `scripts/revenue-scope-test.mjs`
+- `scripts/session-events-smoke-test.mjs`
+- `scripts/session-replay-index-test.mjs`
+- `scripts/session-replay-smoke-test.mjs`
+- `scripts/stats-tests.mjs`
+- `scripts/tab-insights-test.mjs`
 - `memory/00-project-overview.md`
 - `memory/01-repository-map.md`
 - `memory/02-system-architecture.md`
@@ -60,39 +94,34 @@ Public surface — files that no other file imports:
 - `memory/08-known-issues-and-tech-debt.md`
 - `memory/09-agent-guidelines.md`
 - `memory/10-agent-worklog.md`
+- `memory/11-shawq-domain-map.md`
+- `memory/12-checkout-replay-research.md`
 - `memory/README.md`
+- `memory/agent-handoff.md`
+- `memory/architecture-flow.md`
 - `memory/context-index.json`
-- `scripts/business-kpi-insights-test.mjs`
-- `scripts/dashboard-regression-test.mjs`
-- `scripts/dwell-stats-test.mjs`
-- `scripts/email-channel-smoke-test.mjs`
-- `scripts/export-tiktok-us-purchasers.mjs`
-- `scripts/fetch-behavior-intelligence.mjs`
-- `scripts/fetch-meta-insights.mjs`
-- `scripts/fetch-shopify-products.mjs`
-- `scripts/historical-insights-test.mjs`
-- `scripts/inspect-live-order.mjs`
-- `scripts/location-label-test.mjs`
-- `scripts/order-locality-test.mjs`
-- `scripts/order-merchandise-test.mjs`
-- `scripts/page-path-test.mjs`
-- `scripts/session-events-smoke-test.mjs`
-- `scripts/stats-tests.mjs`
+- `memory/cross-repo-links.json`
 - `shopify/customer-events-pixel.js`
+- `shopify/pdp-intelligence-probe.js`
+- `shopify/theme-session-replay.js`
 - `src/main.jsx`
+- `deploy/agentmemory/RAILWAY.md`
+- `deploy/agentmemory/entrypoint.sh`
+- `deploy/agentmemory/railway.json`
+- `extensions/shawq-advanced-dom-pixel/README.md`
+- `src/lib/kpiConfetti.js`
+- `src/lib/utils.ts`
 - `.cursor/skills/agentmemory-agents/REFERENCE.md`
 - `.cursor/skills/agentmemory-agents/SKILL.md`
 - `.cursor/skills/agentmemory-architecture/SKILL.md`
-- `src/lib/kpiConfetti.js`
-- `src/lib/utils.ts`
 - `.cursor/skills/agentmemory-config/REFERENCE.md`
 - `.cursor/skills/agentmemory-config/SKILL.md`
+- `.cursor/skills/agentmemory-rest-api/REFERENCE.md`
+- `.cursor/skills/agentmemory-rest-api/SKILL.md`
 - `.cursor/skills/agentmemory-hooks/REFERENCE.md`
 - `.cursor/skills/agentmemory-hooks/SKILL.md`
 - `.cursor/skills/agentmemory-mcp-tools/REFERENCE.md`
 - `.cursor/skills/agentmemory-mcp-tools/SKILL.md`
-- `.cursor/skills/agentmemory-rest-api/REFERENCE.md`
-- `.cursor/skills/agentmemory-rest-api/SKILL.md`
 - `.cursor/skills/commit-context/EXAMPLES.md`
 - `.cursor/skills/commit-context/SKILL.md`
 - `.cursor/skills/commit-history/EXAMPLES.md`
@@ -111,10 +140,14 @@ Public surface — files that no other file imports:
 - `.cursor/skills/session-history/EXAMPLES.md`
 - `.cursor/skills/session-history/SKILL.md`
 - `.cursor/skills/write-agentmemory-skill/SKILL.md`
-- `src/components/ui/input.tsx`
-- `src/components/ui/select.tsx`
+- `src/components/dashboard/CheckoutTheater.tsx`
+- `src/components/dashboard/EmptyState.tsx`
 - `src/components/dashboard/LiveMonitor.tsx`
 - `src/components/dashboard/PanelScopeToggle.tsx`
+- `src/components/dashboard/SessionReplayPanel.tsx`
+- `src/components/ui/input.tsx`
+- `src/components/ui/select.tsx`
+- `src/features/product-demand/constants.js`
 
 ## Circular Dependencies
 
@@ -122,6 +155,9 @@ None detected. ✅
 
 ## Layer Violations
 
+- `src/App.jsx` (utils) → `src/components/dashboard/CampaignPacing.tsx` (components)
+- `src/App.jsx` (utils) → `src/components/dashboard/CustomerClock.tsx` (components)
+- `src/App.jsx` (utils) → `src/components/dashboard/KeyFindings.tsx` (components)
 - `src/App.jsx` (utils) → `src/components/dashboard/Sidebar.tsx` (components)
 - `src/App.jsx` (utils) → `src/components/dashboard/OrdersMap.tsx` (components)
 - `src/App.jsx` (utils) → `src/components/dashboard/KpiCard.tsx` (components)
@@ -129,9 +165,6 @@ None detected. ✅
 - `src/App.jsx` (utils) → `src/components/dashboard/SalesLeaders.tsx` (components)
 - `src/App.jsx` (utils) → `src/components/dashboard/Benchmarks.tsx` (components)
 - `src/App.jsx` (utils) → `src/components/dashboard/CampaignRoasTree.tsx` (components)
-- `src/App.jsx` (utils) → `src/components/dashboard/LeadershipTables.tsx` (components)
-- `src/App.jsx` (utils) → `src/components/dashboard/UsaComparison.tsx` (components)
-- `src/App.jsx` (utils) → `src/components/dashboard/DailyDelivery.tsx` (components)
 
 ## Potentially Dead Code
 
@@ -148,7 +181,9 @@ None detected. ✅
 
 ## Security Issues
 
-- `server.mjs` line 1486: **debug-statement** (low)
+- `server.mjs` line 235: **debug-statement** (low)
+- `server.mjs` line 238: **debug-statement** (low)
+- `server.mjs` line 1956: **debug-statement** (low)
 - `skills-lock.json` line 8: **hardcoded-secret** (medium)
 - `skills-lock.json` line 14: **hardcoded-secret** (medium)
 - `skills-lock.json` line 20: **hardcoded-secret** (medium)
@@ -156,8 +191,6 @@ None detected. ✅
 - `skills-lock.json` line 32: **hardcoded-secret** (medium)
 - `skills-lock.json` line 38: **hardcoded-secret** (medium)
 - `skills-lock.json` line 44: **hardcoded-secret** (medium)
-- `skills-lock.json` line 50: **hardcoded-secret** (medium)
-- `skills-lock.json` line 56: **hardcoded-secret** (medium)
 
 ## Agent Navigation Hints
 

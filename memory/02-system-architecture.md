@@ -1,6 +1,6 @@
 # System Architecture
 
-**Last Updated:** 2026-06-26
+**Last Updated:** 2026-08-05
 
 ---
 
@@ -12,7 +12,7 @@ This is an inferred architecture document. Treat sections marked `[INFERRED]`, `
 
 - Project profile: `mixed`
 - Detected profiles: `cli-package`, `frontend`, `mixed`
-- Frameworks: React
+- Frameworks: React, Vitest
 
 ## Mermaid Sketch
 
@@ -27,14 +27,23 @@ flowchart LR
 
 ## Deployment Hints
 
+- `AGENTS.md`
 - `README.md`
 - `deploy/agentmemory/Dockerfile`
 - `extensions/shawq-advanced-dom-pixel/README.md`
+- `package.json`
 - `shopify/pdp-intelligence-probe.js`
+- `src/App.jsx`
+- `src/App.render.test.jsx`
 - `src/components/dashboard/BehaviorAnalytics.tsx`
 - `src/components/dashboard/DailyDelivery.tsx`
+- `src/components/dashboard/EmptyState.tsx`
+- `src/components/dashboard/KpiCard.tsx`
 - `src/components/dashboard/OrdersMap.tsx`
 - `src/components/dashboard/Sidebar.tsx`
+- `src/components/dashboard/UsaComparison.tsx`
+- `src/lib/adapt.js`
+- `src/lib/tabInsights.js`
 - `src/main.jsx`
 
 ## Open Architecture Questions

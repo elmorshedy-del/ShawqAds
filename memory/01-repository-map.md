@@ -1,6 +1,6 @@
 # Repository Map
 
-**Last Updated:** 2026-06-26
+**Last Updated:** 2026-08-05
 
 ---
 
@@ -18,20 +18,25 @@
 - `shopify/pdp-intelligence-probe.js`
 - `shopify/theme-session-replay.js`
 - `src/App.jsx`
+- `src/App.render.test.jsx`
 - `src/components/dashboard/AdSetDecisionTable.tsx`
 - `src/components/dashboard/BehaviorAnalytics.tsx`
 - `src/components/dashboard/Benchmarks.tsx`
+- `src/components/dashboard/CampaignPacing.tsx`
 - `src/components/dashboard/CampaignRoasTree.tsx`
 - `src/components/dashboard/CheckoutTheater.tsx`
 - `src/components/dashboard/CountrySalesPanel.tsx`
+- `src/components/dashboard/CustomerClock.tsx`
 - `src/components/dashboard/DailyDelivery.tsx`
+- `src/components/dashboard/DashboardScopeBar.tsx`
 - `src/components/dashboard/DataTable.tsx`
 - `src/components/dashboard/DevelopingGrowth.tsx`
 - `src/components/dashboard/EmailCampaign.tsx`
+- `src/components/dashboard/EmptyState.tsx`
 - `src/components/dashboard/FunnelAnalytics.tsx`
 - `src/components/dashboard/HistoricalInsights.tsx`
+- `src/components/dashboard/KeyFindings.tsx`
 - `src/components/dashboard/KpiCard.tsx`
-- `src/components/dashboard/LeadershipTables.tsx`
 - `src/components/dashboard/LiveMonitor.tsx`
 - `src/components/dashboard/OrderDropRankings.tsx`
 - `src/components/dashboard/OrdersMap.tsx`
@@ -49,17 +54,23 @@
 - `src/features/adset-radar/constants.js`
 - `src/features/product-demand/constants.js`
 - `src/lib/adapt.js`
+- `src/lib/analyticsInsights.js`
+- `src/lib/behaviorActions.js`
 - `src/lib/behaviorPersistence.js`
 - `src/lib/businessKpiInsights.js`
 - `src/lib/campaignAttribution.js`
+- `src/lib/campaignPacing.js`
 - `src/lib/checkoutTheater.js`
+- `src/lib/customerClock.js`
 - `src/lib/dashboard-data.ts`
+- `src/lib/dashboardScope.js`
 - `src/lib/dwellStats.js`
 - `src/lib/emailCampaignSummary.js`
 - `src/lib/format.js`
 - `src/lib/funnelAnalytics.js`
 - `src/lib/historicalInsights.js`
 - `src/lib/kpiConfetti.js`
+- `src/lib/metricDefinitions.js`
 - `src/lib/orderDropRankings.js`
 - `src/lib/orderLocality.js`
 - `src/lib/orderMerchandise.js`
@@ -72,6 +83,7 @@
 - `src/lib/sessionRecorderInstall.js`
 - `src/lib/sessionReplay.js`
 - `src/lib/statsTests.js`
+- `src/lib/tabInsights.js`
 - `src/lib/trafficSource.js`
 - `src/lib/utils.ts`
 - `src/main.jsx`
