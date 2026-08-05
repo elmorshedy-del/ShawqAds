@@ -36,7 +36,7 @@ export function DashboardScopeBar({
             <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               Selected window · {presetLabel}
             </p>
-            <p className="truncate text-xs font-medium tabular-nums text-foreground">{dateLabel(range)}</p>
+            <p className="break-words text-xs font-medium leading-snug tabular-nums text-foreground">{dateLabel(range)}</p>
           </div>
         </div>
 

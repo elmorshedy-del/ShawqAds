@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   Clock,
@@ -6,6 +6,7 @@ import {
   FlaskConical,
   Globe,
   Heart,
+  ListChecks,
   Package,
   Users,
 } from "lucide-react";
@@ -20,9 +21,9 @@ import {
 import {
   comparabilityTier,
   MIN_COMPARABLE_SESSIONS,
-  SAMPLE_TIER_LEGEND,
 } from "@/lib/sampleTiers";
 import { dwellPageInsight } from "@/lib/dwellStats";
+import { buildBehaviorActions } from "@/lib/behaviorActions";
 import { BRAND_PAGES_LABEL, brandPageName } from "@/lib/pageCategory";
 import { PanelScopeToggle, type PanelScope } from "@/components/dashboard/PanelScopeToggle";
 import { SessionReplayPanel } from "@/components/dashboard/SessionReplayPanel";
@@ -134,8 +135,8 @@ function TierPill({ sessions }: { sessions?: number }) {
           : "bg-surface-2 text-muted-foreground";
   return (
     <span
-      title={`${tier.label} — accuracy ${tier.accuracy} · ${compact(n)} sessions`}
-      className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium", tone)}
+      title={`${tier.label} · ${compact(n)} sessions`}
+      className={cn("shrink-0 rounded-full px-2 py-0.5 text-[0.7rem] font-medium", tone)}
     >
       {tier.label}
     </span>
@@ -144,7 +145,9 @@ function TierPill({ sessions }: { sessions?: number }) {
 
 function SampleTierLegend() {
   return (
-    <p className="mt-1 text-[0.65rem] leading-relaxed text-muted-foreground">{SAMPLE_TIER_LEGEND}</p>
+    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+      More sessions make the comparison more dependable: Early 30+, Comparable 100+, Reliable 400+.
+    </p>
   );
 }
 
@@ -181,8 +184,57 @@ function EmptyBlock({ title, text, dense }: { title: string; text: string; dense
       )}
     >
       <p className="text-xs font-semibold">{title}</p>
-      <p className="mt-1 text-[0.65rem] leading-relaxed text-muted-foreground">{text}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
     </div>
+  );
+}
+
+const actionTone: Record<string, string> = {
+  negative: "border-destructive/30 bg-destructive/5",
+  watch: "border-gold/30 bg-gold/5",
+  neutral: "border-border bg-surface-2/40",
+};
+
+function BehaviorActionSummary({ behavior }: { behavior: BehaviorData }) {
+  const actions = useMemo(() => buildBehaviorActions(behavior), [behavior]);
+  return (
+    <section className="rounded-xl border border-border bg-card">
+      <header className="flex items-start gap-2.5 border-b border-border px-4 py-3.5">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+          <ListChecks className="h-4 w-4" />
+        </span>
+        <div>
+          <h3 className="font-display text-base font-semibold">What to do next</h3>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            Priorities appear only when the segment has enough sessions and moves meaningfully above its baseline.
+          </p>
+        </div>
+      </header>
+      <div className="grid grid-cols-1 gap-3 p-4 xl:grid-cols-3">
+        {actions.map((item: any, index: number) => (
+          <article key={item.id} className={cn("rounded-xl border p-4", actionTone[item.tone] || actionTone.neutral)}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                {item.tone === "neutral" ? "Status" : `Priority ${index + 1}`}
+              </p>
+              <span className="rounded-full bg-card/80 px-2 py-1 text-xs font-medium text-muted-foreground">
+                {item.confidence}
+              </span>
+            </div>
+            <h4 className="mt-2 break-words font-display text-base font-semibold leading-snug">{item.title}</h4>
+            <p className="mt-2 break-words text-xs font-medium leading-relaxed text-foreground">{item.stat}</p>
+            <p className="mt-2 break-words text-xs leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-foreground/75">What it means · </span>
+              {item.meaning}
+            </p>
+            <p className="mt-2 break-words text-xs leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-brand">Do this · </span>
+              {item.action}
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -408,7 +460,7 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
                   )}
                   <div className="min-w-0">
                     <p className="break-words text-sm font-semibold">{main.product || "Unknown product"}</p>
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="break-words text-xs leading-snug text-muted-foreground">
                       {main.family || "Other"} · {main.subtype || "Unknown"}
                     </p>
                   </div>
@@ -463,7 +515,7 @@ function RankRow({
       <span className="flex min-w-0 items-center gap-2 text-xs">
         <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">{rank}</span>
         {type === "country" ? <span className="shrink-0">{countryFlag(row.country_code)}</span> : null}
-        <span className="truncate">{label}</span>
+        <span className="break-words leading-snug">{label}</span>
       </span>
       <div className="flex shrink-0 items-center gap-2 text-right">
         <div>
@@ -894,7 +946,7 @@ export function BehaviorAnalytics({
   onScopeChange?: (scope: PanelScope) => void;
   rangeLabel?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const period = behavior?.period || {};
   const checkoutCountries = behavior?.matrix?.checkout?.countries || [];
   const paymentCountries = behavior?.matrix?.submit_payment?.countries || [];
@@ -934,12 +986,12 @@ export function BehaviorAnalytics({
               <h2 className="font-display text-lg font-semibold tracking-tight">
                 Behavior friction &amp; journeys
               </h2>
-              <span className="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-gold">
-                In development
+              <span className="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-gold">
+                Early data
               </span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Product &amp; country friction, pages, dwell, and journeys · collapsed by default
+              Clear priorities first, with the supporting checkout, page, and journey evidence below
             </p>
           </div>
         </button>
@@ -957,7 +1009,7 @@ export function BehaviorAnalytics({
             aria-expanded={open}
             aria-label={open ? "Collapse behavior panel" : "Expand behavior panel"}
             onClick={() => setOpen((current) => !current)}
-            className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
           </button>
@@ -974,8 +1026,7 @@ export function BehaviorAnalytics({
           ) : null}
 
           <BehaviorDevelopingBanner behavior={behavior} />
-          <SessionIngestBanner behavior={behavior} />
-          <ExtractionStatus behavior={behavior} />
+          <BehaviorActionSummary behavior={behavior} />
 
           {/* 1 — Where the money leaks: product-level friction */}
           <ProductMatrix behavior={behavior} />
@@ -1060,6 +1111,19 @@ export function BehaviorAnalytics({
           </div>
 
           <SessionReplayPanel />
+
+          <details className="rounded-xl border border-border bg-surface-2/30">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-foreground">
+              Data collection status
+            </summary>
+            <div className="space-y-3 border-t border-border px-4 py-4">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Use this only when the action cards are waiting for data or a source appears stale.
+              </p>
+              <SessionIngestBanner behavior={behavior} />
+              <ExtractionStatus behavior={behavior} />
+            </div>
+          </details>
         </div>
       ) : null}
     </div>

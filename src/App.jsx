@@ -2429,7 +2429,7 @@ function App() {
                     className={`flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-semibold transition-colors sm:px-3 ${on ? 'bg-brand text-white shadow-sm' : 'bg-surface-2 text-muted-foreground hover:bg-surface-2/80 hover:text-foreground'}`}
                   >
                     <Icon className="h-3.5 w-3.5" />
-                    <span className="truncate">{g.label}</span>
+                    <span className="break-words text-center leading-snug">{g.label}</span>
                   </button>
                 );
               })}

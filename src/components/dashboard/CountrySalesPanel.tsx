@@ -32,7 +32,7 @@ function CountryRow({ c, delay }: { c: CountrySales; delay: number }) {
       >
         <span className="text-xl leading-none">{c.flag}</span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{c.country}</p>
+          <p className="break-words text-sm font-semibold leading-snug">{c.country}</p>
           <p className="text-xs text-muted-foreground">
             {c.orders} orders · {c.units} units · {c.products} products
           </p>
