@@ -1,4 +1,5 @@
 import {
+  CUSTOMER_CLOCK_MIN_ORDERS,
   buildCustomerClock,
   buildCustomerClockFindings,
   distinctOrders,
@@ -78,6 +79,7 @@ assert(
   buildCustomerClockFindings(tiny).length === 0,
   'a single order must not produce a scheduling recommendation',
 );
+assert(CUSTOMER_CLOCK_MIN_ORDERS === 30, 'timing charts and findings should share the 30-order evidence floor');
 
 // A concentrated, high-volume day set should produce a peak finding.
 const many = [];

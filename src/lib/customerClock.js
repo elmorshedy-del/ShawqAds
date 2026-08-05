@@ -61,6 +61,7 @@ export const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thurs
 export const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const formatterCache = new Map();
+export const CUSTOMER_CLOCK_MIN_ORDERS = 30;
 function partsIn(zone, date) {
   let fmt = formatterCache.get(zone);
   if (!fmt) {
@@ -211,7 +212,7 @@ export function formatHourWindow(window) {
  * Deliberately silent below a usable sample — a peak window inferred from a
  * handful of orders would send someone to reschedule their entire ad delivery.
  */
-export function buildCustomerClockFindings(clock, { minOrders = 30 } = {}) {
+export function buildCustomerClockFindings(clock, { minOrders = CUSTOMER_CLOCK_MIN_ORDERS } = {}) {
   if (!clock || clock.mapped < minOrders) return [];
   const findings = [];
   const peak = clock.peakWindow;
