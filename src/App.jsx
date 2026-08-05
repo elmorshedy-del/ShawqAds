@@ -2323,7 +2323,7 @@ function App() {
       icon: LayoutDashboard,
       question: 'What changed, and what needs attention first?',
       detail: 'Selected-window business outcomes, supporting trend, and live order evidence.',
-      ids: ['keyFindings', 'kpis', 'orderDrop', 'orderLift', 'revenue', 'mobileTops', 'ordersMap', 'data'],
+      ids: ['ordersMap', 'kpis', 'orderDrop', 'orderLift', 'revenue', 'mobileTops', 'keyFindings'],
     },
     {
       key: 'media',

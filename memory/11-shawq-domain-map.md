@@ -8,7 +8,7 @@ Use this file to find code by feature. Open the listed paths directly instead of
 
 | Tab | Section IDs | Primary files |
 |-----|-------------|---------------|
-| Overview | keyFindings, kpis, orderDrop/orderLift, revenue, ordersMap, data | `src/App.jsx`, `KpiCard.tsx`, `KeyFindings.tsx`, `analyticsInsights.js`, `RevenueChart.tsx`, `OrdersMap.tsx` |
+| Overview | ordersMap, kpis, orderDrop/orderLift, revenue, keyFindings | `src/App.jsx`, `KpiCard.tsx`, `KeyFindings.tsx`, `analyticsInsights.js`, `RevenueChart.tsx`, `OrdersMap.tsx` |
 | Media | mediaFindings, campaignPacing, decision, tree, delivery, usa, benchmarks, edits | `CampaignPacing.tsx`, `campaignPacing.js`, `AdSetDecisionTable.tsx`, `CampaignRoasTree.tsx`, `DailyDelivery.tsx`, `App.jsx` |
 | Conversion | conversionFindings, funnel, behavior | `FunnelAnalytics.tsx`, `BehaviorAnalytics.tsx`, `funnelAnalytics.js`, `dwellStats.js` |
 | Demand | demandFindings, product, country, growth, salesLeader, emailCampaign, historicalInsights, customerClock | `ProductDemand.tsx`, `CountrySalesPanel.tsx`, `HistoricalInsights.tsx`, `CustomerClock.tsx`, `App.jsx` |
