@@ -8,10 +8,11 @@
 
 - Last agent: cursor
 - Last event: checkpoint
-- Last message: Restored the Overview data-first hierarchy with live orders and KPIs before narrative findings
+- Last message: Replaced the funnel's default line clutter with raw stage totals and optional three-campaign trend detail
 
 ## Recent Events
 
+- 2026-08-05T01:55:42.431Z | cursor | checkpoint: Replaced the funnel's default line clutter with raw stage totals and optional three-campaign trend detail
 - 2026-08-05T01:53:17.759Z | cursor | checkpoint: Restored the Overview data-first hierarchy with live orders and KPIs before narrative findings
 - 2026-08-05T00:15:16.712Z | cursor | checkpoint: Overhauled dashboard into four decision areas; unified matched source/date scopes; replaced monthly spend model with Meta campaign pacing; added mounted tab tests; simplified behavior into plain-language actions without replacing accumulated snapshots
 - 2026-06-26T06:53:01.719Z | cursor | checkpoint: Added Clarity-style checkout session replay: theme rrweb recorder, /api/session-replay ingest+index APIs, SessionReplayPanel in Behavior tab.
@@ -23,6 +24,9 @@
 
 ## Files Mentioned
 
+- `src/components/dashboard/FunnelAnalytics.tsx`
+- `src/lib/funnelAnalytics.js`
+- `scripts/funnel-analytics-test.mjs`
 - `src/App.jsx`
 - `memory/11-shawq-domain-map.md`
 - `src/lib/dashboardScope.js`
@@ -42,6 +46,9 @@
 - `deploy/agentmemory/RAILWAY.md`
 ## Graph Context for Mentioned Files
 
+- `src/components/dashboard/FunnelAnalytics.tsx` — layer: components, importedBy: 1, health: 77/100
+- `src/lib/funnelAnalytics.js` — layer: utils, importedBy: 2, health: 80/100
+- `scripts/funnel-analytics-test.mjs` — layer: utils, importedBy: 0, health: 98/100
 - `src/App.jsx` — layer: utils, importedBy: 1, health: 50/100
 - `memory/11-shawq-domain-map.md` — layer: utils, importedBy: 0, health: 100/100
 - `src/lib/dashboardScope.js` — layer: utils, importedBy: 2, health: 80/100

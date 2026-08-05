@@ -51,6 +51,17 @@ const shrunk = buildFunnelAnalytics({ metaRows, orderLines }, { window: 7, minDe
 const s0 = shrunk.icAtc.points[0].account;
 assert(s0 > 100 && s0 < 165.5, `Shrinkage should pull day0 index toward 100, got ${s0}`);
 
+// Campaign detail stays intentionally limited so the chart remains readable.
+const manyCampaigns = ['A', 'B', 'C', 'D'].map((id) => ({
+  date: '2026-06-03',
+  campaign_id: id,
+  campaign_name: `Campaign ${id}`,
+  add_to_cart: 30,
+  checkout_initiated: 15,
+}));
+const limited = buildFunnelAnalytics({ metaRows: manyCampaigns, orderLines: [] });
+assert(limited.icAtc.campaigns.length === 3, `default campaign detail should be capped at 3, got ${limited.icAtc.campaigns.length}`);
+
 // Divide-by-zero safety.
 const empty = buildFunnelAnalytics({ metaRows: [{ date: '2026-06-03', campaign_id: 'X', add_to_cart: 0, checkout_initiated: 0 }], orderLines: [] }, { window: 7 });
 assert(empty.hasData === false, 'all-zero meta should report hasData false');

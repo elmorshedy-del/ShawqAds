@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -8,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Filter, TrendingDown, TrendingUp } from "lucide-react";
+import { Filter, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Muted, distinct palette for per-campaign lines. The account line uses the brand
@@ -55,59 +56,57 @@ const pctLabel = (v: number | null | undefined) =>
   v == null || !Number.isFinite(v) ? "—" : `${Math.round(v)}%`;
 const mmdd = (d: string) => (d && d.length >= 10 ? d.slice(5) : d);
 
-function SummaryCard({
-  accent,
-  badge,
-  title,
-  explainer,
-  summary,
-}: {
-  accent: string;
-  badge: string;
-  title: string;
-  explainer: string;
-  summary: MetricSummary;
-}) {
-  const { currentIndex, deltaVsBase, baseRate, currentRaw } = summary;
-  const flat = !deltaVsBase;
-  const up = (deltaVsBase ?? 0) > 0;
+const countLabel = (value: number) => Math.round(value || 0).toLocaleString();
+
+function StageFunnel({ data }: { data: FunnelData }) {
+  const stages = [
+    { label: "Added to cart", count: data.icAtc.summary.totalDen, color: "var(--color-brand)" },
+    { label: "Started checkout", count: data.icAtc.summary.totalNum, color: "var(--color-chart-4)" },
+    { label: "Purchased", count: data.purchaseIc.summary.totalNum, color: "var(--color-positive)" },
+  ];
+  const maxCount = Math.max(...stages.map((stage) => stage.count), 1);
+  const hasAttributionMismatch = stages.some((stage, index) => index > 0 && stage.count > stages[index - 1].count);
+
   return (
-    <div className="panel p-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</p>
-        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[0.65rem] font-semibold tracking-wide text-muted-foreground">
-          {badge}
-        </span>
+    <div className="panel p-6">
+      <div>
+        <h3 className="font-display text-base font-semibold tracking-tight">Since-launch funnel</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">Raw stage totals and step-to-step rates.</p>
       </div>
-      <div className="mt-3 flex items-end gap-3">
-        <span className="font-display text-4xl font-semibold tracking-tight tabular-nums" style={{ color: accent }}>
-          {idxLabel(currentIndex)}
-        </span>
-        {deltaVsBase != null ? (
-          <span
-            className={cn(
-              "mb-1.5 inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-semibold tabular-nums",
-              flat ? "text-muted-foreground" : up ? "text-positive" : "text-destructive",
-            )}
-          >
-            {flat ? null : up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-            {up ? "+" : ""}
-            {Math.round(deltaVsBase)} vs base
-          </span>
-        ) : null}
+      <div className="mt-5 space-y-4">
+        {stages.map((stage, index) => {
+          const previous = stages[index - 1];
+          const rate = previous?.count ? (stage.count / previous.count) * 100 : null;
+          return (
+            <div key={stage.label}>
+              {previous ? (
+                <p className="mb-1.5 text-right text-xs font-medium tabular-nums text-muted-foreground">
+                  {pctLabel(rate)} of previous stage
+                </p>
+              ) : null}
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold">{stage.label}</span>
+                <span className="font-display text-lg font-semibold tabular-nums">{countLabel(stage.count)}</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-surface-2">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    background: stage.color,
+                    width: `${Math.max(2, (stage.count / maxCount) * 100)}%`,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <p className="mt-2 text-sm text-muted-foreground">{explainer}</p>
-      <p className="mt-3 text-xs text-muted-foreground">
-        100 = launch baseline · base rate{" "}
-        <span className="font-medium tabular-nums text-foreground">{pctLabel(baseRate)}</span>
-        {currentRaw != null ? (
-          <>
-            {" · now "}
-            <span className="font-medium tabular-nums text-foreground">{pctLabel(currentRaw)}</span>
-            {" raw"}
-          </>
-        ) : null}
-      </p>
+      {hasAttributionMismatch ? (
+        <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Meta models add-to-cart and checkout on different attribution bases, so checkout totals can exceed add-to-cart totals.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -171,11 +170,13 @@ function FunnelChart({
   subtitle,
   accent,
   metric,
+  showCampaigns,
 }: {
   title: string;
   subtitle: string;
   accent: string;
   metric: MetricData;
+  showCampaigns: boolean;
 }) {
   const { points, campaigns } = metric;
   const nameById: Record<string, string> = {};
@@ -230,7 +231,7 @@ function FunnelChart({
                 strokeOpacity={0.6}
                 label={{ value: "baseline 100", position: "insideTopRight", fill: "var(--color-muted-foreground)", fontSize: 10 }}
               />
-              {campaigns.map((c) => (
+              {showCampaigns ? campaigns.map((c) => (
                 <Line
                   key={c.id}
                   type="monotone"
@@ -240,11 +241,10 @@ function FunnelChart({
                   strokeWidth={1.5}
                   strokeOpacity={0.85}
                   dot={false}
-                  connectNulls
                   isAnimationActive
                   animationDuration={700}
                 />
-              ))}
+              )) : null}
               <Line
                 type="monotone"
                 dataKey="account"
@@ -271,18 +271,19 @@ function FunnelChart({
           <span className="h-2.5 w-4 rounded-full" style={{ background: accent }} />
           Account (all campaigns)
         </span>
-        {campaigns.map((c) => (
+        {showCampaigns ? campaigns.map((c) => (
           <span key={c.id} className="inline-flex items-center gap-2 text-muted-foreground">
             <span className="h-2 w-3 rounded-full" style={{ background: colorById[c.id] }} />
             {c.name}
           </span>
-        ))}
+        )) : null}
       </div>
     </div>
   );
 }
 
 export function FunnelAnalytics({ data }: { data: FunnelData }) {
+  const [showCampaigns, setShowCampaigns] = useState(false);
   if (!data || !data.hasData) {
     return (
       <div className="panel flex flex-col items-center gap-3 p-10 text-center">
@@ -300,37 +301,36 @@ export function FunnelAnalytics({ data }: { data: FunnelData }) {
   return (
     <section className="space-y-6">
       <div className="panel p-6">
-        <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-soft text-brand">
-            <Filter className="h-4 w-4" />
-          </span>
-          <h2 className="font-display text-lg font-semibold tracking-tight">Conversion funnel</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-soft text-brand">
+              <Filter className="h-4 w-4" />
+            </span>
+            <h2 className="font-display text-lg font-semibold tracking-tight">Conversion funnel</h2>
+          </div>
+          <button
+            type="button"
+            aria-pressed={showCampaigns}
+            onClick={() => setShowCampaigns((shown) => !shown)}
+            className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {showCampaigns ? "Hide campaign detail" : "Show campaign detail"}
+          </button>
         </div>
-        <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
-          Add-to-cart → checkout → purchase since the June 3 launch. Because Meta counts ATC and checkout on
-          different attribution bases (the raw ratio can exceed 100%), each rate is shown as an <strong>index grounded
-          to the launch baseline = 100</strong> — bias-normalized, volume-weighted across campaigns, {win}-day rolling
-          and shrinkage-stabilized. Above 100 = converting better than launch. Purchases are Shopify orders
-          attributed to a Meta campaign (account = all ad-attributed orders; per-campaign = its own). Raw % is in each tooltip.
+        <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+          Raw stage totals show volume; the trends below show whether conversion is improving relative to the launch baseline.
         </p>
+        <details className="mt-3 text-xs text-muted-foreground">
+          <summary className="cursor-pointer font-medium text-foreground/75">How the trend index works</summary>
+          <p className="mt-2 max-w-3xl leading-relaxed">
+            100 is the since-launch baseline. The {win}-day rolling rate is volume-weighted and stabilized for small samples.
+            Meta uses different attribution bases for add-to-cart and checkout, while purchases are attributed Shopify orders,
+            so the index is safer for trend comparison than treating the mixed-source raw ratios as exact probabilities.
+          </p>
+        </details>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <SummaryCard
-          accent="var(--color-brand)"
-          badge="IC / ATC"
-          title="Checkout start rate"
-          explainer="Add-to-carts that go on to begin checkout, indexed to launch."
-          summary={data.icAtc.summary}
-        />
-        <SummaryCard
-          accent="var(--color-positive)"
-          badge="Purchase / IC"
-          title="Purchase rate"
-          explainer="Started checkouts that convert to an ad-attributed Shopify order, indexed to launch."
-          summary={data.purchaseIc.summary}
-        />
-      </div>
+      <StageFunnel data={data} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <FunnelChart
@@ -338,12 +338,14 @@ export function FunnelAnalytics({ data }: { data: FunnelData }) {
           subtitle={`IC / ATC · indexed to launch (100) · ${win}-day rolling`}
           accent="var(--color-brand)"
           metric={data.icAtc}
+          showCampaigns={showCampaigns}
         />
         <FunnelChart
           title="Purchase rate"
           subtitle={`Shopify orders / IC · indexed to launch (100) · ${win}-day rolling`}
           accent="var(--color-positive)"
           metric={data.purchaseIc}
+          showCampaigns={showCampaigns}
         />
       </div>
     </section>
