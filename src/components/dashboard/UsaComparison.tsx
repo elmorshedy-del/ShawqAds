@@ -221,7 +221,7 @@ export function UsaComparison({
       </div>
 
       <div className="mt-5 h-[330px] w-full sm:h-[280px]">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           {/* No negative left margin: it pulls the axis off-canvas and clips the
               leading digit of wide labels, so "120.0" reach/$ rendered as "20.0". */}
           <LineChart data={plot} margin={{ left: 0, right: 8, top: 8 }}>

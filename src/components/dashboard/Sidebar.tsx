@@ -102,7 +102,7 @@ function DateWindow({
         <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
         <span className="min-w-0">
           <span className="block text-xs text-muted-foreground">{active.label}</span>
-          <span className="block truncate tabular-nums">{rangeText}</span>
+          <span className="block break-words leading-snug tabular-nums">{rangeText}</span>
         </span>
       </button>
 

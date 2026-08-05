@@ -241,7 +241,7 @@ export function CampaignPacing({ model }: { model: CampaignPacingModel }) {
                 Intraday delivery profile
               </p>
               <div className="h-[260px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <ComposedChart data={selected.hourlyCurve} margin={{ left: 0, right: 8, top: 8, bottom: 4 }}>
                     <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 6" vertical={false} />
                     <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={22} tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} />
