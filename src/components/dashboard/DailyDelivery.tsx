@@ -84,7 +84,7 @@ export function DailyDelivery({
       </div>
 
       <div className="mt-4 h-[330px] w-full sm:h-[280px]">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 800, height: 320 }}>
           <ComposedChart data={data} margin={{ left: -8, right: 8, top: 8 }}>
             <defs>
               <linearGradient id="reachFill" x1="0" y1="0" x2="0" y2="1">

@@ -220,7 +220,7 @@ export function KpiCard({
         ) : null}
 
         <div className="-mb-5 mt-2 h-12 opacity-90 transition-opacity duration-300 group-hover:opacity-100">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 240, height: 72 }}>
             <AreaChart data={data} margin={{ top: 6, bottom: 0, left: 0, right: 0 }}>
               <defs>
                 <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">

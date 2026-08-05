@@ -222,7 +222,7 @@ export function RevenueChart({ rows }: { rows: DayRow[] }) {
       </div>
 
       <div className="mt-5 h-[340px] w-full sm:h-[300px]">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 800, height: 300 }}>
           <ComposedChart data={chartData} margin={{ left: -8, right: 8, top: 8 }}>
             <defs>
               <linearGradient id="focusFill" x1="0" y1="0" x2="0" y2="1">

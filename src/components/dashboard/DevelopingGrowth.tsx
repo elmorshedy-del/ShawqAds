@@ -91,7 +91,7 @@ export function DevelopingGrowth({
       </div>
 
       <div className="mt-4 h-[290px] w-full sm:h-[240px]">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 800, height: 320 }}>
           <LineChart data={data} margin={{ left: -8, right: 8, top: 8 }}>
             <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 6" vertical={false} />
             <XAxis
