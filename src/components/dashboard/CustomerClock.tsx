@@ -1,6 +1,6 @@
 import { Clock4, Globe2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatHourWindow } from "@/lib/customerClock";
+import { CUSTOMER_CLOCK_MIN_ORDERS, formatHourWindow } from "@/lib/customerClock";
 import { EmptyState } from "@/components/dashboard/EmptyState";
 
 interface HourBucket {
@@ -104,6 +104,17 @@ export function CustomerClock({ data }: { data: CustomerClockData }) {
           icon={Clock4}
           title="No orders with timestamps in this window"
           hint="Customer-local timing needs paid orders carrying a created-at timestamp and a destination country."
+        />
+      </section>
+    );
+  }
+  if (data.mapped < CUSTOMER_CLOCK_MIN_ORDERS) {
+    return (
+      <section className="panel overflow-hidden">
+        <EmptyState
+          icon={Clock4}
+          title="Not enough orders for a timing pattern"
+          hint={`${data.mapped} mapped orders in this window. Widen the date window to at least ${CUSTOMER_CLOCK_MIN_ORDERS} orders before using hour or weekday patterns.`}
         />
       </section>
     );

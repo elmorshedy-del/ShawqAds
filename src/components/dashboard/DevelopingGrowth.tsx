@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { Sprout } from "lucide-react";
 import { fmtNumber, type ProductLine } from "@/lib/dashboard-data";
+import { EmptyState } from "@/components/dashboard/EmptyState";
 
 function DevTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -43,6 +44,7 @@ export function DevelopingGrowth({
   lines: ProductLine[];
 }) {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const distinctDays = new Set(data.map((row) => row.date).filter(Boolean)).size;
 
   const toggle = (key: string) =>
     setHidden((prev) => {
@@ -50,6 +52,18 @@ export function DevelopingGrowth({
       next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
+
+  if (distinctDays < 3) {
+    return (
+      <div className="panel overflow-hidden">
+        <EmptyState
+          icon={Sprout}
+          title="Not enough days for a product trend"
+          hint={`${distinctDays || "No"} data day${distinctDays === 1 ? "" : "s"} in this window. Select at least 3 days before comparing product growth.`}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="panel p-6">
