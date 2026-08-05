@@ -8,10 +8,11 @@
 
 - Last agent: cursor
 - Last event: checkpoint
-- Last message: Overhauled dashboard into four decision areas; unified matched source/date scopes; replaced monthly spend model with Meta campaign pacing; added mounted tab tests; simplified behavior into plain-language actions without replacing accumulated snapshots
+- Last message: Reduced tab preambles and capped decision findings to three items per area
 
 ## Recent Events
 
+- 2026-08-05T01:59:49.324Z | cursor | checkpoint: Reduced tab preambles and capped decision findings to three items per area
 - 2026-08-05T00:15:16.712Z | cursor | checkpoint: Overhauled dashboard into four decision areas; unified matched source/date scopes; replaced monthly spend model with Meta campaign pacing; added mounted tab tests; simplified behavior into plain-language actions without replacing accumulated snapshots
 - 2026-06-26T06:53:01.719Z | cursor | checkpoint: Added Clarity-style checkout session replay: theme rrweb recorder, /api/session-replay ingest+index APIs, SessionReplayPanel in Behavior tab.
 - 2026-06-15T17:20:59.800Z | cursor | checkpoint: Initialize RavByte AMS memory/ + Railway agentmemory deploy docs; ams-memory rule, npm scripts, AGENTS.md stack update

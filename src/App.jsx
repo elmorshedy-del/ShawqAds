@@ -2292,7 +2292,7 @@ function App() {
     mediaFindings: (
       <PanelFindings
         title="Media actions"
-        findings={[...campaignPacingFindings, ...adsFindings, ...launchFindings].slice(0, 6)}
+        findings={[...campaignPacingFindings, ...adsFindings, ...launchFindings].slice(0, 3)}
         hint="selected window + campaign delivery"
         emptyText="No material media movement or pacing risk is supported by the current evidence."
       />
@@ -2301,7 +2301,7 @@ function App() {
     demandFindings: (
       <PanelFindings
         title="Demand signals"
-        findings={[...marketFindings, ...customerClockFindings].slice(0, 6)}
+        findings={[...marketFindings, ...customerClockFindings].slice(0, 3)}
         hint="selected window"
         emptyText="No material product, market, or timing signal is supported by this window yet."
       />
@@ -2310,7 +2310,7 @@ function App() {
     conversionFindings: (
       <PanelFindings
         title="Conversion signals"
-        findings={funnelFindings}
+        findings={funnelFindings.slice(0, 3)}
         hint="funnel since launch"
         emptyText="No material funnel movement is supported by the current evidence."
       />
@@ -2322,7 +2322,6 @@ function App() {
       label: 'Overview',
       icon: LayoutDashboard,
       question: 'What changed, and what needs attention first?',
-      detail: 'Selected-window business outcomes, supporting trend, and live order evidence.',
       ids: ['keyFindings', 'kpis', 'orderDrop', 'orderLift', 'revenue', 'mobileTops', 'ordersMap', 'data'],
     },
     {
@@ -2330,7 +2329,6 @@ function App() {
       label: 'Media',
       icon: Megaphone,
       question: 'Where should delivery or spend be investigated?',
-      detail: 'Campaign pacing, attribution, ad-set decisions, delivery health, and change history.',
       ids: ['mediaFindings', 'campaignPacing', 'decision', 'tree', 'delivery', 'usa', 'benchmarks', 'edits'],
     },
     {
@@ -2338,7 +2336,6 @@ function App() {
       label: 'Conversion',
       icon: Filter,
       question: 'Where are buyers dropping before purchase?',
-      detail: 'Funnel movement, checkout friction, customer journeys, dwell, and session evidence.',
       ids: ['conversionFindings', 'funnel', 'behavior'],
     },
     {
@@ -2346,7 +2343,6 @@ function App() {
       label: 'Demand',
       icon: ShoppingBag,
       question: 'What sells, where, and when?',
-      detail: 'Product and market demand, channel contribution, historical patterns, and local purchase timing.',
       ids: ['demandFindings', 'product', 'country', 'growth', 'salesLeader', 'emailCampaign', 'historicalInsights', 'customerClock'],
     },
   ];
@@ -2443,7 +2439,6 @@ function App() {
           >
             <header className="border-l-2 border-brand pl-3">
               <h2 className="font-display text-lg font-semibold tracking-tight">{activeGroup.question}</h2>
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{activeGroup.detail}</p>
             </header>
             {activeGroup.ids.map((id) => (
               <Fragment key={id}>{sectionEls[id]}</Fragment>
