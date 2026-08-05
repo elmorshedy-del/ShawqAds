@@ -44,9 +44,13 @@ export function sparkSeries(rows, key, fallbackRows) {
 }
 
 /* ---- Daily breakdown (DataTable) + performance trend (RevenueChart) ---- */
-export function toDayRows(businessRows) {
+export function toDayRows(businessRows, reportingDay = "") {
   return (businessRows || []).map((r) => ({
     date: r.date,
+    // DataTable renders a "Developing" chip off this flag. It was never set, so a
+    // partial current day sat in the table looking like a completed one — usually as
+    // the best ROAS row, since spend lands before the revenue it produces.
+    developing: Boolean(reportingDay && r.date === reportingDay),
     revenue: num(r.revenue_usd),
     spend: num(r.spend_usd),
     items: num(r.units),
@@ -189,6 +193,7 @@ export function toCountrySales(countries, metaByCode) {
         country: c.country || c.country_code || "—",
         roas: shopifyCountryRoas(c, meta),
         units: total,
+        orders: num(c.orders),
         revenue: num(c.revenue_usd),
         spend: num(meta?.spend_usd),
         products: num(c.unique_products),

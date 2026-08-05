@@ -34,7 +34,10 @@ export function behaviorCachedUntil(behavior) {
     ...(behavior?.page_facts || []),
     ...(behavior?.journey_rows || []),
   ]);
-  return [behavior?.period?.until, rowUntil].filter(Boolean).sort().at(-1) || '';
+  // `period.until` is the requested extraction window and can move forward even
+  // when every analytical row is stale. Prefer evidence from returned rows so the
+  // UI never claims behavior coverage through a date it does not actually contain.
+  return rowUntil || behavior?.period?.until || '';
 }
 
 export function behaviorHasReportingDayData(behavior, day) {

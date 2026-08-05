@@ -93,13 +93,16 @@
   --accent: oklch(0.95 0.04 352);
   --accent-foreground: oklch(0.4 0.18 352);
 
-  --destructive: oklch(0.63 0.22 17);
+  /* Semantic tokens double as small-text colors, so keep their lightness low
+     enough to maintain readable contrast on white cards. Opacity variants carry
+     the softer fill treatment. */
+  --destructive: oklch(0.5 0.2 17);
   --destructive-foreground: oklch(0.99 0.005 270);
 
-  --positive: oklch(0.6 0.13 163);
+  --positive: oklch(0.47 0.12 163);
   --positive-foreground: oklch(0.99 0.005 270);
 
-  --gold: oklch(0.72 0.16 64);
+  --gold: oklch(0.5 0.14 64);
 
   --border: oklch(0.92 0.004 270);
   --input: oklch(0.92 0.004 270);

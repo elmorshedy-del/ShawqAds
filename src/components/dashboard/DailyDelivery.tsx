@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Radar } from "lucide-react";
+import { Clock, Radar } from "lucide-react";
 import { fmtCurrency, fmtNumber, type DeliveryPoint } from "@/lib/dashboard-data";
 
 function DeliveryTooltip({ active, payload, label }: any) {
@@ -41,7 +41,14 @@ function Row({ dot, name, value }: { dot: string; name: string; value: string })
   );
 }
 
-export function DailyDelivery({ data }: { data: DeliveryPoint[] }) {
+export function DailyDelivery({
+  data,
+  developingDay,
+}: {
+  data: DeliveryPoint[];
+  /** Reporting day excluded from the series because it is still accumulating. */
+  developingDay?: string;
+}) {
   // Fixed, stable frequency axis — rounded up to the next 0.5, floor of 2 — so the
   // line reads against a real scale instead of silently rescaling each render.
   const freqMax = useMemo(() => {
@@ -61,6 +68,14 @@ export function DailyDelivery({ data }: { data: DeliveryPoint[] }) {
         Reach (area, left) vs CPM and frequency (right axes). Reach flattening while frequency
         climbs is the audience-saturation signal.
       </p>
+      {developingDay ? (
+        // Without this the chart always ends in a cliff: the current reporting day has
+        // only accumulated part of its delivery, which reads as a collapse in reach.
+        <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-2 py-0.5 text-[0.65rem] font-medium text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          {developingDay} excluded — still accumulating
+        </p>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-3 text-[0.65rem] text-muted-foreground">
         <Legend dot="var(--color-brand)" label="Reach · left" />
@@ -69,7 +84,7 @@ export function DailyDelivery({ data }: { data: DeliveryPoint[] }) {
       </div>
 
       <div className="mt-4 h-[330px] w-full sm:h-[280px]">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 800, height: 320 }}>
           <ComposedChart data={data} margin={{ left: -8, right: 8, top: 8 }}>
             <defs>
               <linearGradient id="reachFill" x1="0" y1="0" x2="0" y2="1">

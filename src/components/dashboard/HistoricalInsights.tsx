@@ -79,10 +79,12 @@ export function HistoricalInsights({
     occurrences: row.n,
   }));
 
-  const monthTrend = insights.monthlyTable.map((month) => ({
-    x: month.monthLabel.replace(" 2026", ""),
-    y: month.avgDailyOrders ?? 0,
-  }));
+  const monthTrend = insights.monthlyTable
+    .filter((month) => !month.isPartial)
+    .map((month) => ({
+      x: month.monthLabel.replace(" 2026", ""),
+      y: month.avgDailyOrders ?? 0,
+    }));
 
   const weekKeys = WEEK_BUCKETS.map((b) => b.key);
   const groupedMonthData = insights.monthlyTable.map((month) => {
@@ -214,6 +216,24 @@ export function HistoricalInsights({
               </ChartPanel>
 
               <ChartPanel title="Monthly order rhythm" subtitle="Avg daily orders by calendar month">
+                {/* One month is a dot, not a rhythm. A single floating point on a line
+                    chart reads as a broken chart rather than as "not enough months yet". */}
+                {monthTrend.length < 2 ? (
+                  <div className="flex h-[260px] flex-col items-center justify-center gap-2 text-center">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2 text-muted-foreground">
+                      <CalendarRange className="h-4.5 w-4.5" />
+                    </span>
+                    <p className="text-sm font-medium">
+                      {monthTrend.length === 1
+                        ? `Only ${monthTrend[0].x} has data so far`
+                        : "No complete months yet"}
+                    </p>
+                    <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">
+                      Month-over-month rhythm needs at least two complete months. The weekday and
+                      week-of-month views below already work on this data.
+                    </p>
+                  </div>
+                ) : (
                 <div className="h-[260px]">
                   <ResponsiveLine
                     data={[{ id: "Avg daily orders", data: monthTrend }]}
@@ -240,6 +260,7 @@ export function HistoricalInsights({
                     )}
                   />
                 </div>
+                )}
               </ChartPanel>
             </div>
 
@@ -327,6 +348,10 @@ export function HistoricalInsights({
                     <thead className="bg-surface-2/70 text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2.5 font-semibold">Day</th>
+                        {/* Without the occurrence count a Monday seen once sits next to a
+                            Wednesday seen twice with no visible difference in weight, and
+                            "27.0 avg" reads as a stable average rather than a single day. */}
+                        <th className="px-3 py-2.5 font-semibold">Days</th>
                         <th className="px-3 py-2.5 font-semibold">Total</th>
                         <th className="px-3 py-2.5 font-semibold">Avg/day</th>
                         <th className="px-3 py-2.5 font-semibold">vs mean</th>
@@ -335,11 +360,25 @@ export function HistoricalInsights({
                     </thead>
                     <tbody>
                       {insights.weekdayTable.map((row) => (
-                        <tr key={row.weekday} className="border-t border-border/70">
+                        <tr
+                          key={row.weekday}
+                          className={cn("border-t border-border/70", !row.hasSufficientData && "opacity-60")}
+                          title={row.hasSufficientData ? undefined : `Only ${row.n} occurrence${row.n === 1 ? "" : "s"} — too few to read as an average`}
+                        >
                           <td className="px-3 py-2.5 font-medium">{row.weekdayName}</td>
+                          <td className="px-3 py-2.5 tabular-nums text-muted-foreground">{fmtNumber(row.n)}</td>
                           <td className="px-3 py-2.5 tabular-nums">{fmtNumber(row.total)}</td>
                           <td className="px-3 py-2.5 tabular-nums">{fmtAvg(row.mean)}</td>
-                          <td className={cn("px-3 py-2.5 tabular-nums", (row.deviationFromWeeklyMean ?? 0) >= 0 ? "text-positive" : "text-destructive")}>
+                          <td
+                            className={cn(
+                              "px-3 py-2.5 tabular-nums",
+                              !row.hasSufficientData
+                                ? "text-muted-foreground"
+                                : (row.deviationFromWeeklyMean ?? 0) >= 0
+                                  ? "text-positive"
+                                  : "text-destructive",
+                            )}
+                          >
                             {row.deviationFromWeeklyMean != null ? `${row.deviationFromWeeklyMean > 0 ? "+" : ""}${row.deviationFromWeeklyMean.toFixed(0)}%` : "—"}
                           </td>
                           <td className={cn("px-3 py-2.5 tabular-nums text-xs", pValueTone(row.significant))}>

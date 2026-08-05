@@ -1261,14 +1261,19 @@ const liveMetaFields = [
   'actions', 'action_values', 'purchase_roas',
 ].join(',');
 
-async function getMetaInsights({ level, date, breakdowns }) {
+const liveHourlyMetaFields = [
+  'date_start', 'date_stop', 'campaign_id', 'campaign_name', 'adset_id', 'adset_name',
+  'spend', 'impressions',
+].join(',');
+
+async function getMetaInsights({ level, date, breakdowns, fields }) {
   const { token, account, graphVersion } = metaConfig();
   const base = new URL(`https://graph.facebook.com/${graphVersion}/act_${account}/insights`);
   base.searchParams.set('access_token', token);
   base.searchParams.set('level', level);
   base.searchParams.set('time_increment', '1');
   base.searchParams.set('limit', '500');
-  base.searchParams.set('fields', level === 'account' ? liveAccountMetaFields : liveMetaFields);
+  base.searchParams.set('fields', fields || (level === 'account' ? liveAccountMetaFields : liveMetaFields));
   base.searchParams.set('time_range', JSON.stringify({ since: date, until: date }));
   if (breakdowns) base.searchParams.set('breakdowns', breakdowns);
   let next = base.toString();
@@ -1333,10 +1338,13 @@ function emptyLiveMetaPayload({ ok = false, configured = false, error = '', stat
     account_daily_metrics: [],
     ad_country_daily: [],
     adset_daily: [],
+    pacing_adset_daily: [],
+    pacing_hourly: [],
     data_coverage: {
       account_rows: 0,
       ad_country_daily_rows: 0,
       adset_daily_rows: 0,
+      pacing_hourly_rows: 0,
     },
   };
 }
@@ -1369,15 +1377,26 @@ async function fetchLiveMetaSpend() {
 
   const promise = (async () => {
     const errors = [];
-    const [accountResult, adCountryResult, adsetCountryResult] = await Promise.allSettled([
+    const [accountResult, adCountryResult, adsetCountryResult, pacingAdsetResult, pacingHourlyResult] = await Promise.allSettled([
       getMetaInsights({ level: 'account', date }),
       getMetaInsights({ level: 'ad', date, breakdowns: 'country' }),
       getMetaInsights({ level: 'adset', date, breakdowns: 'country' }),
+      getMetaInsights({ level: 'adset', date }),
+      getMetaInsights({
+        level: 'adset',
+        date,
+        breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone',
+        fields: liveHourlyMetaFields,
+      }),
     ]);
     const accountRaw = settledRows(accountResult, 'account', errors);
     const adCountryRaw = settledRows(adCountryResult, 'ad_country', errors);
     const adsetCountryRaw = settledRows(adsetCountryResult, 'adset_country', errors);
-    if (errors.length === 3) throw new Error(errors.map((entry) => `${entry.scope}: ${entry.error}`).join(' | '));
+    const pacingAdsetRaw = settledRows(pacingAdsetResult, 'pacing_adset', errors);
+    const pacingHourlyRaw = settledRows(pacingHourlyResult, 'pacing_hourly', errors);
+    if (!accountRaw.length && !adCountryRaw.length && !adsetCountryRaw.length && !pacingAdsetRaw.length) {
+      throw new Error(errors.map((entry) => `${entry.scope}: ${entry.error}`).join(' | '));
+    }
 
     const accountRows = [];
     for (const row of accountRaw) accountRows.push(await normalizeMetaInsightRow(row, accountCurrency));
@@ -1385,6 +1404,15 @@ async function fetchLiveMetaSpend() {
     for (const row of adCountryRaw) adCountryDaily.push(await normalizeMetaInsightRow(row, accountCurrency));
     const adsetDaily = [];
     for (const row of adsetCountryRaw) adsetDaily.push(await normalizeMetaInsightRow(row, accountCurrency));
+    const pacingAdsetDaily = [];
+    for (const row of pacingAdsetRaw) pacingAdsetDaily.push(await normalizeMetaInsightRow(row, accountCurrency));
+    const pacingHourly = [];
+    for (const row of pacingHourlyRaw) {
+      const normalized = await normalizeMetaInsightRow(row, accountCurrency);
+      const hourLabel = String(row.hourly_stats_aggregated_by_advertiser_time_zone || '');
+      const hour = Number(hourLabel.slice(0, 2));
+      if (Number.isFinite(hour)) pacingHourly.push({ ...normalized, hour });
+    }
     const dayFx = await fxContext(date, accountCurrency);
     const accountDaily = accountRows[0]
       ? { ...accountRows[0], live_today: true }
@@ -1405,10 +1433,13 @@ async function fetchLiveMetaSpend() {
       account_daily_metrics: [accountDaily],
       ad_country_daily: adCountryDaily,
       adset_daily: adsetDaily,
+      pacing_adset_daily: pacingAdsetDaily,
+      pacing_hourly: pacingHourly,
       data_coverage: {
         account_rows: accountRows.length,
         ad_country_daily_rows: adCountryDaily.length,
         adset_daily_rows: adsetDaily.length,
+        pacing_hourly_rows: pacingHourly.length,
       },
     };
     metaLiveCache = { key: cacheKey, fetchedAt: Date.now(), payload };

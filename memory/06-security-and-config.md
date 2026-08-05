@@ -1,6 +1,6 @@
 # Security and Config
 
-**Last Updated:** 2026-06-26
+**Last Updated:** 2026-08-05
 
 ---
 

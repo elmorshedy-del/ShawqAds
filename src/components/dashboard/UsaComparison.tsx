@@ -221,8 +221,10 @@ export function UsaComparison({
       </div>
 
       <div className="mt-5 h-[330px] w-full sm:h-[280px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={plot} margin={{ left: -10, right: 8, top: 8 }}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 800, height: 320 }}>
+          {/* No negative left margin: it pulls the axis off-canvas and clips the
+              leading digit of wide labels, so "120.0" reach/$ rendered as "20.0". */}
+          <LineChart data={plot} margin={{ left: 0, right: 8, top: 8 }}>
             <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 6" vertical={false} />
             <XAxis
               dataKey="day"
@@ -236,7 +238,7 @@ export function UsaComparison({
             <YAxis
               tickLine={false}
               axisLine={false}
-              width={44}
+              width={52}
               tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }}
               tickFormatter={(v) => (indexed ? `${Math.round(v)}` : def.format(v))}
             />

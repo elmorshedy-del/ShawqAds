@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ListChecks } from "lucide-react";
 import { fmtCurrency, type AdSetDecision } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/dashboard/EmptyState";
 
 type SortKey = "spend" | "sales" | "roas" | "cpm" | "reachPerDollar";
 
@@ -66,6 +67,13 @@ export function AdSetDecisionTable({ rows }: { rows: AdSetDecision[] }) {
         </div>
       </div>
 
+      {!sorted.length ? (
+        <EmptyState
+          icon={ListChecks}
+          title="No ad sets matched the current filters"
+          hint="Ad sets appear once they have delivery in the selected window. Clear the status filter or search box in the sidebar, or widen the date window."
+        />
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full min-w-[820px] text-sm">
           <thead>
@@ -127,6 +135,7 @@ export function AdSetDecisionTable({ rows }: { rows: AdSetDecision[] }) {
           </tbody>
         </table>
       </div>
+      )}
       <p className="px-6 py-3 text-xs text-muted-foreground">
         CTR shown as link CTR. Low-sample ad sets need more delivery before ROAS is trustworthy.
       </p>

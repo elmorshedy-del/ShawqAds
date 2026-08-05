@@ -65,6 +65,23 @@ Treat Gemini comments as a required pre-merge checklist, not optional feedback.
      - Record rows should use the same launch window as the performance trend chart (`>= CAMPAIGN_LAUNCH_DATE`).
   4. **Before pushing**, scan the diff: if a file is unrelated to the task title, revert it or split into a separate PR.
 
+### Incident: unwindowed fallback series reported the wrong period (Aug 2026)
+
+- **Symptom:** a date window with no Meta rows showed real Meta spend, and the daily
+  breakdown listed June dates under an August window with `0.00x` ROAS on every row.
+- **Cause:** `filterMetaDataByDateRange` filtered every series *except* `daily_metrics`,
+  which is the last fallback in the `accountDaily` chain. An empty window therefore fell
+  through to full, unfiltered history.
+- **Rule:** any series spread through `...meta` that is later used as a fallback must be
+  date-filtered in the same function. Adding a new fallback source means adding a filter.
+
+### Rule: never render an inference from absent data
+
+Deltas, all-time-high/low badges and month projections were still drawn for windows with
+no rows, producing "-100%" and an "All-time high" beside an `n/a` value. Gate them on
+`windowHasData` (rows present) and `hasComparison` (a comparable prior window exists),
+and name the actual record date rather than hardcoding "Yesterday".
+
 ### Subsystem map (stay in your lane)
 
 | Task area | Primary files | Do not touch unless asked |

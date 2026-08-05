@@ -19,6 +19,7 @@
     "test:email-channel": "node scripts/email-channel-smoke-test.mjs",
     "inspect:live-order": "node scripts/inspect-live-order.mjs",
     "test:dashboard": "node scripts/dashboard-regression-test.mjs",
+    "test:render": "vitest run src/App.render.test.jsx",
     "test:campaign-attribution": "node scripts/campaign-attribution-test.mjs",
     "test:reporting-data": "node scripts/reporting-data-contract-test.mjs",
     "test:kpi-insights": "node scripts/business-kpi-insights-test.mjs",
@@ -26,6 +27,11 @@
     "test:revenue-scope": "node scripts/revenue-scope-test.mjs",
     "test:historical-insights": "node scripts/historical-insights-test.mjs",
     "test:stats": "node scripts/stats-tests.mjs",
+    "test:insights": "node scripts/analytics-insights-test.mjs",
+    "test:tab-insights": "node scripts/tab-insights-test.mjs",
+    "test:customer-clock": "node scripts/customer-clock-test.mjs",
+    "test:dashboard-scope": "node scripts/dashboard-scope-test.mjs",
+    "test:campaign-pacing": "node scripts/campaign-pacing-test.mjs",
     "test:location-label": "node scripts/location-label-test.mjs",
     "test:order-merchandise": "node scripts/order-merchandise-test.mjs",
     "test:order-locality": "node scripts/order-locality-test.mjs",
@@ -33,6 +39,7 @@
     "test:dwell-stats": "node scripts/dwell-stats-test.mjs",
     "test:order-movers": "node scripts/order-drop-rankings-test.mjs",
     "test:behavior-developing": "node scripts/behavior-developing-day-test.mjs",
+    "test:behavior-actions": "node scripts/behavior-actions-test.mjs",
     "test:behavior-persistence": "node scripts/behavior-persistence-test.mjs",
     "test:behavior-tiers": "node scripts/behavior-tiers-test.mjs",
     "memory:maintain": "agent-memory maintain --since main",
@@ -71,6 +78,10 @@
     "world-atlas": "^2.0.2"
   },
   "devDependencies": {
-    "@ravbyte/agent-memory-system": "^0.2.0"
+    "@ravbyte/agent-memory-system": "^0.2.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "jsdom": "^29.1.1",
+    "vitest": "^4.1.10"
   }
 }

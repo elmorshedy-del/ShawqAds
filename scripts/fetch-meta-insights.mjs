@@ -71,11 +71,31 @@ const adFields = [
   'actions', 'action_values', 'purchase_roas'
 ].join(',');
 
+const hourlyFields = [
+  'date_start', 'date_stop', 'campaign_id', 'campaign_name', 'adset_id', 'adset_name',
+  'spend', 'impressions',
+].join(',');
+
 async function graphGet(url) {
   const res = await fetch(url);
   const text = await res.text();
   if (!res.ok) throw new Error(`Meta API ${res.status}: ${text.slice(0, 1000)}`);
   return JSON.parse(text);
+}
+
+async function getAccountEdge(edge, fields) {
+  const base = new URL(`https://graph.facebook.com/${graphVersion}/act_${account}/${edge}`);
+  base.searchParams.set('access_token', token);
+  base.searchParams.set('limit', '500');
+  base.searchParams.set('fields', fields);
+  let url = base.toString();
+  const rows = [];
+  while (url) {
+    const data = await graphGet(url);
+    rows.push(...(data.data || []));
+    url = data.paging?.next || null;
+  }
+  return rows;
 }
 
 async function getAccountMetadata() {
@@ -175,11 +195,11 @@ async function fxContext(date, fromCurrency) {
   };
 }
 
-async function getInsights({ level, fields, start, end, breakdowns }) {
+async function getInsights({ level, fields, start, end, breakdowns, timeIncrement = '1' }) {
   const base = new URL(`https://graph.facebook.com/${graphVersion}/act_${account}/insights`);
   base.searchParams.set('access_token', token);
   base.searchParams.set('level', level);
-  base.searchParams.set('time_increment', '1');
+  base.searchParams.set('time_increment', timeIncrement);
   base.searchParams.set('limit', '500');
   base.searchParams.set('fields', fields);
   if (breakdowns) base.searchParams.set('breakdowns', breakdowns);
@@ -508,6 +528,25 @@ try {
   if (fs.existsSync(previousOutPath)) previousAdsetChanges = (JSON.parse(fs.readFileSync(previousOutPath, 'utf8')).adset_changes || []).filter((c) => c.date >= since && c.date <= until);
 } catch {}
 
+let campaignBudgetObjects = [];
+let adsetBudgetObjects = [];
+let pacingMetadataError = '';
+try {
+  [campaignBudgetObjects, adsetBudgetObjects] = await Promise.all([
+    getAccountEdge(
+      'campaigns',
+      'id,name,status,effective_status,daily_budget,lifetime_budget,budget_remaining,start_time,stop_time,updated_time',
+    ),
+    getAccountEdge(
+      'adsets',
+      'id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,budget_remaining,start_time,end_time,updated_time',
+    ),
+  ]);
+} catch (error) {
+  pacingMetadataError = error.message;
+  console.warn(`Could not fetch Meta budget metadata: ${error.message}`);
+}
+
 const currentAdsetRows = await getInsights({ level: 'adset', fields: adsetFields, start: since, end: until });
 const marchAdsetRows = await getInsights({ level: 'adset', fields: adsetFields, start: '2026-03-01', end: '2026-03-31' });
 const currentAdsetCountryRows = await getInsights({ level: 'adset', fields: adsetFields, start: since, end: until, breakdowns: 'country' });
@@ -518,6 +557,25 @@ for (const row of adDailyRawRows) adDaily.push(await normalizeInsightRow(row, ac
 const adCountryRawRows = await getInsights({ level: 'ad', fields: adFields, start: since, end: until, breakdowns: 'country' });
 const adCountryDaily = [];
 for (const row of adCountryRawRows) adCountryDaily.push(await normalizeInsightRow(row, accountCurrency));
+
+const pacingLookbackDays = Math.max(3, Math.min(14, Number(process.env.PACING_BASELINE_DAYS || 7)));
+const pacingHourlyRaw = [];
+for (let offset = pacingLookbackDays; offset >= 0; offset -= 1) {
+  const day = new Date(`${until}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() - offset);
+  const date = day.toISOString().slice(0, 10);
+  try {
+    pacingHourlyRaw.push(...await getInsights({
+      level: 'adset',
+      fields: hourlyFields,
+      start: date,
+      end: date,
+      breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone',
+    }));
+  } catch (error) {
+    console.warn(`Could not fetch hourly Meta pacing for ${date}: ${error.message}`);
+  }
+}
 
 const deliveryComparisonConfig = {
   historical: {
@@ -692,6 +750,97 @@ const fxRates = [...new Map(adMetricRows.map((r) => [r.date, {
   ...fxMetaFromRow(r),
 }])).values()].sort((a, b) => a.date.localeCompare(b.date));
 
+const budgetFx = await fxContext(until, accountCurrency);
+const campaignNameById = new Map(
+  campaignBudgetObjects.map((campaign) => [String(campaign.id), campaign.name || String(campaign.id)]),
+);
+const amountFromMinorUnits = (value) => Number(value || 0) / 100;
+const targetFromObject = (object, level) => {
+  const lifetime = amountFromMinorUnits(object.lifetime_budget);
+  const daily = amountFromMinorUnits(object.daily_budget);
+  const budgetType = lifetime > 0 ? 'lifetime' : daily > 0 ? 'daily' : '';
+  if (!budgetType) return null;
+  const budgetAccount = budgetType === 'lifetime' ? lifetime : daily;
+  const campaignId = String(level === 'campaign' ? object.id : object.campaign_id || '');
+  const adsetId = level === 'adset' ? String(object.id) : '';
+  const campaignName = campaignNameById.get(campaignId) || campaignId;
+  return {
+    id: `${level}:${object.id}`,
+    level,
+    campaign_id: campaignId,
+    campaign_name: campaignName,
+    adset_id: adsetId,
+    name: level === 'campaign' ? object.name || campaignName : `${campaignName} · ${object.name || adsetId}`,
+    status: object.status || '',
+    effective_status: object.effective_status || '',
+    budget_type: budgetType,
+    budget_account: budgetAccount,
+    budget_usd: budgetAccount * budgetFx.fx_to_usd,
+    budget_remaining_account: amountFromMinorUnits(object.budget_remaining),
+    budget_remaining_usd: amountFromMinorUnits(object.budget_remaining) * budgetFx.fx_to_usd,
+    start_time: object.start_time || '',
+    stop_time: object.stop_time || object.end_time || '',
+    updated_time: object.updated_time || '',
+  };
+};
+const campaignTargets = campaignBudgetObjects
+  .map((object) => targetFromObject(object, 'campaign'))
+  .filter(Boolean);
+const campaignTargetById = new Map(campaignTargets.map((target) => [target.campaign_id, target.id]));
+const adsetTargets = adsetBudgetObjects
+  .filter((object) => !campaignTargetById.has(String(object.campaign_id || '')))
+  .map((object) => targetFromObject(object, 'adset'))
+  .filter(Boolean);
+const pacingTargets = [...campaignTargets, ...adsetTargets]
+  .filter((target) => !['DELETED', 'ARCHIVED'].includes(String(target.effective_status || target.status).toUpperCase()));
+const adsetTargetById = new Map(adsetTargets.map((target) => [target.adset_id, target.id]));
+const targetIdForRow = (row) => campaignTargetById.get(String(row.campaign_id || ''))
+  || adsetTargetById.get(String(row.adset_id || ''))
+  || '';
+
+const pacingDailyMap = new Map();
+for (const row of adDaily) {
+  const targetId = targetIdForRow(row);
+  if (!targetId || !row.date) continue;
+  const key = `${targetId}|${row.date}`;
+  const current = pacingDailyMap.get(key) || {
+    target_id: targetId,
+    date: row.date,
+    spend_account: 0,
+    spend_usd: 0,
+  };
+  current.spend_account += Number(row.spend || 0);
+  current.spend_usd += Number(row.spend_usd || 0);
+  pacingDailyMap.set(key, current);
+}
+const pacingDaily = [...pacingDailyMap.values()]
+  .sort((a, b) => `${a.target_id}|${a.date}`.localeCompare(`${b.target_id}|${b.date}`));
+
+const pacingHourlyMap = new Map();
+for (const row of pacingHourlyRaw) {
+  const targetId = targetIdForRow(row);
+  const date = row.date_start || row.date;
+  const hourLabel = String(row.hourly_stats_aggregated_by_advertiser_time_zone || '');
+  const hour = Number(hourLabel.slice(0, 2));
+  if (!targetId || !date || !Number.isFinite(hour)) continue;
+  const fx = await fxContext(date, accountCurrency);
+  const spendAccount = Number(row.spend || 0);
+  const key = `${targetId}|${date}|${hour}`;
+  const current = pacingHourlyMap.get(key) || {
+    target_id: targetId,
+    date,
+    hour,
+    spend_account: 0,
+    spend_usd: 0,
+  };
+  current.spend_account += spendAccount;
+  current.spend_usd += spendAccount * fx.fx_to_usd;
+  pacingHourlyMap.set(key, current);
+}
+const pacingHourly = [...pacingHourlyMap.values()]
+  .sort((a, b) => `${a.target_id}|${a.date}|${String(a.hour).padStart(2, '0')}`
+    .localeCompare(`${b.target_id}|${b.date}|${String(b.hour).padStart(2, '0')}`));
+
 const out = {
   generated_at: new Date().toISOString(),
   source: 'Meta API',
@@ -722,6 +871,19 @@ const out = {
     rates: fxRates,
   },
   adset_changes: finalAdsetChanges,
+  pacing: {
+    generated_at: new Date().toISOString(),
+    timezone: metaReportingTimezone,
+    currency: 'USD',
+    account_currency: accountCurrency,
+    coverage_since: since,
+    coverage_until: until,
+    baseline_days: pacingLookbackDays,
+    error: pacingMetadataError,
+    targets: pacingTargets,
+    daily: pacingDaily,
+    hourly: pacingHourly,
+  },
   march_baseline: {
     frequency: avg(dailyMarch, 'frequency'),
     cpm: avg(dailyMarch, 'cpm_usd'),

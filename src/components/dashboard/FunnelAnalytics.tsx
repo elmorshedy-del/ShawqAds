@@ -200,7 +200,7 @@ function FunnelChart({
 
       <div className="mt-5 h-[300px] w-full">
         {hasSeries ? (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 800, height: 320 }}>
             <LineChart data={points} margin={{ left: -12, right: 10, top: 8, bottom: 0 }}>
               <CartesianGrid stroke="var(--color-border)" strokeDasharray="3 6" vertical={false} />
               <XAxis

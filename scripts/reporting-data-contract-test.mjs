@@ -58,6 +58,24 @@ assertIncludes(
 );
 
 assertIncludes(
+  metaFetch,
+  "'campaigns'",
+  'Meta fetch must load campaign budget owners for campaign-flight pacing.',
+);
+
+assertIncludes(
+  metaFetch,
+  'hourly_stats_aggregated_by_advertiser_time_zone',
+  'Meta fetch must persist advertiser-timezone hourly spend for intraday pacing.',
+);
+
+assertIncludes(
+  server,
+  'pacing_hourly',
+  'Live Meta polling must refresh hourly pacing data between full backfills.',
+);
+
+assertIncludes(
   app,
   'const metricAdRows = adDailyRows.length ? adDailyRows : adRows',
   'Frontend Meta range filtering must prefer no-breakdown ad rows and fall back to country rows.',
@@ -65,8 +83,8 @@ assertIncludes(
 
 assertIncludes(
   app,
-  'const countryRoasDateRange',
-  'Country ROAS must use an explicit overlapping Meta+Shopify range.',
+  'const matchedDateRange',
+  'Country ROAS and blended metrics must use the row-backed overlapping Meta+Shopify range.',
 );
 
 assertIncludes(
@@ -81,10 +99,20 @@ assertIncludes(
   'Dashboard label must disclose when Yesterday falls back to the latest loaded completed day.',
 );
 
+// The anchor still comes from the selected window (never from loadedBounds), but it now
+// resolves to the last day *inside* that window carrying rows. Anchoring on the raw end
+// date made every card read "No sale captured" whenever the range ran past the data —
+// which the launch preset always does, since it ends on today.
 assertIncludes(
   app,
-  'const anchor = activeDateRange?.until || reportingToday',
+  'const anchor = movesAnchorDay',
   'Top movers must use the active business-card date instead of an independent loaded-data anchor.',
+);
+
+assertIncludes(
+  app,
+  'withData.at(-1) || activeDateRange?.until || reportingToday',
+  'Top movers anchor must fall back to the active date range, not to an independent loaded-data bound.',
 );
 
 assertIncludes(

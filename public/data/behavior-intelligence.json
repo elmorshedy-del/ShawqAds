@@ -1,9 +1,9 @@
 {
   "source": "Shopify abandoned checkouts + Meta demographics + first-party session events",
-  "generated_at": "2026-06-26T07:29:45.258Z",
+  "generated_at": "2026-08-02T18:45:16.545Z",
   "period": {
     "since": "2026-06-03",
-    "until": "2026-06-26",
+    "until": "2026-08-02",
     "shopify_timezone": "Europe/Istanbul",
     "meta_timezone": "Europe/Istanbul",
     "shop_currency": "USD"
@@ -43,7 +43,7 @@
       "count_in_window": 0,
       "sessions": 0,
       "sessions_in_window": 0,
-      "path": "/tmp/shawq-session-replay-OMGLvW/session-events.ndjson",
+      "path": "/tmp/shawq-session-replay-wxWjbX/session-events.ndjson",
       "note": "Payment-submit, dwell, and non-purchaser journeys become real after the pixel posts events to /api/session-events.",
       "preserved_from_snapshot": false
     }

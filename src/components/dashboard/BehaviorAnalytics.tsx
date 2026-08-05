@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   Clock,
@@ -6,6 +6,7 @@ import {
   FlaskConical,
   Globe,
   Heart,
+  ListChecks,
   Package,
   Users,
 } from "lucide-react";
@@ -20,8 +21,9 @@ import {
 import {
   comparabilityTier,
   MIN_COMPARABLE_SESSIONS,
-  SAMPLE_TIER_LEGEND,
 } from "@/lib/sampleTiers";
+import { dwellPageInsight } from "@/lib/dwellStats";
+import { buildBehaviorActions } from "@/lib/behaviorActions";
 import { BRAND_PAGES_LABEL, brandPageName } from "@/lib/pageCategory";
 import { PanelScopeToggle, type PanelScope } from "@/components/dashboard/PanelScopeToggle";
 import { SessionReplayPanel } from "@/components/dashboard/SessionReplayPanel";
@@ -30,7 +32,9 @@ interface BehaviorStep {
   products?: any[];
   countries?: any[];
   gender?: any[];
-  global?: { rate?: number; exposed?: number; abandoned?: number };
+  global?: { rate?: number | null; exposed?: number; abandoned?: number };
+  /** Meta-derived baseline for the age/gender cohorts, which use a different denominator. */
+  gender_global?: { rate?: number | null; exposed?: number; abandoned?: number };
 }
 interface BehaviorData {
   period?: { since?: string; until?: string };
@@ -53,8 +57,7 @@ interface BehaviorData {
 // so a tab left open overnight cannot report "30 min" for every page.
 const DWELL_CAP_LABEL = "10 min";
 
-function rateLabel(value: any, { exposed }: { exposed?: number } = {}) {
-  if (exposed === 0) return "n/a";
+function rateLabel(value: any) {
   if (value == null || !Number.isFinite(Number(value))) return "n/a";
   return `${Math.round(Number(value) * 100)}%`;
 }
@@ -81,6 +84,43 @@ function segmentKey(row: any) {
   return row.key || row.country_code || row.segment || "";
 }
 
+/**
+ * The site-wide rate is only a baseline when sessions actually reached the step.
+ *
+ * `global.rate` is null on a developing day and 0 when nothing was exposed, and
+ * `Number(null)` is 0 — which passes an isFinite check. Every row was therefore
+ * compared against a 0% site average that did not exist, and rendered red for
+ * being "above" it.
+ */
+function siteBaseline(global: any): number | null {
+  if (!global || Number(global.exposed || 0) <= 0) return null;
+  const rate = Number(global.rate);
+  return Number.isFinite(rate) ? rate : null;
+}
+
+/** Comparison against the site baseline, or null when there is nothing to compare to. */
+function vsBaseline(rate: number, siteRate?: number | null) {
+  if (siteRate == null || !Number.isFinite(Number(siteRate))) return null;
+  return (rate - Number(siteRate)) * 100;
+}
+
+/** Exactly at the site average is neutral, not bad. */
+function comparisonTone(vs: number | null) {
+  if (vs == null || Math.abs(vs) < 0.5) return "neutral";
+  return vs > 0 ? "worse" : "better";
+}
+
+const comparisonClass: Record<string, string> = {
+  worse: "bg-destructive/10 text-destructive",
+  better: "bg-positive/10 text-positive",
+  neutral: "bg-surface-2 text-muted-foreground",
+};
+const comparisonTextClass: Record<string, string> = {
+  worse: "text-destructive",
+  better: "text-positive",
+  neutral: "text-muted-foreground",
+};
+
 // Plain-language confidence pill driven by session count (no statistical symbols).
 function TierPill({ sessions }: { sessions?: number }) {
   const n = Number(sessions || 0);
@@ -95,8 +135,8 @@ function TierPill({ sessions }: { sessions?: number }) {
           : "bg-surface-2 text-muted-foreground";
   return (
     <span
-      title={`${tier.label} — accuracy ${tier.accuracy} · ${compact(n)} sessions`}
-      className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[0.6rem] font-medium", tone)}
+      title={`${tier.label} · ${compact(n)} sessions`}
+      className={cn("shrink-0 rounded-full px-2 py-0.5 text-[0.7rem] font-medium", tone)}
     >
       {tier.label}
     </span>
@@ -105,7 +145,9 @@ function TierPill({ sessions }: { sessions?: number }) {
 
 function SampleTierLegend() {
   return (
-    <p className="mt-1 text-[0.65rem] leading-relaxed text-muted-foreground">{SAMPLE_TIER_LEGEND}</p>
+    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+      More sessions make the comparison more dependable: Early 30+, Comparable 100+, Reliable 400+.
+    </p>
   );
 }
 
@@ -142,8 +184,57 @@ function EmptyBlock({ title, text, dense }: { title: string; text: string; dense
       )}
     >
       <p className="text-xs font-semibold">{title}</p>
-      <p className="mt-1 text-[0.65rem] leading-relaxed text-muted-foreground">{text}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
     </div>
+  );
+}
+
+const actionTone: Record<string, string> = {
+  negative: "border-destructive/30 bg-destructive/5",
+  watch: "border-gold/30 bg-gold/5",
+  neutral: "border-border bg-surface-2/40",
+};
+
+function BehaviorActionSummary({ behavior }: { behavior: BehaviorData }) {
+  const actions = useMemo(() => buildBehaviorActions(behavior), [behavior]);
+  return (
+    <section className="rounded-xl border border-border bg-card">
+      <header className="flex items-start gap-2.5 border-b border-border px-4 py-3.5">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+          <ListChecks className="h-4 w-4" />
+        </span>
+        <div>
+          <h3 className="font-display text-base font-semibold">What to do next</h3>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+            Priorities appear only when the segment has enough sessions and moves meaningfully above its baseline.
+          </p>
+        </div>
+      </header>
+      <div className="grid grid-cols-1 gap-3 p-4 xl:grid-cols-3">
+        {actions.map((item: any, index: number) => (
+          <article key={item.id} className={cn("rounded-xl border p-4", actionTone[item.tone] || actionTone.neutral)}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                {item.tone === "neutral" ? "Status" : `Priority ${index + 1}`}
+              </p>
+              <span className="rounded-full bg-card/80 px-2 py-1 text-xs font-medium text-muted-foreground">
+                {item.confidence}
+              </span>
+            </div>
+            <h4 className="mt-2 break-words font-display text-base font-semibold leading-snug">{item.title}</h4>
+            <p className="mt-2 break-words text-xs font-medium leading-relaxed text-foreground">{item.stat}</p>
+            <p className="mt-2 break-words text-xs leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-foreground/75">What it means · </span>
+              {item.meaning}
+            </p>
+            <p className="mt-2 break-words text-xs leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-brand">Do this · </span>
+              {item.action}
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -257,7 +348,7 @@ function ExtractionStatus({ behavior }: { behavior: BehaviorData }) {
   );
 }
 
-function StepCell({ row, label, siteRate }: { row: any; label: string; siteRate?: number }) {
+function StepCell({ row, label, siteRate }: { row: any; label: string; siteRate?: number | null }) {
   if (!row || !Number(row.exposed || 0)) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-surface-2/30 p-3">
@@ -270,9 +361,9 @@ function StepCell({ row, label, siteRate }: { row: any; label: string; siteRate?
   const exposed = Number(row.exposed || 0);
   const abandoned = Number(row.abandoned || 0);
   const rate = exposed ? abandoned / exposed : 0;
-  const site = Number(siteRate);
-  const vs = Number.isFinite(site) ? (rate - site) * 100 : 0;
-  const siteLabel = Number.isFinite(site) ? rateLabel(site) : "n/a";
+  const vs = vsBaseline(rate, siteRate);
+  const tone = comparisonTone(vs);
+  const siteLabel = siteRate == null ? null : rateLabel(siteRate);
   return (
     <div className="rounded-lg border border-border bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
@@ -284,17 +375,19 @@ function StepCell({ row, label, siteRate }: { row: any; label: string; siteRate?
         <span className="ml-1 text-sm font-medium text-muted-foreground">abandon</span>
       </p>
       <p className="text-[0.65rem] leading-relaxed text-muted-foreground">
-        {abandoned} of {exposed} left here · site avg {siteLabel}
+        {abandoned} of {exposed} left here
+        {siteLabel ? ` · site avg ${siteLabel}` : ""}
       </p>
       <div className="mt-1.5">
         <span
-          title="Percentage points above or below your site-wide abandon rate at this step"
-          className={cn(
-            "rounded-full px-1.5 py-0.5 text-[0.6rem] tabular-nums",
-            vs >= 0 ? "bg-destructive/10 text-destructive" : "bg-positive/10 text-positive",
-          )}
+          title={
+            vs == null
+              ? "No site-wide rate for this step yet, so there is nothing to compare against"
+              : "Percentage points above or below your site-wide abandon rate at this step"
+          }
+          className={cn("rounded-full px-1.5 py-0.5 text-[0.6rem] tabular-nums", comparisonClass[tone])}
         >
-          {ratePoints(vs)} vs avg
+          {vs == null ? "no site average yet" : `${ratePoints(vs)} vs avg`}
         </span>
       </div>
     </div>
@@ -305,8 +398,8 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
   const developingDay = Boolean(behavior?.coverage?.developing_day);
   const checkoutRows = behavior?.matrix?.checkout?.products || [];
   const paymentRows = behavior?.matrix?.submit_payment?.products || [];
-  const checkoutGlobal = behavior?.matrix?.checkout?.global?.rate;
-  const paymentGlobal = behavior?.matrix?.submit_payment?.global?.rate;
+  const checkoutGlobal = siteBaseline(behavior?.matrix?.checkout?.global);
+  const paymentGlobal = siteBaseline(behavior?.matrix?.submit_payment?.global);
   const checkoutByKey = new Map(checkoutRows.map((row: any) => [row.key, row]));
   const paymentByKey = new Map(paymentRows.map((row: any) => [row.key, row]));
   const keys = [...new Set([...checkoutByKey.keys(), ...paymentByKey.keys()])];
@@ -331,9 +424,12 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
         Number(checkout?.exposed || 0) > 0 || Number(payment?.exposed || 0) > 0,
     );
 
+  // Highest abandonment first. This list is capped at 8, and sorting the other way
+  // meant the worst-leaking products were the ones truncated off the end — the exact
+  // rows the panel exists to surface.
   const comparableRows = merged
     .filter((row) => row.comparable)
-    .sort((a, b) => a.rate - b.rate || b.sample - a.sample) // lowest abandon first
+    .sort((a, b) => b.rate - a.rate || b.sample - a.sample)
     .slice(0, 8);
   const setAside = merged.filter((row) => !row.comparable).length;
 
@@ -342,7 +438,7 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
       <SectionHeading
         icon={Package}
         title="Friction by product"
-        subtitle="Products with a comparable sample, ordered from lowest to highest abandonment. Checkout abandonment comes from Shopify; submit-payment from Meta AddPaymentInfo plus session-pixel rows."
+        subtitle="Products with a comparable sample, worst abandonment first — the top row is where most money is leaking. Checkout abandonment comes from Shopify; submit-payment from Meta AddPaymentInfo plus session-pixel rows."
       />
       <SampleTierLegend />
       {comparableRows.length ? (
@@ -364,7 +460,7 @@ function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
                   )}
                   <div className="min-w-0">
                     <p className="break-words text-sm font-semibold">{main.product || "Unknown product"}</p>
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="break-words text-xs leading-snug text-muted-foreground">
                       {main.family || "Other"} · {main.subtype || "Unknown"}
                     </p>
                   </div>
@@ -402,38 +498,33 @@ function RankRow({
 }: {
   row: any;
   type: "country" | "gender";
-  siteRate?: number;
+  siteRate?: number | null;
   rank: number;
 }) {
   const exposed = Number(row.exposed || 0);
   const abandoned = Number(row.abandoned || 0);
   const rate = exposed ? abandoned / exposed : 0;
-  const site = Number(siteRate);
-  const vs = Number.isFinite(site) ? (rate - site) * 100 : 0;
+  const vs = vsBaseline(rate, siteRate);
+  const tone = comparisonTone(vs);
   const label =
     type === "country"
       ? row.country || row.country_code || "Unknown"
       : row.segment || row.gender || "Unknown";
-  const high = vs >= 0;
   return (
     <div className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-surface px-2.5 py-2">
       <span className="flex min-w-0 items-center gap-2 text-xs">
         <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">{rank}</span>
         {type === "country" ? <span className="shrink-0">{countryFlag(row.country_code)}</span> : null}
-        <span className="truncate">{label}</span>
+        <span className="break-words leading-snug">{label}</span>
       </span>
       <div className="flex shrink-0 items-center gap-2 text-right">
         <div>
-          <p
-            className={cn(
-              "text-xs font-semibold tabular-nums",
-              high ? "text-destructive" : "text-positive",
-            )}
-          >
+          <p className={cn("text-xs font-semibold tabular-nums", comparisonTextClass[tone])}>
             {rateLabel(rate)} <span className="font-normal text-muted-foreground">abandon</span>
           </p>
           <p className="text-[0.6rem] tabular-nums text-muted-foreground">
-            {abandoned}/{exposed} · {ratePoints(vs)} vs avg
+            {abandoned}/{exposed}
+            {vs == null ? "" : ` · ${ratePoints(vs)} vs avg`}
           </p>
         </div>
         <TierPill sessions={exposed} />
@@ -451,7 +542,7 @@ function SegmentRanking({
   title: string;
   rows: any[];
   type: "country" | "gender";
-  siteRate?: number;
+  siteRate?: number | null;
 }) {
   const all = rows || [];
   const comparable = all.filter((row) => Number(row.exposed || 0) >= MIN_COMPARABLE_SESSIONS);
@@ -461,7 +552,7 @@ function SegmentRanking({
     return ra - rb; // best (fewest abandons) first
   });
   const setAside = all.length - comparable.length;
-  const siteLabel = Number.isFinite(Number(siteRate)) ? rateLabel(siteRate) : null;
+  const siteLabel = siteRate == null ? null : rateLabel(siteRate);
   const noun = type === "country" ? "country" : "segment";
   const nounPlural = type === "country" ? "countries" : "segments";
 
@@ -663,14 +754,12 @@ function SearchReach({
 }
 
 function dwellRead(page: any) {
-  const nonBuyer = Number(page.non_purchaser_median_dwell_seconds || 0);
-  const buyer = Number(page.purchaser_median_dwell_seconds || 0);
-  const buyerSessions = Number(page.purchaser_sessions || 0);
-  const gap = nonBuyer - buyer;
-  if (buyerSessions === 0) return "Only non-buyer visits so far";
-  if (gap > 20) return "Non-buyers linger longer here — worth a look";
-  if (gap < -20) return "Buyers spend more time here — a decision page";
-  return "Buyers and non-buyers spend similar time";
+  // dwellStats.js already runs Mann-Whitney U with Bonferroni-adjusted p-values,
+  // effect sizes and a confidence tier, and packages the result as a headline plus
+  // a detail line. This panel used to ignore all of it and assert a reading off a
+  // raw 20-second median gap, so a page with three sessions and no significant
+  // difference could still be reported as "non-buyers linger longer — worth a look".
+  return dwellPageInsight(page);
 }
 
 function DwellPages({ pages }: { pages: any[] }) {
@@ -703,6 +792,7 @@ function DwellPages({ pages }: { pages: any[] }) {
             const sessions = Number(page.sessions || 0);
             const width = maxDwell > 0 ? Math.min(100, Math.max(8, (dwell / maxDwell) * 100)) : 8;
             const label = brandPageName(page.path) || pagePathLabel(page.path);
+            const read = dwellRead(page);
             return (
               <div key={normalizePagePath(page.path)}>
                 <div className="mb-1 flex items-baseline justify-between gap-3">
@@ -716,12 +806,29 @@ function DwellPages({ pages }: { pages: any[] }) {
                 <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
                   <div className="h-full rounded-full bg-brand" style={{ width: `${width}%` }} />
                 </div>
-                <p className="mt-1 text-[0.65rem] font-medium text-foreground">{dwellRead(page)}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  <p className="text-[0.65rem] font-medium text-foreground">{read.headline}</p>
+                  {page.confidence ? (
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[0.55rem] font-medium",
+                        page.confidence === "High Confidence" || page.confidence === "Actionable"
+                          ? "bg-positive/10 text-positive"
+                          : page.confidence === "Directional"
+                            ? "bg-gold/10 text-gold"
+                            : "bg-surface-2 text-muted-foreground",
+                      )}
+                    >
+                      {page.confidence}
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-0.5 text-[0.65rem] leading-relaxed text-muted-foreground">
-                  Non-buyers {formatDwellSeconds(dwell)}
-                  {buyerSessions > 0 ? ` · buyers ${formatDwellSeconds(buyerDwell)}` : ""}
-                  {" · based on "}
-                  {compact(sessions)} session{sessions === 1 ? "" : "s"}
+                  {read.detail}
+                </p>
+                <p className="mt-0.5 text-[0.6rem] leading-relaxed text-muted-foreground">
+                  Based on {compact(sessions)} session{sessions === 1 ? "" : "s"}
+                  {buyerSessions > 0 ? ` · buyers median ${formatDwellSeconds(buyerDwell)}` : ""}
                 </p>
               </div>
             );
@@ -839,14 +946,16 @@ export function BehaviorAnalytics({
   onScopeChange?: (scope: PanelScope) => void;
   rangeLabel?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const period = behavior?.period || {};
   const checkoutCountries = behavior?.matrix?.checkout?.countries || [];
   const paymentCountries = behavior?.matrix?.submit_payment?.countries || [];
   const checkoutGender = behavior?.matrix?.checkout?.gender || [];
   const paymentGender = behavior?.matrix?.submit_payment?.gender || [];
-  const checkoutGlobal = behavior?.matrix?.checkout?.global?.rate;
-  const paymentGlobal = behavior?.matrix?.submit_payment?.global?.rate;
+  const checkoutGlobal = siteBaseline(behavior?.matrix?.checkout?.global);
+  const paymentGlobal = siteBaseline(behavior?.matrix?.submit_payment?.global);
+  const checkoutGenderGlobal = siteBaseline((behavior?.matrix?.checkout as any)?.gender_global);
+  const paymentGenderGlobal = siteBaseline((behavior?.matrix?.submit_payment as any)?.gender_global);
 
   // Age/gender breakdowns only surface when at least one cohort is comparable.
   const checkoutGenderComparable = checkoutGender.some(
@@ -859,13 +968,16 @@ export function BehaviorAnalytics({
 
   return (
     <div className="panel overflow-hidden">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center justify-between gap-4 p-6 text-left"
-      >
-        <div className="flex items-center gap-3">
+      {/* The header is a row, not one big button: the scope toggle renders its own
+          buttons, and nesting them inside a button is invalid HTML that also made
+          every scope click collapse the panel. */}
+      <div className="flex w-full items-center justify-between gap-4 p-6">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
             <FlaskConical className="h-4 w-4" />
           </span>
@@ -874,15 +986,15 @@ export function BehaviorAnalytics({
               <h2 className="font-display text-lg font-semibold tracking-tight">
                 Behavior friction &amp; journeys
               </h2>
-              <span className="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-gold">
-                In development
+              <span className="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-gold">
+                Early data
               </span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Product &amp; country friction, pages, dwell, and journeys · collapsed by default
+              Clear priorities first, with the supporting checkout, page, and journey evidence below
             </p>
           </div>
-        </div>
+        </button>
         <div className="flex shrink-0 items-center gap-3">
           {onScopeChange ? (
             <PanelScopeToggle scope={scope} onScopeChange={onScopeChange} className="hidden sm:flex" />
@@ -892,11 +1004,17 @@ export function BehaviorAnalytics({
               {rangeLabel || `${period.since} – ${period.until}`}
             </span>
           ) : null}
-          <ChevronDown
-            className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")}
-          />
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-label={open ? "Collapse behavior panel" : "Expand behavior panel"}
+            onClick={() => setOpen((current) => !current)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+          </button>
         </div>
-      </button>
+      </div>
 
       {open ? (
         <div className="space-y-7 border-t border-border px-6 pb-6 pt-5">
@@ -908,8 +1026,7 @@ export function BehaviorAnalytics({
           ) : null}
 
           <BehaviorDevelopingBanner behavior={behavior} />
-          <SessionIngestBanner behavior={behavior} />
-          <ExtractionStatus behavior={behavior} />
+          <BehaviorActionSummary behavior={behavior} />
 
           {/* 1 — Where the money leaks: product-level friction */}
           <ProductMatrix behavior={behavior} />
@@ -946,12 +1063,19 @@ export function BehaviorAnalytics({
                 subtitle="Shown only when a cohort has a comparable sample. Gender is Meta's aggregate reporting, not user-level."
               />
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {/* Compared against the Meta demographic baseline, not the Shopify
+                    site average: these rows count abandons as
+                    (checkout_initiated - purchases) from Meta's aggregate reporting,
+                    a completely different denominator. Comparing them to Shopify's
+                    abandoned-checkout rate produced a "+54 pts vs avg" badge on every
+                    single cohort, which measured the gap between two data sources
+                    rather than anything about the audience. */}
                 {checkoutGenderComparable ? (
                   <SegmentRanking
                     title="Checkout"
                     rows={checkoutGender}
                     type="gender"
-                    siteRate={checkoutGlobal}
+                    siteRate={checkoutGenderGlobal}
                   />
                 ) : null}
                 {paymentGenderComparable ? (
@@ -959,7 +1083,7 @@ export function BehaviorAnalytics({
                     title="Submit payment"
                     rows={paymentGender}
                     type="gender"
-                    siteRate={paymentGlobal}
+                    siteRate={paymentGenderGlobal}
                   />
                 ) : null}
               </div>
@@ -987,6 +1111,19 @@ export function BehaviorAnalytics({
           </div>
 
           <SessionReplayPanel />
+
+          <details className="rounded-xl border border-border bg-surface-2/30">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-foreground">
+              Data collection status
+            </summary>
+            <div className="space-y-3 border-t border-border px-4 py-4">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Use this only when the action cards are waiting for data or a source appears stale.
+              </p>
+              <SessionIngestBanner behavior={behavior} />
+              <ExtractionStatus behavior={behavior} />
+            </div>
+          </details>
         </div>
       ) : null}
     </div>

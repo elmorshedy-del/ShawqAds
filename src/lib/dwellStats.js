@@ -1,8 +1,6 @@
 import {
   benjaminiHochberg,
-  formatPValue,
   mannWhitneyU,
-  significanceLabel,
 } from './statsTests.js';
 import { formatDwellSeconds, normalizePagePath, pagePathLabel } from './pagePath.js';
 
@@ -98,8 +96,6 @@ function buildInsight(row) {
   const buyerMedian = Number(row.purchaser_median_dwell_seconds || 0);
   const buyerSessions = Number(row.purchaser_sessions || 0);
   const nonBuyerSessions = Number(row.non_purchaser_sessions || 0);
-  const pLabel = formatPValue(row.p_value_adjusted ?? row.p_value_raw);
-  const sigLabel = significanceLabel(row.p_value_adjusted ?? row.p_value_raw, DWELL_ALPHA);
 
   if (row.confidence === 'Insufficient') {
     if (buyerSessions === 0) {
@@ -111,7 +107,7 @@ function buildInsight(row) {
     }
     return {
       headline: 'Sample still small',
-      detail: `${nonBuyerSessions} non-buyer and ${buyerSessions} buyer session${buyerSessions === 1 ? '' : 's'} on ${label}. Need at least ${DWELL_MIN_SESSIONS_PER_COHORT} per group before testing buyer vs non-buyer dwell.`,
+      detail: `${nonBuyerSessions} non-buyer and ${buyerSessions} buyer session${buyerSessions === 1 ? '' : 's'} on ${label}. Need at least ${DWELL_MIN_SESSIONS_PER_COHORT} in each group before comparing them.`,
       pattern: 'insufficient',
     };
   }
@@ -127,7 +123,7 @@ function buildInsight(row) {
   if (row.pattern === 'significant_non_buyer_longer') {
     return {
       headline: 'Non-buyers linger longer',
-      detail: `Median ${formatDwellSeconds(nonBuyerMedian)} for non-buyers vs ${formatDwellSeconds(buyerMedian)} for buyers on ${label} (Mann-Whitney p=${pLabel}, ${sigLabel || 'adjusted across pages'}). Worth checking friction — copy, price, sizing, or load time.`,
+      detail: `Non-buyers spend a median ${formatDwellSeconds(nonBuyerMedian)} here versus ${formatDwellSeconds(buyerMedian)} for buyers. Check copy, price, sizing and load time.`,
       pattern: row.pattern,
     };
   }
@@ -135,7 +131,7 @@ function buildInsight(row) {
   if (row.pattern === 'significant_buyer_longer') {
     return {
       headline: 'Buyers research here',
-      detail: `Buyers median ${formatDwellSeconds(buyerMedian)} vs ${formatDwellSeconds(nonBuyerMedian)} for non-buyers on ${label} (p=${pLabel}). This looks like a decision page — strengthen trust, reviews, and size guidance.`,
+      detail: `Buyers spend a median ${formatDwellSeconds(buyerMedian)} here versus ${formatDwellSeconds(nonBuyerMedian)} for non-buyers. Strengthen trust, reviews and size guidance.`,
       pattern: row.pattern,
     };
   }
@@ -143,14 +139,14 @@ function buildInsight(row) {
   if (row.pattern === 'uniform_engagement') {
     return {
       headline: 'Similar time for both groups',
-      detail: `Non-buyers ${formatDwellSeconds(nonBuyerMedian)}, buyers ${formatDwellSeconds(buyerMedian)} on ${label} (p=${pLabel}). No statistically meaningful dwell gap after FDR adjustment.`,
+      detail: `Non-buyers spend ${formatDwellSeconds(nonBuyerMedian)} and buyers ${formatDwellSeconds(buyerMedian)} on ${label}. There is no clear difference to act on.`,
       pattern: row.pattern,
     };
   }
 
   return {
     headline: 'Directional only',
-    detail: `Non-buyers ${formatDwellSeconds(nonBuyerMedian)}, buyers ${formatDwellSeconds(buyerMedian)} on ${label} (p=${pLabel}). Treat as a watch item until more sessions accumulate.`,
+    detail: `Non-buyers spend ${formatDwellSeconds(nonBuyerMedian)} and buyers ${formatDwellSeconds(buyerMedian)} on ${label}. Keep watching until more sessions accumulate.`,
     pattern: 'watch',
   };
 }
@@ -261,7 +257,8 @@ export function rollupDwellPages(pageFacts = [], options = {}) {
 }
 
 export function dwellPageInsight(page = {}) {
-  if (page.insight?.headline) return page.insight;
+  // Rebuild from the raw statistics so UI copy can improve without waiting for
+  // every persisted behavior snapshot to be regenerated.
   return buildInsight(page);
 }
 
