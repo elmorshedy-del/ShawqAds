@@ -8,10 +8,11 @@
 
 - Last agent: cursor
 - Last event: checkpoint
-- Last message: Reduced KPI card face density and compressed the repeated dashboard scope panel into a status strip
+- Last message: Reduced tab preambles and capped decision findings to three items per area
 
 ## Recent Events
 
+- 2026-08-05T01:59:49.324Z | cursor | checkpoint: Reduced tab preambles and capped decision findings to three items per area
 - 2026-08-05T01:58:38.130Z | cursor | checkpoint: Reduced KPI card face density and compressed the repeated dashboard scope panel into a status strip
 - 2026-08-05T01:57:02.754Z | cursor | checkpoint: Prevented customer timing and product growth charts from inferring patterns from undersized windows
 - 2026-08-05T01:55:42.431Z | cursor | checkpoint: Replaced the funnel's default line clutter with raw stage totals and optional three-campaign trend detail
