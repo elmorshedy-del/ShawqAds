@@ -65,3 +65,26 @@ export function sourceCoverageBounds(meta = {}, shopify = {}, reportingToday = '
     lagging_source: laggingSource,
   };
 }
+
+function shiftDate(date, days) {
+  if (!date) return '';
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return '';
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
+/**
+ * Rolling presets end on today only when both sources are current. Otherwise
+ * they end on the latest row-backed matched day, so "Last week" never opens an
+ * empty future window while the dashboard is waiting on a stale source.
+ */
+export function rollingMatchedRange(bounds = {}, days = 7) {
+  const calendarEnd = bounds.today || '';
+  const matchedEnd = bounds.latest_data_day || bounds.common_until || '';
+  const until = bounds.has_today_data ? calendarEnd : matchedEnd || calendarEnd;
+  return {
+    since: shiftDate(until, -(Math.max(1, Number(days) || 1) - 1)),
+    until,
+  };
+}

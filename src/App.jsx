@@ -60,7 +60,7 @@ import {
   emptyBehaviorGlobal,
   isDevelopingReportingDayRange,
 } from './lib/reportingBounds.js';
-import { sourceCoverageBounds } from './lib/dashboardScope.js';
+import { rollingMatchedRange, sourceCoverageBounds } from './lib/dashboardScope.js';
 import { DashboardScopeBar } from './components/dashboard/DashboardScopeBar';
 
 const SALE_POLL_MS = 30000;
@@ -929,7 +929,7 @@ function presetDateRange(preset, bounds) {
     const day = bounds?.latest_data_day || latestCompletedDataDay(bounds) || end;
     return clampDateRange({ since: day, until: day }, bounds);
   }
-  if (preset === 'last7') return clampDateRange({ since: shiftDate(end, -6), until: end }, bounds);
+  if (preset === 'last7') return clampDateRange(rollingMatchedRange(bounds, 7), bounds);
   if (preset === 'launch') return launchAnalysisDateRange(bounds);
   if (preset === 'all' && bounds?.common_since && bounds?.common_until) {
     return clampDateRange({ since: bounds.common_since, until: bounds.common_until }, bounds);
@@ -2352,11 +2352,16 @@ function App() {
   ];
   const activeGroup = dashboardGroups.find((g) => g.key === activeTab) || dashboardGroups[0];
   const calendarYesterday = shiftDate(loadedBounds?.today || currentReportingDay(), -1);
-  const scopePresetLabel = datePreset === 'yesterday'
+  const isStaleYesterday = datePreset === 'yesterday'
     && activeDateRange.since === activeDateRange.until
-    && activeDateRange.until < calendarYesterday
+    && activeDateRange.until < calendarYesterday;
+  const isStaleLastWeek = datePreset === 'last7'
+    && activeDateRange.until < (loadedBounds?.today || currentReportingDay());
+  const scopePresetLabel = isStaleYesterday
     ? 'Yesterday (latest loaded)'
-    : datePresets.find((preset) => preset.value === datePreset)?.label || 'Custom';
+    : isStaleLastWeek
+      ? 'Last week (latest loaded)'
+      : datePresets.find((preset) => preset.value === datePreset)?.label || 'Custom';
   function moveTabFocus(event, index) {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();

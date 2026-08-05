@@ -1,4 +1,4 @@
-import { sourceCoverageBounds } from '../src/lib/dashboardScope.js';
+import { rollingMatchedRange, sourceCoverageBounds } from '../src/lib/dashboardScope.js';
 import { behaviorCachedUntil } from '../src/lib/reportingBounds.js';
 
 function assert(condition, message) {
@@ -29,6 +29,16 @@ assert(staleMeta.latest_common_data_day === '2026-08-02', 'Blended coverage must
 assert(staleMeta.latest_any_data_day === '2026-08-04', 'Latest-any coverage should remain available for diagnostics');
 assert(staleMeta.has_today_data === false, 'One current source is not enough for a current blended metric');
 assert(staleMeta.lagging_source === 'Meta', 'The stale source should be named');
+const staleWeek = rollingMatchedRange({
+  today: '2026-08-04',
+  latest_data_day: staleMeta.latest_common_data_day,
+  common_until: staleMeta.common_until,
+  has_today_data: staleMeta.has_today_data,
+}, 7);
+assert(
+  staleWeek.since === '2026-07-27' && staleWeek.until === '2026-08-02',
+  'Last week must end on the latest matched day when either source is stale',
+);
 
 const currentMeta = {
   ...meta,
@@ -41,6 +51,16 @@ const current = sourceCoverageBounds(currentMeta, shopify, '2026-08-04');
 assert(current.has_today_data === true, 'Both sources current should enable today');
 assert(current.latest_common_data_day === '2026-08-04', 'Matched coverage should reach today');
 assert(current.lagging_source === '', 'Equal coverage must not name a lagging source');
+const currentWeek = rollingMatchedRange({
+  today: '2026-08-04',
+  latest_data_day: current.latest_common_data_day,
+  common_until: current.common_until,
+  has_today_data: current.has_today_data,
+}, 7);
+assert(
+  currentWeek.since === '2026-07-29' && currentWeek.until === '2026-08-04',
+  'Last week should end on today when both sources are current',
+);
 
 const behavior = {
   period: { since: '2026-06-03', until: '2026-08-04' },
