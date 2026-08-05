@@ -61,7 +61,39 @@ import {
   isDevelopingReportingDayRange,
 } from './lib/reportingBounds.js';
 import { rollingMatchedRange, sourceCoverageBounds } from './lib/dashboardScope.js';
+import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import { DashboardScopeBar } from './components/dashboard/DashboardScopeBar';
+
+// Human-readable names for the boundary card that replaces a panel which threw.
+const SECTION_LABELS = {
+  ordersMap: 'Live sales monitor',
+  keyFindings: 'Key findings',
+  kpis: 'Business KPIs',
+  orderDrop: 'Order drops',
+  orderLift: 'Order lifts',
+  revenue: 'Performance trend',
+  salesLeader: 'Sales leaders',
+  benchmarks: 'Benchmarks',
+  tree: 'Campaign ROAS tree',
+  emailCampaign: 'Email campaign',
+  edits: 'Ad set change history',
+  usa: 'USA comparison',
+  delivery: 'Daily delivery',
+  growth: 'Product growth',
+  decision: 'Ad set decisions',
+  product: 'Product demand',
+  country: 'Country sales',
+  mobileTops: 'Top movers',
+  behavior: 'Behavior analytics',
+  data: 'Daily data table',
+  historicalInsights: 'Historical insights',
+  campaignPacing: 'Campaign pacing',
+  mediaFindings: 'Media actions',
+  customerClock: 'Customer clock',
+  demandFindings: 'Demand signals',
+  funnel: 'Conversion funnel',
+  conversionFindings: 'Conversion signals',
+};
 
 const SALE_POLL_MS = 30000;
 const META_POLL_MS = 120000;
@@ -2441,7 +2473,9 @@ function App() {
               <h2 className="font-display text-lg font-semibold tracking-tight">{activeGroup.question}</h2>
             </header>
             {activeGroup.ids.map((id) => (
-              <Fragment key={id}>{sectionEls[id]}</Fragment>
+              <ErrorBoundary key={id} label={SECTION_LABELS[id] || 'This panel'}>
+                <Fragment>{sectionEls[id]}</Fragment>
+              </ErrorBoundary>
             ))}
           </div>
 
