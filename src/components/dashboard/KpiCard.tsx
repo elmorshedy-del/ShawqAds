@@ -118,7 +118,7 @@ export function KpiCard({
     >
       <div className="flex min-h-[2.25rem] items-center justify-center gap-1 text-[0.7rem] font-semibold uppercase leading-tight tracking-[0.12em] text-muted-foreground">
         <span>{label}</span>
-        {definition ? (
+        {definition || projection ? (
           <button
             type="button"
             aria-label={`Explain ${label}`}
@@ -131,13 +131,20 @@ export function KpiCard({
         ) : null}
       </div>
 
-      {definitionOpen && definition ? (
+      {definitionOpen && (definition || projection) ? (
         <div className="mb-1 rounded-lg border border-border bg-surface-2/70 px-3 py-2 text-left normal-case tracking-normal">
-          <p className="text-xs font-medium leading-relaxed text-foreground">{definition}</p>
+          {definition ? <p className="text-xs font-medium leading-relaxed text-foreground">{definition}</p> : null}
           {whyItMatters ? (
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               <span className="font-medium text-foreground/75">Why it matters · </span>
               {whyItMatters}
+            </p>
+          ) : null}
+          {projection ? (
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              <span className="font-medium text-foreground/75">Projection · </span>
+              {projection.label}{" "}
+              <span className="font-semibold tabular-nums text-foreground">{projection.value}</span>
             </p>
           ) : null}
         </div>
@@ -207,18 +214,6 @@ export function KpiCard({
       ) : null}
 
       <div className="-mx-5 mt-auto">
-        {projection ? (
-          <p className="flex items-center justify-center gap-1.5 px-5 pt-1 text-[0.72rem] leading-tight text-muted-foreground">
-            <span aria-hidden="true" className="text-[0.95rem] leading-none">
-              🔮
-            </span>
-            <span>
-              {projection.label}{" "}
-              <span className="font-semibold tabular-nums text-foreground">{projection.value}</span>
-            </span>
-          </p>
-        ) : null}
-
         <div className="-mb-5 mt-2 h-12 opacity-90 transition-opacity duration-300 group-hover:opacity-100">
           <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 240, height: 72 }}>
             <AreaChart data={data} margin={{ top: 6, bottom: 0, left: 0, right: 0 }}>

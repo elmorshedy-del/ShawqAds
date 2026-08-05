@@ -8,10 +8,11 @@
 
 - Last agent: cursor
 - Last event: checkpoint
-- Last message: Prevented customer timing and product growth charts from inferring patterns from undersized windows
+- Last message: Reduced KPI card face density and compressed the repeated dashboard scope panel into a status strip
 
 ## Recent Events
 
+- 2026-08-05T01:58:38.130Z | cursor | checkpoint: Reduced KPI card face density and compressed the repeated dashboard scope panel into a status strip
 - 2026-08-05T01:57:02.754Z | cursor | checkpoint: Prevented customer timing and product growth charts from inferring patterns from undersized windows
 - 2026-08-05T01:55:42.431Z | cursor | checkpoint: Replaced the funnel's default line clutter with raw stage totals and optional three-campaign trend detail
 - 2026-08-05T01:53:17.759Z | cursor | checkpoint: Restored the Overview data-first hierarchy with live orders and KPIs before narrative findings
@@ -34,6 +35,8 @@
 - `scripts/funnel-analytics-test.mjs`
 - `src/App.jsx`
 - `memory/11-shawq-domain-map.md`
+- `src/components/dashboard/KpiCard.tsx`
+- `src/components/dashboard/DashboardScopeBar.tsx`
 - `src/lib/dashboardScope.js`
 - `src/lib/campaignPacing.js`
 - `src/components/dashboard/CampaignPacing.tsx`
@@ -60,6 +63,8 @@
 - `scripts/funnel-analytics-test.mjs` — layer: utils, importedBy: 0, health: 98/100
 - `src/App.jsx` — layer: utils, importedBy: 1, health: 50/100
 - `memory/11-shawq-domain-map.md` — layer: utils, importedBy: 0, health: 100/100
+- `src/components/dashboard/KpiCard.tsx` — layer: components, importedBy: 1, health: 100/100
+- `src/components/dashboard/DashboardScopeBar.tsx` — layer: components, importedBy: 1, health: 100/100
 - `src/lib/dashboardScope.js` — layer: utils, importedBy: 2, health: 80/100
 - `src/lib/campaignPacing.js` — layer: utils, importedBy: 2, health: 65/100
 - `src/components/dashboard/CampaignPacing.tsx` — layer: components, importedBy: 1, health: 85/100
