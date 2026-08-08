@@ -150,6 +150,30 @@ To add more cities/boroughs, extend the tables in
 All of this is configuration on **Railway** for the `shawq-ads` service. No code
 changes are required.
 
+### 8.0 Automated path — `npm run go-live`
+
+`scripts/go-live.mjs` automates §8.1 (+ optional webhook from §8.2). It pushes the
+Shopify variables to Railway, triggers a redeploy, waits for it to go healthy, and
+verifies `GET /api/shopify/orders-map` returns `configured:true`.
+
+```bash
+export RAILWAY_TOKEN=...                 # Railway account/team API token (write)
+export SHAWQ_SHOPIFY_ACCESS_TOKEN=...    # Shopify Admin API token (read_orders)
+# store + api version default to f3e7e9-2.myshopify.com / 2025-10; override if needed
+npm run go-live
+
+# Just check current live status without changing anything:
+npm run go-live:check
+
+# Also register the orders/create webhook (needs SHOPIFY_WEBHOOK_SECRET):
+REGISTER_WEBHOOK=1 SHOPIFY_WEBHOOK_SECRET=... npm run go-live
+```
+
+The Railway target is auto-resolved (project `faithful-compassion` / `production` /
+`shawq-ads`); override with `RAILWAY_PROJECT_ID` / `RAILWAY_ENVIRONMENT_ID` /
+`RAILWAY_SERVICE_ID` (or the `*_NAME` variants) if it ever moves. If you prefer to
+do it by hand, the manual steps below still apply.
+
 ### 8.1 Required — show real orders
 
 Add these Railway **Variables** (Railway → `shawq-ads` → Variables), then redeploy:
