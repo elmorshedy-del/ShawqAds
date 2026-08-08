@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { productTaxonomyForName } from '../src/lib/productMapping.js';
+import {
+  DEFAULT_CHUNK_DAYS,
+  chunkDateRange,
+  isResultTooLargeError,
+  nextChunkSize,
+} from '../src/lib/metaFetchWindow.js';
 
 const envPaths = [process.env.ENV_FILE, path.resolve('.env')].filter(Boolean);
 for (const envPath of envPaths) {
@@ -212,6 +218,46 @@ async function getInsights({ level, fields, start, end, breakdowns, timeIncremen
     url = data.paging?.next || null;
   }
   return rows;
+}
+
+// Meta refuses a request whose result set is too large, and does it with an
+// opaque HTTP 500 carrying "Please reduce the amount of data you're asking for".
+// This window starts at the campaign launch and ends today, so it grows by a day
+// every day: a request that was fine at launch eventually crosses the ceiling and
+// then fails permanently. It took the entire refresh with it, so a single
+// oversized call meant no data at all for that run.
+//
+// Asking for the same window in slices keeps every individual request small no
+// matter how old the account gets. Slice size is a starting guess rather than a
+// tuned constant — when a slice still comes back too large (one unusually heavy
+// day, or a breakdown that multiplies rows), it is halved and retried instead of
+// abandoned, so the fetch degrades into more requests rather than failing.
+const INSIGHT_CHUNK_DAYS = Math.max(1, Number(process.env.META_INSIGHT_CHUNK_DAYS || DEFAULT_CHUNK_DAYS));
+
+async function getInsightsRange(params, chunkDays = INSIGHT_CHUNK_DAYS) {
+  const chunks = chunkDateRange(params.start, params.end, chunkDays);
+  if (!chunks.length) return [];
+  const rows = [];
+  for (const chunk of chunks) {
+    rows.push(...await getInsightsChunk({ ...params, start: chunk.start, end: chunk.end }, chunkDays));
+  }
+  return rows;
+}
+
+async function getInsightsChunk(params, chunkDays) {
+  try {
+    return await getInsights(params);
+  } catch (error) {
+    // A single day that is still too large cannot be split further, so let that
+    // surface rather than looping. Anything wider gets halved and retried.
+    if (!isResultTooLargeError(error) || params.start === params.end) throw error;
+    const half = nextChunkSize(chunkDays) || 1;
+    console.warn(
+      `Meta rejected ${params.level} ${params.start}..${params.end}`
+      + `${params.breakdowns ? ` (${params.breakdowns})` : ''} as too large; retrying in ${half}-day slices.`,
+    );
+    return getInsightsRange(params, half);
+  }
 }
 
 async function getObjectInsights({ objectId, level, fields, start, end, breakdowns }) {
@@ -514,6 +560,52 @@ function isUsaRow(r) {
   return /\bUSA\b|\bUS\b|_US|US_/i.test(text) && !/AUS|Australia/i.test(text);
 }
 
+const MARCH_BASELINE = { since: '2026-03-01', until: '2026-03-31' };
+const marchBaselinePath = path.resolve('public/data/meta-march-baseline.json');
+
+/**
+ * Returns the March benchmark rows, fetching them only the first time.
+ *
+ * The window is closed, so a cache hit is always correct — there is no staleness
+ * to reason about. A miss falls back to fetching, and a write failure is logged
+ * rather than thrown: losing the cache costs a slow run, not the refresh.
+ */
+async function loadMarchBaseline() {
+  try {
+    if (fs.existsSync(marchBaselinePath)) {
+      const cached = JSON.parse(fs.readFileSync(marchBaselinePath, 'utf8'));
+      if (cached?.adset_rows && cached?.adset_country_rows) {
+        console.log(`March baseline: reusing cached snapshot (${cached.adset_rows.length} adset rows, ${cached.adset_country_rows.length} country rows).`);
+        return [cached.adset_rows, cached.adset_country_rows];
+      }
+    }
+  } catch (error) {
+    console.warn(`Could not read the cached March baseline (${error.message}); refetching it.`);
+  }
+
+  console.log('March baseline: no cache found, fetching once.');
+  const adsetRows = await getInsightsRange({
+    level: 'adset', fields: adsetFields, start: MARCH_BASELINE.since, end: MARCH_BASELINE.until,
+  });
+  const adsetCountryRows = await getInsightsRange({
+    level: 'adset', fields: adsetFields, start: MARCH_BASELINE.since, end: MARCH_BASELINE.until, breakdowns: 'country',
+  });
+
+  try {
+    fs.writeFileSync(marchBaselinePath, `${JSON.stringify({
+      window: MARCH_BASELINE,
+      note: 'Closed historical month. Cached so it is never refetched; delete this file to rebuild it.',
+      fetched_at: new Date().toISOString(),
+      adset_rows: adsetRows,
+      adset_country_rows: adsetCountryRows,
+    }, null, 2)}\n`);
+    console.log(`March baseline: cached to ${path.relative(process.cwd(), marchBaselinePath)}.`);
+  } catch (error) {
+    console.warn(`Could not cache the March baseline (${error.message}); it will be refetched next run.`);
+  }
+  return [adsetRows, adsetCountryRows];
+}
+
 const accountMeta = await getAccountMetadata();
 const accountCurrency = String(accountMeta.currency || process.env.META_ACCOUNT_CURRENCY || 'TRY').toUpperCase();
 const metaReportingTimezone = process.env.SHAWQ_META_REPORTING_TIMEZONE
@@ -547,14 +639,20 @@ try {
   console.warn(`Could not fetch Meta budget metadata: ${error.message}`);
 }
 
-const currentAdsetRows = await getInsights({ level: 'adset', fields: adsetFields, start: since, end: until });
-const marchAdsetRows = await getInsights({ level: 'adset', fields: adsetFields, start: '2026-03-01', end: '2026-03-31' });
-const currentAdsetCountryRows = await getInsights({ level: 'adset', fields: adsetFields, start: since, end: until, breakdowns: 'country' });
-const marchAdsetCountryRows = await getInsights({ level: 'adset', fields: adsetFields, start: '2026-03-01', end: '2026-03-31', breakdowns: 'country' });
-const adDailyRawRows = await getInsights({ level: 'ad', fields: adFields, start: since, end: until });
+const currentAdsetRows = await getInsightsRange({ level: 'adset', fields: adsetFields, start: since, end: until });
+
+// The March benchmark is a closed historical month. It cannot change, yet it was
+// re-downloaded on every run — two extra calls each time, one of them with a
+// country breakdown, for numbers that were settled before this dashboard existed.
+// Cache it next to the other committed data so it is fetched exactly once and
+// then travels with the repo.
+const [marchAdsetRows, marchAdsetCountryRows] = await loadMarchBaseline();
+
+const currentAdsetCountryRows = await getInsightsRange({ level: 'adset', fields: adsetFields, start: since, end: until, breakdowns: 'country' });
+const adDailyRawRows = await getInsightsRange({ level: 'ad', fields: adFields, start: since, end: until });
 const adDaily = [];
 for (const row of adDailyRawRows) adDaily.push(await normalizeInsightRow(row, accountCurrency));
-const adCountryRawRows = await getInsights({ level: 'ad', fields: adFields, start: since, end: until, breakdowns: 'country' });
+const adCountryRawRows = await getInsightsRange({ level: 'ad', fields: adFields, start: since, end: until, breakdowns: 'country' });
 const adCountryDaily = [];
 for (const row of adCountryRawRows) adCountryDaily.push(await normalizeInsightRow(row, accountCurrency));
 

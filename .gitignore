@@ -12,6 +12,9 @@ public/data/*.json
 !public/data/adset-radar.json
 !public/data/behavior-intelligence.json
 !public/data/shopify-products.json
+# A closed historical month. Committed so it is fetched once ever, rather than
+# re-downloaded on every deploy of every server it is moved to.
+!public/data/meta-march-baseline.json
 qa-*.png
 qa-dashboard.png
 coverage/
