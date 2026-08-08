@@ -125,6 +125,22 @@ Cloud Agents clone `main` and get all of the above every session. **You do not n
 
 Follow Karpathy guidelines (surgical changes, simplicity first) on every task.
 
+## Claude Code agent stack (loads every session)
+
+Claude Code sessions (claude.ai/code, the CLI, IDE extensions) don't read the Cursor-specific
+files above (`.cursor/rules/*.mdc`, `.cursor/skills/`). They get the equivalent context from:
+
+| Layer | Location | Loads how |
+|-------|----------|-----------|
+| **Pointer to this file + the skill below** | `CLAUDE.md` (repo root) | Read automatically at session start |
+| **Architecture, file map, debugging playbook** | `.claude/skills/shawqads-repo-guide/SKILL.md` | Invoked via the `Skill` tool — should trigger automatically on repo-relevant work |
+| **Process rules (this file)** | `AGENTS.md` | Not auto-read by Claude Code itself, but `CLAUDE.md` points here and the rules apply regardless of which agent is working |
+
+Same rule as the Cursor stack: after a non-obvious fix, append the lesson to this file's
+Scope discipline section (process) or the skill's Known issue history section
+(architecture/debugging) — whichever fits. Keep both updated; don't let one drift stale
+while the other gets the real notes.
+
 ## Project notes
 
 - Reporting timezone: `Europe/Istanbul`
