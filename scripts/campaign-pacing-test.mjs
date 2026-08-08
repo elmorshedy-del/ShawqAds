@@ -101,4 +101,30 @@ assert(
   'live spend must replace rather than duplicate the cached current day',
 );
 
+// Live hourly rows go through a separate branch of mergeLivePacing than the daily
+// rows above. It went unexercised, and a reference to an undeclared `target_id`
+// there threw a ReferenceError that unmounted the whole dashboard the moment Meta
+// returned hourly pacing for a target the account actually owns. Keep hourly
+// coverage alongside daily so that branch cannot rot again.
+const mergedHourly = mergeLivePacing(pacing, {
+  date: '2026-08-04',
+  checked_at: '2026-08-04T15:00:00Z',
+  pacing_adset_daily: [{ campaign_id: '1', adset_id: 'a', spend_usd: 30 }],
+  pacing_hourly: [
+    { campaign_id: '1', adset_id: 'a', date: '2026-08-04', hour: 11, spend_usd: 12 },
+    // No target owns campaign 99, so this row must be dropped rather than kept untagged.
+    { campaign_id: '99', adset_id: 'zz', date: '2026-08-04', hour: 11, spend_usd: 5 },
+  ],
+});
+const liveHourRow = mergedHourly.hourly.find((row) => row.date === '2026-08-04' && row.hour === 11);
+assert(liveHourRow, 'live hourly pacing rows must survive the merge');
+assert(
+  liveHourRow.target_id === 'campaign:1',
+  'live hourly rows must be tagged with the resolved budget owner, not an undeclared binding',
+);
+assert(
+  !mergedHourly.hourly.some((row) => row.campaign_id === '99'),
+  'hourly rows with no matching pacing target must be dropped',
+);
+
 console.log('campaign pacing checks passed');
