@@ -151,6 +151,28 @@ audited for O(n²) loops over the large behavior dataset: `dwellStats.js`, `page
 `funnelAnalytics.js`, `customerClock.js`. *(Next agent: update this entry with the actual
 root cause and fix once found, rather than leaving the hypothesis list as the final word.)*
 
+**2026-08-10 — country-level KPIs are noise-dominated below a per-country conversion threshold.**
+Investigating "why do European countries deliver unpredictable results" (full writeup +
+reproducible pulls in `analysis/european-delivery/`). Pulled live Meta + Shopify Jan–Aug 2026
+rather than the 10-day `public/data/*.json` snapshot. Result worth carrying into any panel that
+slices by country: **weekly ROAS for most European markets is statistically meaningless.** The
+noise floor on ROAS is `sqrt((1+CV_aov²)/N)` for `N` conversions, and per-country weekly `N` is
+0.4–5.7 in Europe vs 17.6 for US — so observed volatility matches the theoretical floor (excess
+ratio ≈ 1.0–1.8, *no worse than US/CA at 1.82*). Lag-1 autocorrelation of weekly European ROAS
+is ~0.01 (Anglo: 0.46), i.e. a week's number carries no forward information. Practical
+implications for this repo: (1) any panel presenting per-country ROAS/CPA at daily or weekly
+granularity is presenting noise — `CountrySalesPanel`, `OrderDropRankings`, and "top movers"
+style rankings are the exposed surfaces; consider a minimum-N gate or a visible confidence band
+before ranking countries against each other; (2) Meta-reported European conversions are heavily
+*modeled* — `fbclid` survives on only 34.5% of EU/EEA+UK orders vs 62.1% Anglo (z=11.98,
+p=5e-33), with Switzerland (European, outside EU/EEA) at 75%, which isolates the consent regime
+rather than geography; treat Meta's European ROAS as an estimate and reconcile against Shopify.
+(3) Add-to-cart-per-click is the one forward-predictive European signal found (Spearman 0.369 on
+next-week ROAS, p=0.0008) and beats ROAS itself (0.283) because ATC fires ~10-29× more often.
+Also worth knowing before someone attributes a decline to one region: Jan–Apr → Jun–Aug ROAS
+fell 45% in Anglo, 45% in Europe, 38% in GCC — the account moves as one, monthly Europe/Anglo
+ROAS correlation is r=0.986.
+
 ## Process vs. architecture — don't duplicate `AGENTS.md`
 
 `AGENTS.md` (repo root) is the other file that's force-loaded on every task, and it owns a
