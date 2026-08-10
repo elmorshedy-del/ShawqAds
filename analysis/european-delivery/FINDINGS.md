@@ -405,3 +405,155 @@ Replacing rule 4 in Part 1:
    rate to spend the budget, and then cannot accumulate clicks fast enough to convert before the
    kill decision. Size the test by clicks needed, not budget: at a 1.3% conversion rate, ~77
    clicks buys one expected sale, so a readable 13-conversion test needs ~1,000 clicks.
+
+---
+
+# Part 3 — causes of death
+
+Parts 1 and 2 described *how unstable* results were and *which unit* carried the signal. Neither
+named a cause. This part pulls the diagnostic layer that was never fetched — campaign and ad set
+configuration, placements, and ad-level creative performance — and does per-campaign autopsies.
+Scripts `16`–`21`, plus `pull-config.mjs` and `pull-ads.mjs`.
+
+## 17. The arithmetic that makes this diagnosable
+
+ROAS is not a statistic here — it is an identity:
+
+```
+ROAS = (1000 / CPM) x CTR x (ATC per click) x (purchases per ATC) x AOV
+```
+
+Every term is measurable, and they multiply to ROAS exactly. So "which link broke" is an
+arithmetic question, not an inferential one. Crucially the upper-funnel terms are measured on
+thousands of events, not on 1–5 purchases: for the biggest UK ad, ATC-per-click of 0.058 across
+2,129 clicks carries a standard error of ±0.005. **This diagnosis rests on numbers that are
+precise to ±10%, where the ROAS reads in Part 1 were precise to ±40–100%.**
+
+## 18. The UK autopsy
+
+Nine UK campaigns, GB delivery only, decomposed. Ratios are against the best campaign:
+
+| Campaign | ROAS | CPM $ | CTR % | ATC/click | pur/ATC | AOV $ | CPM ratio | CTR ratio | **ATC ratio** |
+|---|---|---|---|---|---|---|---|---|---|
+| Scaling_UK_ASC2 | **4.34** | 7.48 | 1.56 | **0.174** | 0.105 | 114 | 1.00× | 1.00× | **1.00×** |
+| UK_ABO | 2.75 | 6.23 | 1.79 | 0.108 | 0.076 | 117 | 1.20× | 1.15× | 0.62× |
+| UK1_ASC | 1.51 | 7.77 | 1.28 | 0.076 | 0.109 | 112 | 0.96× | 0.82× | 0.43× |
+| UK_ASC (Jul–Aug) | 1.20 | 9.95 | **2.18** | 0.069 | 0.080 | 99 | 0.75× | **1.40×** | 0.39× |
+| UK_CBO | 1.10 | 8.33 | 1.71 | 0.078 | 0.059 | 116 | 0.90× | 1.10× | 0.45× |
+| UK1_ASC3 | 1.03 | 8.27 | 1.33 | 0.059 | 0.120 | 90 | 0.90× | 0.85× | 0.34× |
+| UK_Skirts_ASC | 0.00 | 10.67 | 1.56 | 0.110 | 0.000 | — | 0.70× | 1.00× | 0.63× |
+
+**Four of the five terms barely move.** CPM spans 0.70–1.20×, CTR 0.82–1.40×, AOV 0.79–1.03×,
+purchases-per-ATC 0.56–1.14×. **ATC-per-click collapses from 1.00× to 0.34×** and tracks campaign
+ROAS at **r = 0.766** across the nine campaigns.
+
+Note UK_ASC: it has the **highest CTR of any UK campaign (2.18%)** and the second-worst ROAS. It
+bought more clicks than anything else and converted them at a third of the rate. That is the
+signature of creative that wins attention without communicating the product.
+
+## 19. The specific ads that did it
+
+ATC-per-click is a property of the creative. UK ads, ranked:
+
+| Ad | Campaign | Spend (TRY) | Clicks | ATC/click | vs median |
+|---|---|---|---|---|---|
+| **Skirts \| Movement & Styling \| Global** | UK_ASC | **41,978** | 2,129 | **0.058** | 0.47× |
+| **VSC Blurry Shirt Masterpiece** | UK_CBO | **21,560** | 1,167 | **0.061** | 0.49× |
+| Vescarts Crew Neck 98 | Scaling_UK_ASC2 | 17,330 | 935 | 0.170 | 1.36× |
+| Vescarts Skirt 2 | UK_ABO | 17,046 | 1,425 | 0.091 | 0.72× |
+| Quote VO - Copy | UK_ASC | 14,987 | 535 | 0.103 | 0.82× |
+
+And the best creatives, by ATC-per-click (≥100 clicks):
+
+| Ad | Campaign | Spend (TRY) | Clicks | ATC/click | vs median |
+|---|---|---|---|---|---|
+| **Calm Kuffiyah** | Scaling_UK_ASC | 7,180 | 289 | **0.298** | 2.38× |
+| **Calm Kuffiyah** | Scaling_UK_ASC2 | 2,802 | 113 | **0.274** | 2.19× |
+| Winter 2 EU | Scaling_UK_ASC | 5,412 | 302 | 0.242 | 1.93× |
+| Zaytoun Tree Skirt | Scaling_UK_ASC2 | 2,379 | 137 | 0.197 | 1.58× |
+| Vescarts Denim Pants 2 | Scaling_UK_ASC2 | 6,181 | 229 | 0.197 | 1.57× |
+
+**Cause of death, UK, named:**
+
+1. **`Skirts | Movement & Styling | Global` — 41,978 TRY at 0.058 ATC/click.** The single largest
+   UK ad spend, at less than half the median creative's add-to-cart rate. This one ad is most of
+   UK_ASC's failure. Its name says `Global` — it is a templated cross-market asset, not a
+   product-specific one; every high-performing UK ad is product-specific.
+2. **`VSC Blurry Shirt Masterpiece` — 21,560 TRY at 0.061.** Most of UK_CBO's failure.
+3. **The best creative was never scaled.** `Calm Kuffiyah` replicated at 0.298 and 0.274 across
+   two separate campaigns — the only UK creative with a repeated high reading — and received
+   ~10,000 TRY lifetime. The 0.058 ad received 42,000.
+4. **No creative carry-forward.** Only **10 of 40** UK ads ever ran in more than one campaign.
+   Each new campaign restarts the creative lottery, which is why "the same country alone" swings.
+
+Aggregate misallocation: ads at **≥0.15 ATC/click took 26% of UK spend**; ads **below 0.08 took
+37%**.
+
+## 20. Switzerland and Norway — the campaign did partly deliver
+
+`CH_AT_NOR_ASC`, all five days of it:
+
+| Country | days | spend TRY | clicks | ATC | purchases | ROAS | CPM TRY |
+|---|---|---|---|---|---|---|---|
+| **NO** | 5 | 4,813 | 166 | 21 | **2** | **2.81** | 439 |
+| CH | 5 | 4,724 | 83 | 7 | 0 | 0 | 358 |
+| AT | 5 | 1,981 | 74 | 6 | 0 | 0 | 240 |
+
+**Norway delivered** — ROAS 2.81. The campaign as a whole came in at 1.18, not zero. Switzerland
+and Austria produced 83 and 74 clicks respectively over five days, which at their conversion rates
+predicts about one sale each; zero is an ordinary draw.
+
+The campaign's own defect is visible in the decomposition and it is *not* ATC: its ATC-per-click
+was 0.105, near normal. Its **purchases-per-ATC was 0.059 against a 0.088 baseline (0.67×)** —
+people added to cart and did not check out.
+
+`CH_ASC` is the genuinely broken campaign, and it is diagnosable rather than noise:
+
+| | CPM $ | CTR % | ATC/click | vs Scaling_Euro baseline |
+|---|---|---|---|---|
+| Scaling_Euro_Campaign | 5.51 | 1.20 | 0.167 | — |
+| **CH_ASC** | **10.49** | 0.93 | **0.032** | CPM 0.53×, **ATC 0.19×** |
+
+It paid **double the CPM** for clicks that added to cart at **one-fifth** the normal rate. That is
+a broken campaign, not a small sample.
+
+## 21. Two mechanisms ruled out by direct measurement
+
+- **Audience exhaustion: no.** Frequency is flat across all eleven markets and all eight months,
+  1.12–1.37. Nothing is being over-served.
+- **Placement drift: no.** UK placement mix is essentially constant across campaigns
+  (Instagram feed 34–42%, Reels 30–39%, Stories 13–16%). What changed is the *price* of the same
+  placements — Instagram feed CPM in the UK went 322–395 TRY in March to 543–597 TRY in June–August.
+  In USD, stripping TRY depreciation, that is **GB +17%, US +19%, AU +24%, DE +61%, IT +41%** —
+  real, account-wide, and far too small to explain a 4× ROAS swing on its own.
+
+## 22. Revised diagnosis
+
+The account-wide ROAS decline has two separable components:
+
+1. **A market-price component**, worth roughly −15% to −25% via CPM inflation. Account-wide, not
+   European, not controllable.
+2. **A creative-allocation component**, worth the remaining 3×. Budget concentrated into
+   high-CTR / low-ATC assets — `Skirts | Movement & Styling | Global` and `VSC Blurry Shirt
+   Masterpiece` between them absorbed 63,538 TRY at ~0.06 ATC/click — while the repeatable winners
+   were never scaled.
+
+**Caveat:** ATC events come from the same pixel that suffers European consent loss (§4). All the
+comparisons above are GB-to-GB or within a single campaign, which holds the consent regime
+constant, so the relative readings are sound; the absolute ATC rates are understated in EU markets.
+
+## 23. What to actually do
+
+1. **Kill on ATC-per-click within 48 hours, not on ROAS within 7 days.** An ad reaches ±10%
+   precision on ATC-rate in a few hundred clicks. Threshold: below **0.08** is a documented loser
+   (37% of UK spend went there); above **0.15** is a documented winner (26% went there).
+2. **Re-run `Calm Kuffiyah` at scale.** It is the only UK creative with two independent readings
+   above 0.27 and it has never received more than 7,180 TRY in a single campaign.
+3. **Retire `Skirts | Movement & Styling | Global` and `VSC Blurry Shirt Masterpiece`**, or
+   restrict them to top-of-funnel objectives where ATC isn't the goal. They buy clicks well and
+   sell nothing.
+4. **Carry winners forward between campaigns.** 30 of 40 UK ads ran in exactly one campaign. A new
+   campaign should start from the previous winner set, not a fresh slate — that alone would remove
+   most of the swing.
+5. **Treat a high CTR with a low ATC rate as a red flag, not a green one.** UK_ASC had the
+   account's best UK CTR and its second-worst ROAS.
