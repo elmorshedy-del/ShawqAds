@@ -79,11 +79,26 @@ const model = buildCampaignPacing(pacing, { today: '2026-08-04', hour: 11 });
 const daily = model.rows.find((row) => row.id === 'campaign:1');
 assert(daily.status === 'over', '75 spent against 50 expected should be over pace');
 assert(daily.projected === 150, 'intraday projection should use the learned delivery share');
-const paused = model.rows.find((row) => row.id === 'adset:2');
-assert(paused.status === 'paused', 'paused targets must not produce pacing alarms');
+// A switched-off ad set cannot spend against today's budget, so it is not a
+// pacing row at all — it used to render as a permanent "paused" line.
+assert(!model.rows.some((row) => row.id === 'adset:2'),
+  'turned-off targets must not be loaded as pacing rows');
+assert(!Object.hasOwn(model.counts, 'paused'),
+  'the status roll-up must not carry a paused bucket any more');
 const flight = model.rows.find((row) => row.id === 'campaign:3');
 assert(flight.status === 'on_track', '40% of lifetime budget after 40% of flight should be on track');
 assert(buildCampaignPacingFindings(model).some((finding) => finding.headline.includes('ahead of pace')), 'overpace should produce a review finding');
+
+// An account whose budgets are all switched off is a normal state, not an error,
+// and must not surface a raw Meta API envelope.
+const allPaused = buildCampaignPacing(
+  { targets: [{ id: 'adset:9', budget_type: 'daily', budget_usd: 20, effective_status: 'PAUSED' }] },
+  { today: '2026-08-04', hour: 11 },
+);
+assert(!allPaused.configured && /switched off/.test(allPaused.reason),
+  'an all-paused account should explain itself in plain language');
+assert(!/\{|error|Meta API/.test(allPaused.reason),
+  'the empty state must never render a raw API error envelope');
 
 const merged = mergeLivePacing(pacing, {
   date: '2026-08-04',
