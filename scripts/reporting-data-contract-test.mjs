@@ -21,6 +21,23 @@ assertIncludes(
   'Server must detect stale Meta cache windows so Yesterday is not served from old data.',
 );
 
+// Covering today is not the same as being current. Once a payload's `until`
+// reached today the old check stopped asking for a refresh, so the first fetch
+// of the morning froze the current day: spend kept accruing at Meta while the
+// dashboard held the 04:30 snapshot, and orders landing later were divided by
+// that morning's spend.
+assertIncludes(
+  server,
+  'cacheGeneratedBefore',
+  'Server must refresh a payload that covers today but was generated hours ago.',
+);
+
+assertIncludes(
+  server,
+  'intradayCacheMaxAgeMs',
+  'Intraday staleness must be a named, configurable budget rather than a literal.',
+);
+
 assertIncludes(
   server,
   'runMetaFetch',
