@@ -365,7 +365,39 @@ function shopifyAdHints(line = {}) {
     attribution.utm?.ad,
   ].filter(Boolean);
 }
-function enrichAdsWithShopifySales(ads = [], orderLines = []) {
+/**
+ * Days of spend that could plausibly have produced a sale landing today. Meta's
+ * default attribution is a 7-day click window, so an order attributed to an ad
+ * was in general paid for by that ad's spend over the preceding week, not by
+ * whatever it happened to spend on the day the order landed.
+ */
+const AD_ROAS_ATTRIBUTION_DAYS = 7;
+/**
+ * Spend an ad needs across that window before a ROAS is worth stating. Half the
+ * ads in a typical window carry under $5, and a single $95 order against $0.50
+ * of spend reads as 190x — a statement about the denominator, not the ad.
+ */
+const AD_ROAS_MIN_SPEND_USD = 25;
+
+/**
+ * Attribution-window range for a display window: far enough back that the spend
+ * which drove the window's orders is inside it.
+ */
+function adRoasBasisRange(range, bounds) {
+  if (!range?.since || !range?.until) return range;
+  return clampDateRange(
+    { since: shiftDate(range.since, -(AD_ROAS_ATTRIBUTION_DAYS - 1)), until: range.until },
+    bounds,
+  );
+}
+
+/**
+ * `spendBasisByKey` supplies each ad's spend over the attribution window. Without
+ * it the ROAS divides a window's revenue by the same window's spend, which is a
+ * mismatch of time bases: on a one-day view the numerator carries a week of
+ * accumulated demand and the denominator carries a single day of budget.
+ */
+function enrichAdsWithShopifySales(ads = [], orderLines = [], { spendBasisByKey = null } = {}) {
   const rows = (ads || []).map((ad) => ({
     ...ad,
     shopify_sales: 0,
@@ -396,10 +428,23 @@ function enrichAdsWithShopifySales(ads = [], orderLines = []) {
   });
   return rows.map((ad) => {
     const shopifySales = ad.shopify_order_ids.size;
+    const windowSpend = Number(ad.spend_usd || 0);
+    const basisSpend = spendBasisByKey
+      ? Number(spendBasisByKey.get(String(ad.ad_id)) ?? spendBasisByKey.get(String(ad.ad_name)) ?? windowSpend)
+      : windowSpend;
+    const revenue = Number(ad.shopify_revenue_usd || 0);
+    // Below the floor the ad has not spent enough for a return to be a
+    // measurement, so no ROAS is published. Guarded on the result too: a
+    // positive-but-vanishing basis would otherwise overflow.
+    const roas = basisSpend >= AD_ROAS_MIN_SPEND_USD && revenue >= 0
+      ? revenue / basisSpend
+      : null;
     const out = {
       ...ad,
       shopify_sales: shopifySales,
-      shopify_roas: Number(ad.spend_usd || 0) ? Number(ad.shopify_revenue_usd || 0) / Number(ad.spend_usd || 0) : 0,
+      shopify_roas: Number.isFinite(roas) ? roas : null,
+      shopify_roas_basis_spend: basisSpend,
+      shopify_roas_basis_days: spendBasisByKey ? AD_ROAS_ATTRIBUTION_DAYS : null,
     };
     delete out.shopify_order_ids;
     return out;
@@ -2077,50 +2122,65 @@ function App() {
       const wm = filterMetaDataByDateRange(baseData, win);
       const metaByCode = new Map((wm.countries || []).map((row) => [row.country_code, row]));
       const countryLeaders = adapt.toCountrySales(ws.countries || [], metaByCode);
-      const adRowsForWindow = enrichAdsWithShopifySales(wm.ads || [], ws.order_lines || []);
+      // Spend basis reaches back over the attribution window so an ad's ROAS is
+      // measured against the budget that could actually have produced the
+      // window's orders, not against one day of it.
+      const basisMeta = filterMetaDataByDateRange(baseData, adRoasBasisRange(win, loadedBounds));
+      const spendBasisByKey = new Map(
+        (basisMeta.ads || []).map((row) => [String(row.ad_id), Number(row.spend_usd || 0)]),
+      );
+      const adRowsForWindow = enrichAdsWithShopifySales(wm.ads || [], ws.order_lines || [], { spendBasisByKey });
       return {
         product: pickTopProductByUnits(ws.products || []),
         ad: pickTopAdBySales(adRowsForWindow),
         country: pickTopCountryByUnits(countryLeaders),
       };
     };
-    if (!anchor) return { anchor: '', today: {}, currentWeek: {}, prevWeek: {} };
-    const todayWin = clampDateRange({ since: anchor, until: anchor }, loadedBounds);
-    const currentWeekWin = reportingWeekToDate(anchor, loadedBounds);
-    const prevWeekWin = previousWeekToDate(anchor, loadedBounds);
+    if (!anchor) return { anchor: '', hero: {}, compare: [] };
+    const anchorWin = clampDateRange({ since: anchor, until: anchor }, loadedBounds);
+    // The hero follows the selected scope. It used to be pinned to a single day
+    // whatever the picker said, so a 30-day view still crowned one day's leader.
+    // A one-day scope keeps the week-over-week context that suits a day view;
+    // any longer scope compares against the previous period of equal length,
+    // which is what every other comparison on the dashboard uses.
+    const isSingleDay = dayCount(activeDateRange) === 1;
+    const spanDays = Math.max(1, dayCount(activeDateRange));
+    const prevPeriodWin = clampDateRange({
+      since: shiftDate(activeDateRange.since, -spanDays),
+      until: shiftDate(activeDateRange.until, -spanDays),
+    }, loadedBounds);
+    const compareWins = isSingleDay
+      ? [
+        { label: 'This week', win: reportingWeekToDate(anchor, loadedBounds) },
+        { label: 'Prev week', win: previousWeekToDate(anchor, loadedBounds) },
+      ]
+      : [
+        { label: 'Prev period', win: prevPeriodWin },
+        { label: 'Latest day', win: anchorWin },
+      ];
     return {
       anchor,
-      today: leadersFor(todayWin),
-      currentWeek: leadersFor(currentWeekWin),
-      prevWeek: leadersFor(prevWeekWin),
+      hero: leadersFor(isSingleDay ? anchorWin : clampDateRange(activeDateRange, loadedBounds)),
+      compare: compareWins.map((entry) => ({ label: entry.label, leaders: leadersFor(entry.win) })),
     };
-  }, [baseProductData, baseData, loadedBounds, movesAnchorDay]);
+  }, [baseProductData, baseData, loadedBounds, movesAnchorDay, activeDateRange]);
   const topMoverCards = useMemo(() => ([
-    {
-      kind: 'product',
-      label: 'Top product',
-      today: topMovers.today.product,
-      currentWeek: topMovers.currentWeek.product,
-      prevWeek: topMovers.prevWeek.product,
-    },
-    {
-      kind: 'ad',
-      label: 'Top ad / source',
-      today: topMovers.today.ad,
-      currentWeek: topMovers.currentWeek.ad,
-      prevWeek: topMovers.prevWeek.ad,
-    },
-    {
-      kind: 'country',
-      label: 'Top country',
-      today: topMovers.today.country,
-      currentWeek: topMovers.currentWeek.country,
-      prevWeek: topMovers.prevWeek.country,
-    },
-  ]), [topMovers]);
-  const topMoverFocusLabel = movesAnchorDay === reportingToday
-    ? 'Today'
-    : movesAnchorDay || 'Selected range';
+    { kind: 'product', label: 'Top product' },
+    { kind: 'ad', label: 'Top ad / source' },
+    { kind: 'country', label: 'Top country' },
+  ].map((card) => ({
+    ...card,
+    hero: topMovers.hero?.[card.kind] ?? null,
+    compare: (topMovers.compare || []).map((entry) => ({
+      label: entry.label,
+      entry: entry.leaders?.[card.kind] ?? null,
+    })),
+  }))), [topMovers]);
+  // Names the window the hero actually covers, so the card cannot claim "Today"
+  // while showing a month.
+  const topMoverFocusLabel = dayCount(activeDateRange) === 1
+    ? (movesAnchorDay === reportingToday ? 'Today' : movesAnchorDay || 'Selected day')
+    : 'Selected range';
 
   const todayOrderMovers = useMemo(() => {
     const lines = baseProductData?.order_lines || [];

@@ -145,4 +145,39 @@ assertIncludes(
   'Top movers should still surface ROAS for ad and country cards even though ranking is count-based.',
 );
 
+// An ad's ROAS must be measured against the spend that could have produced the
+// order, not against whatever that ad spent on the day the order landed. On a
+// one-day view the numerator carried a week of accumulated demand while the
+// denominator carried a single day of budget, which put ads above 800x.
+assertIncludes(
+  app,
+  'AD_ROAS_ATTRIBUTION_DAYS',
+  'Ad ROAS must divide by spend over an attribution window, not by one day of spend.',
+);
+
+assertIncludes(
+  app,
+  'AD_ROAS_MIN_SPEND_USD',
+  'Ad ROAS must be suppressed below a spend floor rather than published as an extreme ratio.',
+);
+
+assertIncludes(
+  app,
+  'spendBasisByKey',
+  'The top-ad card must pass an attribution-window spend basis into the Shopify sales enrichment.',
+);
+
+assertIncludes(
+  topMovers,
+  'too little spend behind it to state a ROAS',
+  'An ad without enough spend must say so rather than show a ratio built on a few dollars.',
+);
+
+// The card is scoped by the date picker, not pinned to a single day.
+assertIncludes(
+  app,
+  "label: 'Prev period'",
+  'Top movers must compare a multi-day scope against the previous period of equal length.',
+);
+
 console.log('reporting data contract checks passed');
