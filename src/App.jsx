@@ -366,20 +366,25 @@ function shopifyAdHints(line = {}) {
   ].filter(Boolean);
 }
 /**
- * Spend an ad needs inside the window before its ROAS is worth stating.
+ * Ad ROAS is the window's Shopify-attributed revenue over the window's own Meta
+ * spend, reported as it comes out.
  *
- * This, not the time base, is what produced the absurd figures on the top-ad
- * card. Orders here convert on the day the spend runs — daily orders correlate
- * 0.85 with the same day's spend, 0.34 at one day's lag and about zero from
- * three days out — so dividing a window's revenue by that window's spend is the
- * right calculation. The failure was purely one of scale: 87% of ad-days carry
- * under $25 of spend and 39 ads sit under $1, so a single $95 order against
- * $0.11 published 877x. An ad that has spent less than roughly half a customer
- * acquisition cannot have earned a measurable return, and one lucky order is
- * not evidence of one.
+ * There is no spend threshold here on purpose. The absurd figures this card used
+ * to show — 120x on an ad Meta put at 7.4x — were never a property of the ratio.
+ * The served payload had frozen that ad's spend at its 04:30 value of $0.78
+ * while the day's real spend ran on to 578.81 TRY, so the number was a stale
+ * denominator, correct only for the moment it was captured. Refreshing the
+ * current day intraday (see cacheGeneratedBefore in server.mjs) is what fixes
+ * it. A minimum-spend cutoff would only have hidden the symptom behind an
+ * arbitrary line, and would have suppressed genuinely small, genuinely
+ * profitable ads along with it.
+ *
+ * A settled day needs no such care: its spend is final. Only the day still in
+ * progress depends on the denominator being current.
+ *
+ * What the reader gets instead of a threshold is the denominator itself, so a
+ * high multiple on thin spend is visible as exactly that.
  */
-const AD_ROAS_MIN_SPEND_USD = 25;
-
 function enrichAdsWithShopifySales(ads = [], orderLines = []) {
   const rows = (ads || []).map((ad) => ({
     ...ad,
@@ -413,15 +418,15 @@ function enrichAdsWithShopifySales(ads = [], orderLines = []) {
     const shopifySales = ad.shopify_order_ids.size;
     const spend = Number(ad.spend_usd || 0);
     const revenue = Number(ad.shopify_revenue_usd || 0);
-    // Below the floor the ad has not spent enough for a return to be a
-    // measurement, so no ROAS is published — null, which is a different claim
+    // No spend means no return to divide — undefined, which is a different claim
     // from 0x. The quotient is checked as well as the divisor, since a
-    // positive-but-vanishing spend would otherwise overflow.
-    const roas = spend >= AD_ROAS_MIN_SPEND_USD && revenue >= 0 ? revenue / spend : null;
+    // positive-but-vanishing spend would otherwise overflow to Infinity.
+    const raw = spend > 0 ? revenue / spend : null;
+    const roas = Number.isFinite(raw) ? raw : null;
     const out = {
       ...ad,
       shopify_sales: shopifySales,
-      shopify_roas: Number.isFinite(roas) ? roas : null,
+      shopify_roas: roas,
       shopify_roas_basis_spend: spend,
     };
     delete out.shopify_order_ids;
@@ -1311,12 +1316,15 @@ function pickTopProductByUnits(products = []) {
   }
   return adapt.toProductLeaders([top], 1)[0] || null;
 }
-function pickTopAdBySales(adRows = []) {
+function pickTopAdBySales(adRows = [], { partialDay = false } = {}) {
   const top = [...(adRows || [])]
     .sort((a, b) => Number(b.shopify_sales || 0) - Number(a.shopify_sales || 0) || Number(b.shopify_revenue_usd || 0) - Number(a.shopify_revenue_usd || 0) || Number(b.spend_usd || 0) - Number(a.spend_usd || 0))
     [0];
   if (!top) return null;
-  return adapt.toAdLeaders([top], 1)[0] || null;
+  const leader = adapt.toAdLeaders([top], 1)[0] || null;
+  // The card needs to know the day is unfinished to caveat a high multiple. The
+  // ROAS itself is unchanged either way.
+  return leader ? { ...leader, partialDay } : null;
 }
 
 function dateListForRange(range) {
@@ -2103,7 +2111,11 @@ function App() {
       const adRowsForWindow = enrichAdsWithShopifySales(wm.ads || [], ws.order_lines || []);
       return {
         product: pickTopProductByUnits(ws.products || []),
-        ad: pickTopAdBySales(adRowsForWindow),
+        // A window running up to the current reporting day has only part of that
+        // day's spend recorded, which lifts any ratio built on it.
+        ad: pickTopAdBySales(adRowsForWindow, {
+          partialDay: Boolean(reportingToday && win?.until && win.until >= reportingToday),
+        }),
         country: pickTopCountryByUnits(countryLeaders),
       };
     };
@@ -2134,7 +2146,7 @@ function App() {
       hero: leadersFor(isSingleDay ? anchorWin : clampDateRange(activeDateRange, loadedBounds)),
       compare: compareWins.map((entry) => ({ label: entry.label, leaders: leadersFor(entry.win) })),
     };
-  }, [baseProductData, baseData, loadedBounds, movesAnchorDay, activeDateRange]);
+  }, [baseProductData, baseData, loadedBounds, movesAnchorDay, activeDateRange, reportingToday]);
   const topMoverCards = useMemo(() => ([
     { kind: 'product', label: 'Top product' },
     { kind: 'ad', label: 'Top ad / source' },

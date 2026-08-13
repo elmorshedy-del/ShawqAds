@@ -4,6 +4,10 @@ function assertIncludes(source, needle, message) {
   if (!source.includes(needle)) throw new Error(message);
 }
 
+function assertExcludes(source, needle, message) {
+  if (source.includes(needle)) throw new Error(message);
+}
+
 const app = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const server = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
 const metaFetch = fs.readFileSync(new URL('../scripts/fetch-meta-insights.mjs', import.meta.url), 'utf8');
@@ -162,27 +166,27 @@ assertIncludes(
   'Top movers should still surface ROAS for ad and country cards even though ranking is count-based.',
 );
 
-// Orders here convert on the day the spend runs (daily orders correlate 0.85
-// with same-day spend, 0.34 at one day's lag, ~0 from three days out), so the
-// window's own spend is the right denominator. What broke the top-ad card was
-// scale, not the time base: 87% of ad-days carry under $25, and one $95 order
-// against $0.11 of spend published 877x.
-assertIncludes(
+// Ad ROAS is reported as it computes. The 120x this card once showed was a
+// stale denominator, not a small one: the payload had frozen that ad's spend at
+// its 04:30 value while the real day ran on. Freshness fixes that; a minimum
+// spend cutoff would only have hidden it behind an arbitrary line and buried
+// genuinely small, genuinely profitable ads with it.
+assertExcludes(
   app,
   'AD_ROAS_MIN_SPEND_USD',
-  'Ad ROAS must be suppressed below a spend floor rather than published as an extreme ratio.',
-);
-
-assertIncludes(
-  app,
-  'spend >= AD_ROAS_MIN_SPEND_USD',
-  'The spend floor must gate the ROAS itself, not merely be defined.',
+  'Ad ROAS must not be gated behind a hardcoded minimum-spend threshold.',
 );
 
 assertIncludes(
   topMovers,
-  'too little spend behind it to state a ROAS',
-  'An ad without enough spend must say so rather than show a ratio built on a few dollars.',
+  'day still running',
+  'A high multiple on an unfinished day must carry the partial-spend caveat.',
+);
+
+assertIncludes(
+  app,
+  'partialDay',
+  'The top-ad card must know whether its window is a day still in progress.',
 );
 
 // The card is scoped by the date picker, not pinned to a single day.

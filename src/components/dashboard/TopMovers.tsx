@@ -9,9 +9,11 @@ interface LeaderLike {
   units?: number;
   revenue?: number;
   sales?: number;
-  /** null when the ad has not spent enough for a return to be measurable. */
+  /** null when there was no spend to divide by — not the same as 0x. */
   roas?: number | null;
   roasBasisSpend?: number | null;
+  /** True when the window is a day still in progress, so spend is incomplete. */
+  partialDay?: boolean;
   flag?: string;
   country?: string;
 }
@@ -35,6 +37,15 @@ interface TopMoversProps {
   focusLabel?: string;
 }
 
+/**
+ * Multiple above which a still-running day earns the partial-spend caveat.
+ *
+ * This gates a sentence, never a number: every ad's ROAS is reported as it
+ * computes, whatever this is set to. It is only the point past which a figure is
+ * better explained by the day being young than by the ad being exceptional.
+ */
+const SAME_DAY_CAVEAT_ABOVE_ROAS = 5;
+
 const kindMeta: Record<Kind, { icon: LucideIcon; color: string; heroLabel: string }> = {
   product: { icon: Package, color: "var(--color-brand)", heroLabel: "revenue" },
   ad: { icon: Megaphone, color: "var(--color-gold)", heroLabel: "ROAS" },
@@ -50,9 +61,9 @@ function titleOf(kind: Kind, e?: LeaderLike | null) {
 function heroOf(kind: Kind, e?: LeaderLike | null) {
   if (!e) return "—";
   if (kind === "product") return fmtCurrency(e.revenue ?? 0);
-  // An ad with too little spend behind it has no measurable return. Showing the
-  // revenue it is credited with is honest; showing revenue ÷ a few dollars of
-  // spend as a ROAS is not.
+  // An ad with no spend has no return to divide, which is not the same as 0x.
+  // Any ad that did spend shows its ROAS as computed — the spend behind it is
+  // on the line below, so a large multiple on thin spend reads as thin spend.
   if (kind === "ad" && e.roas == null) return fmtCurrency(e.revenue ?? 0);
   return fmtX(e.roas ?? 0);
 }
@@ -62,8 +73,12 @@ function subOf(kind: Kind, e?: LeaderLike | null) {
   if (kind === "product") return `${e.units ?? 0} units · ${e.category ?? "—"}`;
   if (kind === "ad") {
     const base = `${e.sales ?? 0} sales · ${e.category ?? "—"}`;
-    if (e.roas == null) {
-      return `${base} · too little spend behind it to state a ROAS`;
+    if (e.roas == null) return `${base} · no spend recorded`;
+    // A day still running has only part of its spend recorded, so a high
+    // multiple is the denominator being early rather than the ad being
+    // extraordinary. Said once, quietly, and only where it changes the reading.
+    if (e.partialDay && (e.roas ?? 0) >= SAME_DAY_CAVEAT_ABOVE_ROAS) {
+      return `${base} (day still running — more spend to land, so this will likely settle lower)`;
     }
     return base;
   }
