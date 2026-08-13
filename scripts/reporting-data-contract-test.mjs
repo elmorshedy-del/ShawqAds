@@ -179,8 +179,14 @@ assertExcludes(
 
 assertIncludes(
   topMovers,
-  'day still running',
+  'day in progress',
   'A high multiple on an unfinished day must carry the partial-spend caveat.',
+);
+
+assertIncludes(
+  topMovers,
+  'converge lower',
+  'The caveat must name the direction the figure moves, not only that the day is unfinished.',
 );
 
 assertIncludes(

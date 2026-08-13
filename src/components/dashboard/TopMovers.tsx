@@ -74,11 +74,12 @@ function subOf(kind: Kind, e?: LeaderLike | null) {
   if (kind === "ad") {
     const base = `${e.sales ?? 0} sales · ${e.category ?? "—"}`;
     if (e.roas == null) return `${base} · no spend recorded`;
-    // A day still running has only part of its spend recorded, so a high
-    // multiple is the denominator being early rather than the ad being
-    // extraordinary. Said once, quietly, and only where it changes the reading.
+    // A day still running has only part of its spend recorded. Early on, the
+    // denominator is a small fraction of where it will close, which both widens
+    // the range this figure can take and biases it upward — so the note names
+    // the spread and the direction, not just the fact that the day is unfinished.
     if (e.partialDay && (e.roas ?? 0) >= SAME_DAY_CAVEAT_ABOVE_ROAS) {
-      return `${base} (day still running — more spend to land, so this will likely settle lower)`;
+      return `${base} (day in progress — spend accrues through the day, so early readings range widely and converge lower)`;
     }
     return base;
   }
