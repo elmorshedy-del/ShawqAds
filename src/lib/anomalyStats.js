@@ -74,7 +74,18 @@ export const ANOMALY_LIMITS = {
    * multiple test carries the decision alone.
    */
   MIN_SPREAD_SHARE: 0.02,
+  /**
+   * Ceiling on a reported fold-change. A multiple is a ratio, so as the typical
+   * day approaches zero it grows without bound: a $600 day against a $0.02
+   * typical is "30000x", which is a statement about the denominator, not about
+   * the day. Past this point the exact figure carries no extra meaning, so it is
+   * reported as "more than 50x" and the ranking weight is clamped with it.
+   */
+  MAX_REPORTED_MULTIPLE: 50,
 };
+
+/** Scales a median absolute deviation onto the same footing as a standard deviation. */
+const MAD_TO_SIGMA = 1.4826;
 
 const num = (value) => {
   const parsed = Number(value);
@@ -109,9 +120,32 @@ export function percentile(values = [], fraction = 0.5) {
  *
  * `values` must already be restricted to days that were actually measured.
  */
+/**
+ * Median absolute deviation, scaled to be comparable to a standard deviation.
+ *
+ * Returns null — never a substitute width — when the values are too few or too
+ * tied to have a spread. That null is the whole point: the previous version
+ * swapped in a placeholder here and kept calling the quotient sigma, which is
+ * how a $620 day became a 6.5σ event. A caller that gets null must say it cannot
+ * put a scale on the move, not invent one.
+ */
+export function medianAbsoluteDeviation(values = [], center = null) {
+  const finite = finiteValues(values);
+  if (finite.length < 2) return null;
+  const mid = center == null ? percentile(finite, 0.5) : center;
+  if (mid == null) return null;
+  const raw = percentile(finite.map((value) => Math.abs(value - mid)), 0.5);
+  if (raw == null || raw <= 0) return null;
+  return raw * MAD_TO_SIGMA;
+}
+
 export function summarizeBaseline(values = [], { idleAtOrBelow = 0 } = {}) {
   const measured = finiteValues(values);
-  const active = measured.filter((value) => value > idleAtOrBelow);
+  // Idle means "no activity recorded", which is a magnitude test, not a sign
+  // test. A refund-heavy day carries real activity and belongs in the
+  // distribution; counting it as idle both loses a real observation and pushes
+  // the series toward a false "intermittent" verdict.
+  const active = measured.filter((value) => Math.abs(value) > idleAtOrBelow);
   const idleDays = measured.length - active.length;
   const idleShare = measured.length ? idleDays / measured.length : 1;
   const typical = percentile(active, 0.5);
@@ -167,15 +201,42 @@ export function assessDay(value, baselineValues = [], options = {}) {
   // and the strongest honest statement a finite baseline can make.
   const daysAtOrAbove = measured.filter((day) => day >= observed).length;
   const daysAtOrBelow = measured.filter((day) => day <= observed).length;
-  const multiple = baseline.typical ? observed / baseline.typical : null;
+  const rawMultiple = baseline.typical ? observed / baseline.typical : null;
+  const multiple = rawMultiple == null || !Number.isFinite(rawMultiple)
+    ? null
+    : Math.min(rawMultiple, ANOMALY_LIMITS.MAX_REPORTED_MULTIPLE);
+  const multipleCapped = rawMultiple != null && rawMultiple > ANOMALY_LIMITS.MAX_REPORTED_MULTIPLE;
   const direction = baseline.typical != null && observed < baseline.typical ? 'below' : 'above';
+  const rankFromTop = daysAtOrAbove + 1;
+  const rankFromBottom = daysAtOrBelow + 1;
+
+  // Exact one-sided rank p under exchangeability: of the n+1 values (the baseline
+  // plus this day), this day sits at this rank. Distribution-free, so it holds
+  // whatever shape the series has — and it cannot go below 1/(n+1), which is
+  // precisely the resolution ceiling the old sigma ignored.
+  const rankP = measured.length
+    ? (direction === 'above' ? rankFromTop : rankFromBottom) / (measured.length + 1)
+    : null;
+  // A genuine median/MAD scale, or null. Never a stand-in — and the quotient is
+  // checked as well as the divisor, because a spread can be positive yet small
+  // enough that the division overflows to Infinity. An infinite sigma is exactly
+  // the kind of figure this module exists to stop publishing.
+  const spread = medianAbsoluteDeviation(measured);
+  const rawZ = spread && baseline.typical != null
+    ? (observed - percentile(measured, 0.5)) / spread
+    : null;
+  const robustZ = Number.isFinite(rawZ) ? rawZ : null;
 
   const shared = {
     ...baseline,
     value: observed,
     multiple,
+    multipleCapped,
     direction,
-    rankFromTop: daysAtOrAbove + 1,
+    rankFromTop,
+    rankFromBottom,
+    rankP,
+    robustZ,
     exceedsAll: measured.length > 0 && daysAtOrAbove === 0,
     fallsBelowAll: measured.length > 0 && daysAtOrBelow === 0,
   };
@@ -211,6 +272,30 @@ function rarityText(rarityFloor) {
 }
 
 /**
+ * One-line technical restatement of the plain sentence above it, for a reader who
+ * wants the formal figure. It is additive: the plain-language claim never depends
+ * on it, and it is omitted rather than approximated when the baseline cannot
+ * carry it.
+ *
+ * The sigma here is a real median/MAD scale and appears only when the spread is
+ * genuinely non-zero. The rank p is exact and distribution-free, and is floored
+ * by the baseline length — which is why both are quoted with n.
+ */
+export function formalNote(assessment) {
+  const { robustZ, rankP, measuredDays } = assessment || {};
+  const parts = [];
+  if (Number.isFinite(robustZ)) {
+    parts.push(`${Math.abs(robustZ).toFixed(1)}σ from the median on a median/MAD scale`);
+  }
+  if (Number.isFinite(rankP)) {
+    parts.push(`one-sided rank p ≈ ${rankP < 0.01 ? rankP.toFixed(3) : rankP.toFixed(2)}`);
+  }
+  if (!parts.length) return '';
+  const flat = Number.isFinite(robustZ) ? '' : ' (spread too flat for a scale-based figure)';
+  return `Formally: ${parts.join(', ')}, n = ${measuredDays}${flat}.`;
+}
+
+/**
  * Turns an assessment into the two lines the panel shows.
  *
  * Wording rules, chosen for a numerate reader who has not studied statistics:
@@ -221,8 +306,9 @@ function rarityText(rarityFloor) {
  */
 export function describeDay({ assessment, label, format = (value) => String(value), date = '' }) {
   const {
-    value, typical, multiple, direction, measuredDays, activeDays, idleDays,
-    middleLow, middleHigh, exceedsAll, fallsBelowAll, limitation, rarityFloor, isFlat,
+    value, typical, multiple, multipleCapped, direction, measuredDays, activeDays,
+    idleDays, middleLow, middleHigh, exceedsAll, fallsBelowAll, limitation,
+    rarityFloor, isFlat,
   } = assessment;
   const datePrefix = date ? `${date}: ` : '';
 
@@ -255,7 +341,7 @@ export function describeDay({ assessment, label, format = (value) => String(valu
       ? `lower than all ${measuredDays} days before it`
       : '';
   const multipleText = multiple != null && Number.isFinite(multiple) && multiple > 0
-    ? `${multiple >= 1 ? `${multiple.toFixed(1)}x` : `${(1 / multiple).toFixed(1)}x below`} the typical day`
+    ? `${multipleCapped ? `more than ${multiple.toFixed(0)}x` : multiple >= 1 ? `${multiple.toFixed(1)}x` : `${(1 / multiple).toFixed(1)}x below`} the typical day`
     : '';
 
   const headline = rankText
@@ -275,8 +361,12 @@ export function describeDay({ assessment, label, format = (value) => String(valu
     ? ` With ${measuredDays} days to compare against, "${direction === 'above' ? 'highest' : 'lowest'} so far" is the strongest claim the history supports — about ${rarityText(rarityFloor)}, not proof of a rare event.`
     : '';
 
+  const formal = formalNote(assessment);
   return {
     headline,
     context: `Typical day ${typical != null ? format(typical) : 'n/a'}.${middleRange}${ceiling}`.trim(),
+    // Kept separate so the panel can render it smaller, and so the plain-language
+    // claim above never depends on it being present.
+    formal,
   };
 }

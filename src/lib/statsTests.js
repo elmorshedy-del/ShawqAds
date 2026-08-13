@@ -184,14 +184,22 @@ export function ratioCountInterval(ratio, orders, z = 1.96) {
   const n = Number(orders);
   const value = Number(ratio);
   if (!Number.isFinite(n) || n < 1 || !Number.isFinite(value)) return null;
+  // A negative ratio has no count-based interval to build. Clamping the low end
+  // at zero while the high end scales further negative would invert the bounds,
+  // and an inverted interval silently defeats intervalsSeparate — two ad sets
+  // would read as distinguishable because their bounds crossed the wrong way.
+  if (value < 0) return null;
   const relativeError = z / Math.sqrt(n);
+  const low = Math.max(0, value * (1 - relativeError));
+  const high = value * (1 + relativeError);
+  if (!Number.isFinite(low) || !Number.isFinite(high)) return null;
   return {
     value,
     relativeError,
-    // A ratio built on counts cannot go negative; the clamp is the floor, not a
-    // claim that the low end is exactly zero.
-    low: Math.max(0, value * (1 - relativeError)),
-    high: value * (1 + relativeError),
+    // The clamp is the floor of a non-negative quantity, not a claim that the low
+    // end is exactly zero.
+    low: Math.min(low, high),
+    high: Math.max(low, high),
   };
 }
 

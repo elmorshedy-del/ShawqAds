@@ -1238,9 +1238,13 @@ function mergeBusinessRows(metaDaily, shopifyDaily) {
       spend_usd: spendUsd,
       orders,
       units: Number(shop.units || 0),
-      aov: orders ? revenueUsd / orders : 0,
-      cac: orders ? spendUsd / orders : 0,
-      roas: spendUsd ? revenueUsd / spendUsd : 0,
+      aov: orders > 0 ? revenueUsd / orders : 0,
+      // Meta credits and adjustments can land a day's net spend below zero. A
+      // negative ROAS is not a worse return and a negative CAC is not a cheaper
+      // customer — both are meaningless, so they are suppressed rather than
+      // charted. Zero spend with orders is a genuine $0 CAC and is kept.
+      cac: orders > 0 && spendUsd >= 0 ? spendUsd / orders : 0,
+      roas: spendUsd > 0 ? revenueUsd / spendUsd : 0,
     };
   });
 }

@@ -20,6 +20,7 @@
  * ------------------------------------------------------------------------- */
 
 import {
+  ANOMALY_LIMITS,
   assessDay,
   describeDay,
   percentile,
@@ -46,11 +47,20 @@ function trailingIdleDays(history = []) {
   return count;
 }
 
-/** How far from typical a day sits, as a fold-change — used only for ordering. */
+/**
+ * How far from typical a day sits, as a fold-change — used only for ordering.
+ *
+ * Both ends are clamped. A multiple close to zero sends its reciprocal to
+ * Infinity, and two Infinities in the sort comparator subtract to NaN, which
+ * leaves the order of the findings undefined rather than merely wrong.
+ */
 function materiality(assessment) {
   const multiple = assessment?.multiple;
   if (!Number.isFinite(multiple) || multiple <= 0) return 1;
-  return Math.max(multiple, 1 / multiple);
+  const fold = Math.max(multiple, 1 / multiple);
+  return Number.isFinite(fold)
+    ? Math.min(fold, ANOMALY_LIMITS.MAX_REPORTED_MULTIPLE)
+    : ANOMALY_LIMITS.MAX_REPORTED_MULTIPLE;
 }
 
 /**
@@ -105,6 +115,29 @@ export function detectAnomalies(rows = [], key, { excludeDates = [], coverageKey
   return out;
 }
 
+/**
+ * A rate per unit, or 0 when the division cannot produce a figure a reader could
+ * act on.
+ *
+ * Guarding on `denominator > 0` alone is not enough. A denominator can be
+ * positive and still vanishingly small — a fractional order count surviving a
+ * bad upstream parse, a denormal from an accumulated rounding error — and the
+ * quotient then overflows to Infinity, which renders as "$Infinity AOV". The
+ * result is checked, not just the inputs.
+ *
+ * Negative results are suppressed too. Refunds and ad-account credits can push a
+ * period's revenue or spend below zero, and a negative ROAS is not a worse
+ * return, a negative CAC is not a cheaper customer, and a negative AOV is not a
+ * smaller basket — each is a ratio whose sign has stopped meaning anything. The
+ * underlying negative total is still reported on its own KPI, where it reads
+ * correctly.
+ */
+function perUnit(numerator, denominator) {
+  if (!(denominator > 0)) return 0;
+  const value = numerator / denominator;
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
 /** Period totals with ratio metrics rebuilt from the sums, not averaged. */
 export function periodTotals(rows = []) {
   const revenue = rows.reduce((sum, row) => sum + num(row.revenue_usd), 0);
@@ -117,17 +150,49 @@ export function periodTotals(rows = []) {
     spend_usd: spend,
     orders,
     units,
-    aov: orders ? revenue / orders : 0,
-    cac: orders ? spend / orders : 0,
-    roas: spend ? revenue / spend : 0,
+    aov: perUnit(revenue, orders),
+    cac: perUnit(spend, orders),
+    roas: perUnit(revenue, spend),
   };
 }
 
-export function pctChange(current, previous) {
+/**
+ * Percentage change, or null when the base is too small to carry one.
+ *
+ * A percentage is a ratio, so it grows without bound as its denominator shrinks:
+ * $0.01 to $600 is "+5,999,900%", a statement about the denominator rather than
+ * about the business. That is the same failure that produced the 6.5σ claim, in
+ * a different costume — and it lands at the top of the panel, because findings
+ * are ranked by the size of the move.
+ *
+ * `minBase` lets a caller say how large a base has to be before a percentage
+ * means anything in that metric's units. Callers that pass nothing keep the
+ * previous behaviour for non-zero bases.
+ */
+export function pctChange(current, previous, { minBase = 0 } = {}) {
   const prev = num(previous);
-  if (!prev) return null;
-  return ((num(current) - prev) / Math.abs(prev)) * 100;
+  // The base must be positive, not merely non-zero. A percentage change measured
+  // from a negative base inverts its own direction — going from -$1,000 to
+  // +$1,000,000,000 computes as "+100,000,100%", a number with no readable
+  // meaning. Refunds and credits make negative period totals reachable, so this
+  // is a live path, not a theoretical one.
+  if (!(prev > 0)) return null;
+  if (prev < minBase) return null;
+  const value = ((num(current) - prev) / prev) * 100;
+  return Number.isFinite(value) ? value : null;
 }
+
+/**
+ * Smallest previous-period value that makes a percentage change meaningful.
+ * Below these, findings state the absolute move instead.
+ */
+export const MIN_PCT_BASE = {
+  revenue_usd: 50,
+  spend_usd: 50,
+  orders: 2,
+  aov: 5,
+  roas: 0.1,
+};
 
 /**
  * Ranks named items by how much of a period-over-period change they account for.
@@ -168,7 +233,10 @@ export function concentration(items = []) {
     .sort((a, b) => num(b.value) - num(a.value));
   const top = sorted[0];
   if (!top) return null;
-  return { name: top.name, value: num(top.value), share: (num(top.value) / total) * 100, total };
+  // The total counts only positive contributors, so a market sitting net-negative
+  // on refunds cannot push another past 100% of revenue.
+  const share = Math.min(100, (num(top.value) / total) * 100);
+  return { name: top.name, value: num(top.value), share, total };
 }
 
 const fmtMoney = (value) => {
@@ -273,7 +341,7 @@ export function buildKeyFindings({
   const hasComparableDrivers = !compareText.includes('same time');
 
   /* --- Revenue --------------------------------------------------------- */
-  const revenueDelta = hasComparison ? pctChange(current.revenue_usd, previous.revenue_usd) : null;
+  const revenueDelta = hasComparison ? pctChange(current.revenue_usd, previous.revenue_usd, { minBase: MIN_PCT_BASE.revenue_usd }) : null;
   if (current.revenue_usd > 0 || hasComparison) {
     const dailyRevenue = current.days ? current.revenue_usd / current.days : 0;
     // Quartiles, not a median ± spread band: "half the days ran between X and Y"
@@ -290,9 +358,14 @@ export function buildKeyFindings({
       tone: revenueDelta == null ? 'neutral' : revenueDelta >= 0 ? 'positive' : 'negative',
       evidence: revenueDelta == null ? 'Observed' : 'Compared',
       priority: revenueDelta == null ? 40 : Math.min(90, 40 + Math.abs(revenueDelta)),
-      headline: revenueDelta == null
-        ? `Revenue ${fmtMoney(current.revenue_usd)} across ${current.days} day${current.days === 1 ? '' : 's'}`
-        : `Revenue ${fmtMoney(current.revenue_usd)}, ${fmtPct(revenueDelta)} ${compareText}`,
+      // A comparison exists but the prior period was too small to carry a
+      // percentage. State both absolute figures rather than a five-digit percent
+      // that only describes how small the denominator was.
+      headline: revenueDelta != null
+        ? `Revenue ${fmtMoney(current.revenue_usd)}, ${fmtPct(revenueDelta)} ${compareText}`
+        : hasComparison
+          ? `Revenue ${fmtMoney(current.revenue_usd)} against ${fmtMoney(previous.revenue_usd)} ${compareText}`
+          : `Revenue ${fmtMoney(current.revenue_usd)} across ${current.days} day${current.days === 1 ? '' : 's'}`,
       context,
       driver: hasComparableDrivers
         ? driverSentence(revenueDrivers.countries, fmtMoney)
@@ -308,8 +381,8 @@ export function buildKeyFindings({
 
   /* --- Orders vs basket size ------------------------------------------- */
   if (hasComparison && previous.orders > 0 && current.orders > 0) {
-    const orderDelta = pctChange(current.orders, previous.orders);
-    const aovDelta = pctChange(current.aov, previous.aov);
+    const orderDelta = pctChange(current.orders, previous.orders, { minBase: MIN_PCT_BASE.orders });
+    const aovDelta = pctChange(current.aov, previous.aov, { minBase: MIN_PCT_BASE.aov });
     if (orderDelta != null && aovDelta != null && Math.abs(orderDelta - aovDelta) > 8) {
       const demandLed = Math.abs(orderDelta) > Math.abs(aovDelta);
       findings.push({
@@ -334,8 +407,8 @@ export function buildKeyFindings({
 
   /* --- Efficiency ------------------------------------------------------- */
   if (current.spend_usd > 0) {
-    const roasDelta = hasComparison && previous.roas ? pctChange(current.roas, previous.roas) : null;
-    const spendDelta = hasComparison ? pctChange(current.spend_usd, previous.spend_usd) : null;
+    const roasDelta = hasComparison && previous.roas ? pctChange(current.roas, previous.roas, { minBase: MIN_PCT_BASE.roas }) : null;
+    const spendDelta = hasComparison ? pctChange(current.spend_usd, previous.spend_usd, { minBase: MIN_PCT_BASE.spend_usd }) : null;
     const baselineRoas = roasBaseline.roas;
     const vsBaseline = baselineRoas ? ((current.roas - baselineRoas) / baselineRoas) * 100 : null;
     let driver = '';
@@ -417,6 +490,7 @@ export function buildKeyFindings({
         + Math.min(20, (hit.materiality - 1) * 8),
       headline: copy.headline,
       context: copy.context,
+      formal: copy.formal,
       driver: '',
       action: hit.kind === 'resumed'
         ? 'Confirm the restart was intentional, then watch whether revenue follows over the next few days.'

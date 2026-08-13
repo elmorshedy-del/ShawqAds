@@ -22,6 +22,22 @@ const fmtMoney = (value) => {
   const n = num(value);
   return Math.abs(n) >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${Math.round(n)}`;
 };
+
+/**
+ * One item's share of a total, as a percentage, or null when the total cannot
+ * carry one.
+ *
+ * Testing `total > 0` is not sufficient. Refunds and credits can leave a total
+ * that is positive but vanishingly small — a few thousand dollars of revenue in
+ * one market against nearly the same in refunds elsewhere — and the quotient
+ * then overflows, publishing "C0 is Infinity% of revenue". The result is checked
+ * and clamped, not just the divisor.
+ */
+function shareOfTotal(part, total) {
+  if (!(total > 0)) return null;
+  const share = (num(part) / total) * 100;
+  return Number.isFinite(share) ? Math.min(100, Math.max(0, share)) : null;
+}
 const fmtX = (value) => `${num(value).toFixed(2)}x`;
 const fmtIdx = (value) => (value == null || !Number.isFinite(Number(value)) ? '—' : String(Math.round(Number(value))));
 const fmtPct = (value) => `${num(value) >= 0 ? '+' : ''}${Math.round(num(value))}%`;
@@ -241,8 +257,9 @@ export function buildAdsFindings({
   // Spend concentration across campaigns.
   const totalSpend = campaigns.reduce((sum, c) => sum + num(c.spend), 0);
   const topSpender = [...campaigns].sort((a, b) => num(b.spend) - num(a.spend))[0];
-  if (totalSpend > 0 && topSpender && num(topSpender.spend) / totalSpend >= 0.4 && campaigns.length > 2) {
-    const share = (num(topSpender.spend) / totalSpend) * 100;
+  const spendShare = topSpender ? shareOfTotal(topSpender.spend, totalSpend) : null;
+  if (spendShare != null && spendShare >= 40 && campaigns.length > 2) {
+    const share = spendShare;
     findings.push({
       id: 'ads-concentration',
       tone: 'neutral',
@@ -315,8 +332,9 @@ export function buildMarketFindings({ countries = [], minOrders = 5 } = {}) {
 
   const totalRevenue = countries.reduce((sum, c) => sum + num(c.revenue), 0);
   const top = [...countries].sort((a, b) => num(b.revenue) - num(a.revenue))[0];
-  if (totalRevenue > 0 && top && num(top.revenue) / totalRevenue >= 0.5) {
-    const share = (num(top.revenue) / totalRevenue) * 100;
+  const revenueShare = top ? shareOfTotal(top.revenue, totalRevenue) : null;
+  if (revenueShare != null && revenueShare >= 50) {
+    const share = revenueShare;
     findings.push({
       id: 'market-concentration',
       tone: 'watch',

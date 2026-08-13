@@ -1,4 +1,5 @@
 import {
+  MIN_PCT_BASE,
   buildKeyFindings,
   concentration,
   detectAnomalies,
@@ -10,6 +11,8 @@ import {
 import {
   assessDay,
   describeDay,
+  formalNote,
+  medianAbsoluteDeviation,
   percentile,
   summarizeBaseline,
 } from '../src/lib/anomalyStats.js';
@@ -89,6 +92,64 @@ const spikeCopy = describeDay({ assessment: realSpike, label: 'Revenue', format:
 assert(/highest in 20 days/.test(spikeCopy.headline), 'the headline should rank the day against measured history');
 assert(/1-in-21/.test(spikeCopy.context), 'the claim must be capped at what 20 days can demonstrate');
 assert(!/σ|sigma/i.test(`${spikeCopy.headline} ${spikeCopy.context}`), 'no sigma in the spike copy either');
+
+/* --- the formal measure is additive, never load-bearing ------------------ */
+
+// The plain sentence has to stand on its own; the formal line is for a reader
+// who wants the statistic behind it.
+const formal = formalNote(realSpike);
+assert(/one-sided rank p/.test(formal), 'the formal note should carry the exact rank p');
+assert(/n = 20/.test(formal), 'the formal note must state the baseline size the figures rest on');
+assert(/^Formally:/.test(formal), 'the formal note should be visibly a restatement, not a new claim');
+assert(!/σ/.test(spikeCopy.headline) && !/σ/.test(spikeCopy.context),
+  'sigma belongs only in the formal line, never in the plain-language ones');
+
+// A sigma has to be earned. A flat baseline has no scale, so none is quoted —
+// this is the exact substitution that produced the original 6.5σ.
+assert(medianAbsoluteDeviation(steadyDays(20, 500)) === null,
+  'a flat series has no MAD, and none may be substituted');
+const flatFormal = formalNote(assessDay(9000, steadyDays(20, 500)));
+assert(!/σ/.test(flatFormal), 'no sigma may be quoted when the spread is flat');
+assert(/spread too flat/.test(flatFormal), 'the formal note should say why the scale figure is missing');
+
+// The rank p can never be finer than the baseline length allows.
+const p20 = assessDay(9999, steadyDays(20, 500));
+assert(Math.abs(p20.rankP - 1 / 21) < 1e-12, 'a new high against 20 days is exactly 1-in-21');
+
+/* --- ratios cannot run away --------------------------------------------- */
+
+// Every one of these was found by scripts/insight-stress-test.mjs, and each is
+// the 6.5σ failure in a different costume: a denominator that vanishes, or a
+// sign that stops meaning anything.
+const tinyTypical = assessDay(600, steadyDays(20, 0.02));
+assert(tinyTypical.multiple === 50 && tinyTypical.multipleCapped,
+  'a fold-change against a near-zero typical day must be capped, not reported as 30000x');
+const tinyCopy = describeDay({ assessment: tinyTypical, label: 'Revenue', format: (v) => `$${Math.round(v)}` });
+assert(!/30000/.test(`${tinyCopy.headline} ${tinyCopy.context}`),
+  'the capped multiple must not leak the raw ratio into copy');
+
+assert(pctChange(600, -1000, { minBase: MIN_PCT_BASE.revenue_usd }) === null,
+  'a percentage change from a negative base inverts its own direction and must be refused');
+assert(pctChange(600, 0.01, { minBase: MIN_PCT_BASE.revenue_usd }) === null,
+  'a percentage change off a sub-cent base describes the denominator, not the business');
+assert(pctChange(600, 800, { minBase: MIN_PCT_BASE.revenue_usd }) === -25,
+  'a percentage off a sound base is unaffected');
+
+const refundPeriod = periodTotals([{ revenue_usd: -487, spend_usd: 1000, orders: 5, units: 5 }]);
+assert(refundPeriod.roas === 0, 'a negative ROAS is meaningless and must be suppressed, not charted');
+const creditPeriod = periodTotals([{ revenue_usd: 100, spend_usd: -50, orders: 2, units: 2 }]);
+assert(creditPeriod.cac === 0, 'an ad-account credit must not read as a cheaper customer');
+const denormalOrders = periodTotals([{ revenue_usd: 12, spend_usd: 1, orders: 5e-324, units: 1 }]);
+assert(Number.isFinite(denormalOrders.aov) && denormalOrders.aov >= 0,
+  'a denormal denominator must not overflow AOV to Infinity');
+
+// Refund days are activity in the wrong direction, not absence of activity.
+// Counting them as idle both loses a real day and skews the series toward a
+// false "intermittent" verdict.
+const withRefunds = summarizeBaseline([...steadyDays(14, 800), -500, -200, ...steadyDays(4, 750)]);
+assert(withRefunds.idleDays === 0 && withRefunds.activeDays === 20,
+  'negative days are measured activity, not idle days');
+assert(withRefunds.usable, 'a series with a couple of refund days still has a usable normal');
 
 /* --- anomaly detection -------------------------------------------------- */
 
