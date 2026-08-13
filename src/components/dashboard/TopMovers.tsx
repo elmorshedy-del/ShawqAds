@@ -12,7 +12,6 @@ interface LeaderLike {
   /** null when the ad has not spent enough for a return to be measurable. */
   roas?: number | null;
   roasBasisSpend?: number | null;
-  roasBasisDays?: number | null;
   flag?: string;
   country?: string;
 }
@@ -66,9 +65,7 @@ function subOf(kind: Kind, e?: LeaderLike | null) {
     if (e.roas == null) {
       return `${base} · too little spend behind it to state a ROAS`;
     }
-    return e.roasBasisDays
-      ? `${base} · ROAS over ${e.roasBasisDays} days of spend`
-      : base;
+    return base;
   }
   return `${e.units ?? 0} units · ${fmtCurrency(e.revenue ?? 0)}`;
 }

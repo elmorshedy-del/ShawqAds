@@ -152,7 +152,6 @@ export function toAdLeaders(adRows, cap = 8) {
       // from 0x and must survive to the card rather than being flattened.
       roas: a.shopify_roas == null ? null : num(a.shopify_roas),
       roasBasisSpend: a.shopify_roas_basis_spend == null ? null : num(a.shopify_roas_basis_spend),
-      roasBasisDays: a.shopify_roas_basis_days ?? null,
       revenue: num(a.shopify_revenue_usd),
       ctr: num(a.ctr),
       atc: num(a.add_to_cart),

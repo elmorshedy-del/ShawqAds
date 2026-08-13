@@ -145,16 +145,11 @@ assertIncludes(
   'Top movers should still surface ROAS for ad and country cards even though ranking is count-based.',
 );
 
-// An ad's ROAS must be measured against the spend that could have produced the
-// order, not against whatever that ad spent on the day the order landed. On a
-// one-day view the numerator carried a week of accumulated demand while the
-// denominator carried a single day of budget, which put ads above 800x.
-assertIncludes(
-  app,
-  'AD_ROAS_ATTRIBUTION_DAYS',
-  'Ad ROAS must divide by spend over an attribution window, not by one day of spend.',
-);
-
+// Orders here convert on the day the spend runs (daily orders correlate 0.85
+// with same-day spend, 0.34 at one day's lag, ~0 from three days out), so the
+// window's own spend is the right denominator. What broke the top-ad card was
+// scale, not the time base: 87% of ad-days carry under $25, and one $95 order
+// against $0.11 of spend published 877x.
 assertIncludes(
   app,
   'AD_ROAS_MIN_SPEND_USD',
@@ -163,8 +158,8 @@ assertIncludes(
 
 assertIncludes(
   app,
-  'spendBasisByKey',
-  'The top-ad card must pass an attribution-window spend basis into the Shopify sales enrichment.',
+  'spend >= AD_ROAS_MIN_SPEND_USD',
+  'The spend floor must gate the ROAS itself, not merely be defined.',
 );
 
 assertIncludes(

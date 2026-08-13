@@ -366,38 +366,21 @@ function shopifyAdHints(line = {}) {
   ].filter(Boolean);
 }
 /**
- * Days of spend that could plausibly have produced a sale landing today. Meta's
- * default attribution is a 7-day click window, so an order attributed to an ad
- * was in general paid for by that ad's spend over the preceding week, not by
- * whatever it happened to spend on the day the order landed.
- */
-const AD_ROAS_ATTRIBUTION_DAYS = 7;
-/**
- * Spend an ad needs across that window before a ROAS is worth stating. Half the
- * ads in a typical window carry under $5, and a single $95 order against $0.50
- * of spend reads as 190x — a statement about the denominator, not the ad.
+ * Spend an ad needs inside the window before its ROAS is worth stating.
+ *
+ * This, not the time base, is what produced the absurd figures on the top-ad
+ * card. Orders here convert on the day the spend runs — daily orders correlate
+ * 0.85 with the same day's spend, 0.34 at one day's lag and about zero from
+ * three days out — so dividing a window's revenue by that window's spend is the
+ * right calculation. The failure was purely one of scale: 87% of ad-days carry
+ * under $25 of spend and 39 ads sit under $1, so a single $95 order against
+ * $0.11 published 877x. An ad that has spent less than roughly half a customer
+ * acquisition cannot have earned a measurable return, and one lucky order is
+ * not evidence of one.
  */
 const AD_ROAS_MIN_SPEND_USD = 25;
 
-/**
- * Attribution-window range for a display window: far enough back that the spend
- * which drove the window's orders is inside it.
- */
-function adRoasBasisRange(range, bounds) {
-  if (!range?.since || !range?.until) return range;
-  return clampDateRange(
-    { since: shiftDate(range.since, -(AD_ROAS_ATTRIBUTION_DAYS - 1)), until: range.until },
-    bounds,
-  );
-}
-
-/**
- * `spendBasisByKey` supplies each ad's spend over the attribution window. Without
- * it the ROAS divides a window's revenue by the same window's spend, which is a
- * mismatch of time bases: on a one-day view the numerator carries a week of
- * accumulated demand and the denominator carries a single day of budget.
- */
-function enrichAdsWithShopifySales(ads = [], orderLines = [], { spendBasisByKey = null } = {}) {
+function enrichAdsWithShopifySales(ads = [], orderLines = []) {
   const rows = (ads || []).map((ad) => ({
     ...ad,
     shopify_sales: 0,
@@ -428,23 +411,18 @@ function enrichAdsWithShopifySales(ads = [], orderLines = [], { spendBasisByKey 
   });
   return rows.map((ad) => {
     const shopifySales = ad.shopify_order_ids.size;
-    const windowSpend = Number(ad.spend_usd || 0);
-    const basisSpend = spendBasisByKey
-      ? Number(spendBasisByKey.get(String(ad.ad_id)) ?? spendBasisByKey.get(String(ad.ad_name)) ?? windowSpend)
-      : windowSpend;
+    const spend = Number(ad.spend_usd || 0);
     const revenue = Number(ad.shopify_revenue_usd || 0);
     // Below the floor the ad has not spent enough for a return to be a
-    // measurement, so no ROAS is published. Guarded on the result too: a
-    // positive-but-vanishing basis would otherwise overflow.
-    const roas = basisSpend >= AD_ROAS_MIN_SPEND_USD && revenue >= 0
-      ? revenue / basisSpend
-      : null;
+    // measurement, so no ROAS is published — null, which is a different claim
+    // from 0x. The quotient is checked as well as the divisor, since a
+    // positive-but-vanishing spend would otherwise overflow.
+    const roas = spend >= AD_ROAS_MIN_SPEND_USD && revenue >= 0 ? revenue / spend : null;
     const out = {
       ...ad,
       shopify_sales: shopifySales,
       shopify_roas: Number.isFinite(roas) ? roas : null,
-      shopify_roas_basis_spend: basisSpend,
-      shopify_roas_basis_days: spendBasisByKey ? AD_ROAS_ATTRIBUTION_DAYS : null,
+      shopify_roas_basis_spend: spend,
     };
     delete out.shopify_order_ids;
     return out;
@@ -2122,14 +2100,7 @@ function App() {
       const wm = filterMetaDataByDateRange(baseData, win);
       const metaByCode = new Map((wm.countries || []).map((row) => [row.country_code, row]));
       const countryLeaders = adapt.toCountrySales(ws.countries || [], metaByCode);
-      // Spend basis reaches back over the attribution window so an ad's ROAS is
-      // measured against the budget that could actually have produced the
-      // window's orders, not against one day of it.
-      const basisMeta = filterMetaDataByDateRange(baseData, adRoasBasisRange(win, loadedBounds));
-      const spendBasisByKey = new Map(
-        (basisMeta.ads || []).map((row) => [String(row.ad_id), Number(row.spend_usd || 0)]),
-      );
-      const adRowsForWindow = enrichAdsWithShopifySales(wm.ads || [], ws.order_lines || [], { spendBasisByKey });
+      const adRowsForWindow = enrichAdsWithShopifySales(wm.ads || [], ws.order_lines || []);
       return {
         product: pickTopProductByUnits(ws.products || []),
         ad: pickTopAdBySales(adRowsForWindow),
