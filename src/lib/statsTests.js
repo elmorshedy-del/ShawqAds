@@ -169,6 +169,43 @@ export function benjaminiHochberg(pValues = []) {
   return adjusted;
 }
 
+/**
+ * How precisely a ratio is known when its numerator is driven by a conversion
+ * count — a ROAS from n orders, a CAC from n customers.
+ *
+ * Orders arrive as counts, so the count's own sampling error dominates: for a
+ * Poisson process the relative standard error of n events is 1/sqrt(n). At three
+ * orders that is 58%, which is why ranking ad sets on a three-order ROAS ranks
+ * noise. `z` defaults to a 95% interval.
+ *
+ * Returns null below one order, where the ratio carries no information at all.
+ */
+export function ratioCountInterval(ratio, orders, z = 1.96) {
+  const n = Number(orders);
+  const value = Number(ratio);
+  if (!Number.isFinite(n) || n < 1 || !Number.isFinite(value)) return null;
+  const relativeError = z / Math.sqrt(n);
+  return {
+    value,
+    relativeError,
+    // A ratio built on counts cannot go negative; the clamp is the floor, not a
+    // claim that the low end is exactly zero.
+    low: Math.max(0, value * (1 - relativeError)),
+    high: value * (1 + relativeError),
+  };
+}
+
+/**
+ * True when two count-driven ratios are far enough apart that sampling error
+ * alone does not explain the gap. Non-overlapping intervals is the conservative
+ * reading — it is a stricter bar than a formal two-sample test, which suits a
+ * panel that recommends moving budget.
+ */
+export function intervalsSeparate(a, b) {
+  if (!a || !b) return false;
+  return a.low > b.high || b.low > a.high;
+}
+
 export function formatPValue(pValue) {
   if (pValue == null || !Number.isFinite(pValue)) return '—';
   if (pValue < 0.001) return '< 0.001';

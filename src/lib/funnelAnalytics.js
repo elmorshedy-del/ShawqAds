@@ -100,7 +100,10 @@ function buildIndexedMetric({ dates, accountNum, accountDen, campaigns, window, 
 
   return {
     points,
-    campaigns: ranked.map((c) => ({ id: c.id, name: c.name })),
+    // totalDen travels with the line so downstream findings can weigh a campaign
+    // by how much traffic it actually carried. Without it, a comparison between
+    // two campaign lines cannot tell a solid gap from a thin-sample wobble.
+    campaigns: ranked.map((c) => ({ id: c.id, name: c.name, totalDen: c.totalDen })),
     summary: {
       currentIndex,
       launchIndex,
