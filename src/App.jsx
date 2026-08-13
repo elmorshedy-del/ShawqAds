@@ -10,6 +10,7 @@ import {
 } from './lib/businessKpiInsights.js';
 import { metricDefinition } from './lib/metricDefinitions.js';
 import { buildKeyFindings, topDrivers } from './lib/analyticsInsights.js';
+import { buildCreativeRows } from './lib/creativeStats.js';
 import {
   buildAdsFindings,
   buildFunnelFindings,
@@ -42,6 +43,7 @@ import { UsaComparison } from './components/dashboard/UsaComparison';
 import { DailyDelivery } from './components/dashboard/DailyDelivery';
 import { DevelopingGrowth } from './components/dashboard/DevelopingGrowth';
 import { AdSetDecisionTable } from './components/dashboard/AdSetDecisionTable';
+import { CreativeTable } from './components/dashboard/CreativeTable';
 import { ProductDemand } from './components/dashboard/ProductDemand';
 import { CountrySalesPanel } from './components/dashboard/CountrySalesPanel';
 import { TopMovers } from './components/dashboard/TopMovers';
@@ -81,6 +83,7 @@ const SECTION_LABELS = {
   delivery: 'Daily delivery',
   growth: 'Product growth',
   decision: 'Ad set decisions',
+  creative: 'Creative performance',
   product: 'Product demand',
   country: 'Country sales',
   mobileTops: 'Top movers',
@@ -2094,6 +2097,13 @@ function App() {
   const deliveryShape = adapt.toDeliveryShape(deliveryRowsExcludingToday);
   const growth = adapt.toProductDevelopment(productData);
   const decisions = adapt.toAdSetDecisions(filtered, adsetPerfById, statusLabels);
+  // Per-creative conversion assessment, scoped to the selected window like every
+  // other panel. The posterior sampling runs once per ad, so it is memoised
+  // against the windowed ad rows rather than recomputed on each render.
+  const creativeTable = useMemo(
+    () => buildCreativeRows(matchedData.ads || []),
+    [matchedData],
+  );
   const productDemand = adapt.toProductDemand(productData, activeDateRange.since);
   const countrySales = adapt.toCountrySales(matchedProductData.countries || [], countryRoasMetaByCode);
   // Mobile "Top movers" — today's leader as the hero, with the current week and
@@ -2346,6 +2356,7 @@ function App() {
     delivery: <DailyDelivery data={deliveryShape} developingDay={deliveryDevelopingDay} />,
     growth: <DevelopingGrowth data={growth.data} lines={growth.lines} />,
     decision: <AdSetDecisionTable rows={decisions} />,
+    creative: <CreativeTable rows={creativeTable.rows} baselineCvr={creativeTable.baselineCvr} />,
     product: <ProductDemand data={productDemand} />,
     country: (
       <CountrySalesPanel
@@ -2413,7 +2424,7 @@ function App() {
       label: 'Media',
       icon: Megaphone,
       question: 'Where should delivery or spend be investigated?',
-      ids: ['mediaFindings', 'campaignPacing', 'decision', 'tree', 'delivery', 'usa', 'benchmarks', 'edits'],
+      ids: ['mediaFindings', 'campaignPacing', 'decision', 'creative', 'tree', 'delivery', 'usa', 'benchmarks', 'edits'],
     },
     {
       key: 'conversion',
