@@ -3,79 +3,170 @@ import {
   concentration,
   detectAnomalies,
   median,
-  medianAbsoluteDeviation,
   pctChange,
   periodTotals,
-  robustBand,
-  robustZScore,
   topDrivers,
 } from '../src/lib/analyticsInsights.js';
+import {
+  assessDay,
+  describeDay,
+  percentile,
+  summarizeBaseline,
+} from '../src/lib/anomalyStats.js';
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-/* --- robust statistics -------------------------------------------------- */
+const DAY_MS = 86400000;
+const SERIES_START = Date.UTC(2026, 5, 1); // 2026-06-01
+const isoDay = (index) => new Date(SERIES_START + index * DAY_MS).toISOString().slice(0, 10);
+const steadyDays = (count, value) => Array.from({ length: count }, () => value);
+const dayRows = (values, key, extra = () => ({})) => values.map((value, index) => ({
+  date: isoDay(index),
+  [key]: value,
+  ...extra(index),
+}));
+
+/* --- percentiles and baselines ------------------------------------------ */
 
 assert(median([3, 1, 2]) === 2, 'median should sort before picking the middle');
 assert(median([4, 1, 3, 2]) === 2.5, 'median should average the middle pair on even counts');
 assert(median([]) === null, 'median of an empty series should be null');
+assert(percentile([1, 2, 3, 4], 0.25) === 1.75, 'quartiles should interpolate between order statistics');
+assert(percentile([], 0.5) === null, 'a percentile of nothing should be null');
 
-const spread = medianAbsoluteDeviation([10, 12, 14, 20]);
-assert(spread > 0, 'MAD should be positive on a dispersed series');
-assert(medianAbsoluteDeviation([5]) === null, 'MAD needs at least two points');
-// MAD is genuinely zero once more than half the values are identical — common on
-// small integer series like daily order counts. robustBand has to compensate.
-assert(medianAbsoluteDeviation([10, 10, 10, 20]) === 0, 'MAD is zero when the majority of values tie');
+// A short history cannot establish a normal, no matter how tidy it looks.
+const shortBaseline = summarizeBaseline(steadyDays(6, 100));
+assert(!shortBaseline.usable && shortBaseline.limitation === 'short-history',
+  'fewer than ten measured days must not yield a normal');
 
-const flatBand = robustBand([100, 100, 100, 100, 100]);
-assert(flatBand && flatBand.spread > 0, 'a flat series must still produce a usable band width');
-const zeroBand = robustBand([0, 0, 0, 0, 0]);
-assert(zeroBand && zeroBand.spread > 0, 'a zero baseline must still produce a usable absolute width');
-assert(zeroBand.low === 0, 'a non-negative metric must not report a negative typical range');
-assert(robustBand([1, 2]) === null, 'a band needs at least three points');
+// The exact shape that produced "typical day around $0": mostly idle, a few live days.
+const intermittent = summarizeBaseline([...steadyDays(24, 0), 600, 955, 700, 800]);
+assert(!intermittent.usable && intermittent.limitation === 'intermittent',
+  'a mostly-idle series has no steady centre and must say so');
+assert(intermittent.typical === 750,
+  'the typical day must be computed from days that actually ran, not from the idle ones');
 
-const band = robustBand([100, 110, 90, 105, 95]);
-assert(band.median === 100, 'band median should be the series median');
-assert(band.low < band.median && band.high > band.median, 'band should straddle the median');
-assert(robustZScore(band.median, band) === 0, 'the median scores zero');
-assert(robustZScore(0, null) === 0, 'a missing band should not throw');
+const healthy = summarizeBaseline([...steadyDays(10, 100), ...steadyDays(10, 200)]);
+assert(healthy.usable, 'twenty active days with real spread should be usable');
+assert(healthy.rarityFloor === 1 / 21,
+  'the finest demonstrable rarity is 1-in-(n+1), and must be carried through');
 
-// A mean-based band would be dragged by the outlier; the median-based one is not.
-const withOutlier = robustBand([100, 102, 98, 101, 99, 5000]);
-assert(Math.abs(withOutlier.median - 100) < 3, 'one huge day must not move the centre of the band');
+/* --- the reported-sigma defect ------------------------------------------ */
+
+// Replay of the real account: 24 uncovered days at $0, four live days, then $620.
+// The old median+MAD band called this "typical day around $0 (usual range
+// $0–$191). This is a 6.5σ move." Nothing may claim a sigma from this baseline.
+const sigmaCase = assessDay(620, [...steadyDays(24, 0), 600, 955, 700, 800]);
+assert(sigmaCase.limitation === 'intermittent', 'the reported-sigma baseline must be rejected as intermittent');
+assert(!sigmaCase.unusual, 'a day cannot be called unusual against a baseline that has no normal');
+assert(!('z' in sigmaCase) && !('sigma' in sigmaCase),
+  'no sigma-like field may survive on an assessment');
+
+const sigmaCopy = describeDay({
+  assessment: sigmaCase,
+  label: 'Meta spend',
+  format: (value) => `$${Math.round(value)}`,
+  date: '2026-08-07',
+});
+const sigmaText = `${sigmaCopy.headline} ${sigmaCopy.context}`;
+assert(!/σ|sigma|standard deviation/i.test(sigmaText), 'published copy must never quote a sigma');
+assert(!/around \$0|\$0–|\$0-/.test(sigmaText), 'copy must not present a manufactured $0 normal');
+assert(/idle on 24 of the 28 days/.test(sigmaText), 'copy must state how much of the baseline was idle');
+assert(/750/.test(sigmaText), 'copy must anchor on the typical day that actually ran');
+
+// The reductio the old code allowed: an all-zero baseline yielded z = 600.
+const allZeroBaseline = assessDay(600, steadyDays(28, 0));
+assert(!allZeroBaseline.unusual, 'an all-idle baseline can never make a day unusual');
+
+/* --- honest deviations still surface ------------------------------------ */
+
+const realSpike = assessDay(6000, steadyDays(20, 1000));
+assert(realSpike.unusual, 'a genuine 6x jump against a solid baseline must still be flagged');
+assert(realSpike.exceedsAll, 'the spike is a new high and should be marked as one');
+const spikeCopy = describeDay({ assessment: realSpike, label: 'Revenue', format: (v) => `$${Math.round(v)}`, date: '2026-06-07' });
+assert(/highest in 20 days/.test(spikeCopy.headline), 'the headline should rank the day against measured history');
+assert(/1-in-21/.test(spikeCopy.context), 'the claim must be capped at what 20 days can demonstrate');
+assert(!/σ|sigma/i.test(`${spikeCopy.headline} ${spikeCopy.context}`), 'no sigma in the spike copy either');
 
 /* --- anomaly detection -------------------------------------------------- */
 
-const steadyThenSpike = [
-  { date: '2026-06-01', revenue_usd: 1000 },
-  { date: '2026-06-02', revenue_usd: 1050 },
-  { date: '2026-06-03', revenue_usd: 980 },
-  { date: '2026-06-04', revenue_usd: 1020 },
-  { date: '2026-06-05', revenue_usd: 1010 },
-  { date: '2026-06-06', revenue_usd: 990 },
-  { date: '2026-06-07', revenue_usd: 6000 },
-];
+const steadyThenSpike = dayRows([...steadyDays(20, 1000), 6000], 'revenue_usd');
 const spikes = detectAnomalies(steadyThenSpike, 'revenue_usd');
 assert(spikes.length === 1, 'exactly one day should be flagged');
-assert(spikes[0].date === '2026-06-07', 'the spike day should be flagged');
+assert(spikes[0].date === isoDay(20), 'the spike day should be flagged');
 assert(spikes[0].direction === 'above', 'a spike is an above-normal anomaly');
-assert(spikes[0].expected > 900 && spikes[0].expected < 1100, 'expected value should be the prior normal');
+assert(spikes[0].kind === 'deviation', 'a supported spike is a deviation, not a restart');
 
 // No lookahead: the first days can never be judged, and a steady series is quiet.
-const steady = detectAnomalies(steadyThenSpike.slice(0, 6), 'revenue_usd');
+const steady = detectAnomalies(dayRows(steadyDays(20, 1000), 'revenue_usd'), 'revenue_usd');
 assert(steady.length === 0, 'a steady series should produce no anomalies');
 
-const excluded = detectAnomalies(steadyThenSpike, 'revenue_usd', { excludeDates: ['2026-06-07'] });
+const excluded = detectAnomalies(steadyThenSpike, 'revenue_usd', { excludeDates: [isoDay(20)] });
 assert(excluded.length === 0, 'excluded dates (e.g. the developing day) must not be flagged');
-const zeroThenOrder = detectAnomalies(
-  [0, 0, 0, 0, 0, 100].map((orders, index) => ({
-    date: `2026-07-0${index + 1}`,
-    orders,
-  })),
-  'orders',
+
+/* --- coverage awareness ------------------------------------------------- */
+
+// The real account shape: a long stretch Meta never reported (spend_usd falls
+// back to 0), then ten genuine spending days, then the day under review.
+const liveSpend = [400, 420, 450, 380, 470, 440, 410, 460, 430, 490];
+const COVERAGE_GAP_DAYS = 24;
+const gappedSpend = dayRows(
+  [...steadyDays(COVERAGE_GAP_DAYS, 0), ...liveSpend, 620],
+  'spend_usd',
+  (index) => ({ meta_covered: index >= COVERAGE_GAP_DAYS }),
 );
-assert(zeroThenOrder.length === 1, 'a real event after a zero baseline must not be invisible');
+
+// Read as if the gap were real zeros, the series looks intermittent: the day
+// under review is missed entirely, and the first *reported* day is misread as a
+// restart. The coverage gap manufactures an event that never happened.
+const gapBlind = detectAnomalies(gappedSpend, 'spend_usd');
+assert(gapBlind.every((hit) => hit.date !== isoDay(COVERAGE_GAP_DAYS + liveSpend.length)),
+  'uncovered zeros hide the day actually under review');
+assert(gapBlind.some((hit) => hit.date === isoDay(COVERAGE_GAP_DAYS) && hit.kind === 'resumed'),
+  'and instead manufacture a phantom restart on the first reported day');
+
+// Read with coverage, the ten measured days form a usable baseline and the day
+// is judged against them.
+const gapAware = detectAnomalies(gappedSpend, 'spend_usd', { coverageKey: 'meta_covered' });
+assert(gapAware.length === 1 && gapAware[0].date === isoDay(COVERAGE_GAP_DAYS + liveSpend.length),
+  'with coverage applied the day is judged against the days Meta actually reported');
+assert(gapAware[0].kind === 'deviation' && gapAware[0].assessment.usable,
+  'ten reported days are a usable baseline');
+assert(gapAware[0].assessment.typical === 435,
+  'the typical day must come from the reported days only');
+
+/* --- stopping and restarting ------------------------------------------- */
+
+// Ten spending days, a fortnight switched off, then spend again. That is exactly
+// two events, and a fourteen-day outage must not become fourteen findings.
+const IDLE_STRETCH_DAYS = 14;
+const stopStart = detectAnomalies(
+  dayRows([...steadyDays(10, 400), ...steadyDays(IDLE_STRETCH_DAYS, 0), 620], 'spend_usd'),
+  'spend_usd',
+);
+assert(stopStart.length === 2, 'an outage and a restart are two events, not one per idle day');
+
+const [stopped, resumed] = stopStart;
+assert(stopped.date === isoDay(10) && stopped.value === 0,
+  'the first idle day is the one that reports delivery stopping');
+assert(resumed.date === isoDay(10 + IDLE_STRETCH_DAYS) && resumed.kind === 'resumed',
+  'spend restarting after an idle run should be reported as a restart, not a deviation');
+assert(resumed.idleRun === IDLE_STRETCH_DAYS,
+  'the restart should carry how long the series had been idle');
+
+// Restart copy must describe the outage rather than invent a normal to deviate from.
+const resumedCopy = describeDay({
+  assessment: resumed.assessment,
+  label: 'Meta spend',
+  format: (value) => `$${Math.round(value)}`,
+  date: resumed.date,
+});
+assert(/idle on 14 of the 24 days/.test(resumedCopy.context),
+  'restart copy should state how much of the baseline was idle');
+assert(!/σ|sigma/i.test(`${resumedCopy.headline} ${resumedCopy.context}`),
+  'restart copy must not quote a sigma either');
 
 /* --- period totals ------------------------------------------------------ */
 

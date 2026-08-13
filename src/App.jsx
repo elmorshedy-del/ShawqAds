@@ -1229,6 +1229,11 @@ function mergeBusinessRows(metaDaily, shopifyDaily) {
     const orders = Number(shop.orders || 0);
     return {
       date,
+      // Whether Meta reported this date at all. A Shopify-only day has no Meta
+      // row, so spend_usd falls back to 0 — that is missing measurement, not a
+      // day on which nothing was spent. Insight baselines must be able to tell
+      // the two apart, or "typical day" collapses onto the manufactured zeros.
+      meta_covered: metaByDate.has(date),
       revenue_usd: revenueUsd,
       spend_usd: spendUsd,
       orders,
