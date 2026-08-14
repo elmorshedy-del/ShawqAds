@@ -25,9 +25,19 @@ function countryFlag(code) {
   return [...cc].map((ch) => String.fromCodePoint(127397 + ch.charCodeAt(0))).join("");
 }
 
+/**
+ * Returns null, not 0, when there is no Meta spend recorded for the country.
+ *
+ * A market with revenue and no recorded spend is a gap in the Meta side of the
+ * join — it happens whenever the Meta payload's window does not reach as far as
+ * Shopify's — and rendering it as "0.00x" states the opposite of the truth: that
+ * the market returned nothing. Null lets the panel say the spend is missing.
+ */
 function shopifyCountryRoas(country, metaCountry) {
   const spend = Number(metaCountry?.spend_usd || 0);
-  return spend ? Number(country?.revenue_usd || 0) / spend : 0;
+  if (!(spend > 0)) return null;
+  const roas = Number(country?.revenue_usd || 0) / spend;
+  return Number.isFinite(roas) ? roas : null;
 }
 
 /* ---- KPI sparkline series (KpiCard.series) ----

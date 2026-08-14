@@ -112,7 +112,7 @@ export interface AdLeader {
   category: string;
   campaigns: number;
   sales: number;
-  roas: number;
+  roas: number | null;
   ctr: number;
   atc: number;
   ic: number;
@@ -219,7 +219,7 @@ export interface CountrySplit {
 export interface CountrySales {
   flag: string;
   country: string;
-  roas: number;
+  roas: number | null;
   units: number;
   orders: number;
   revenue: number;
