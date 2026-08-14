@@ -108,6 +108,11 @@ const merged = mergeLivePacing(pacing, {
     { campaign_id: '1', adset_id: 'b', spend_usd: 50 },
     { campaign_id: '2', adset_id: '2', spend_usd: 0 },
   ],
+  pacing_hourly: [
+    { campaign_id: '1', adset_id: 'a', date: '2026-08-04', hour: 10, spend_usd: 12 },
+    { campaign_id: '1', adset_id: 'b', date: '2026-08-04', hour: 11, spend_usd: 18 },
+    { campaign_id: '999', adset_id: 'missing', date: '2026-08-04', hour: 11, spend_usd: 99 },
+  ],
 });
 const mergedCampaign = merged.daily.find((row) => row.target_id === 'campaign:1' && row.date === '2026-08-04');
 assert(mergedCampaign.spend_usd === 80, 'live ad-set spend should roll up to the campaign budget owner');
@@ -115,5 +120,12 @@ assert(
   merged.daily.filter((row) => row.target_id === 'campaign:1' && row.date === '2026-08-04').length === 1,
   'live spend must replace rather than duplicate the cached current day',
 );
+const mergedHourly = merged.hourly.filter((row) => row.date === '2026-08-04');
+assert(mergedHourly.length === 2,
+  'live hourly pacing should keep mapped rows and drop rows with no budget target');
+assert(mergedHourly.every((row) => row.target_id === 'campaign:1'),
+  'every mapped live hourly row must carry the resolved target_id');
+assert(mergedHourly.reduce((sum, row) => sum + row.spend_usd, 0) === 30,
+  'hourly live spend should survive the target-id mapping unchanged');
 
 console.log('campaign pacing checks passed');

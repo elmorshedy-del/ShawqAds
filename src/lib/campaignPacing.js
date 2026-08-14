@@ -249,7 +249,7 @@ export function mergeLivePacing(pacing, liveMeta) {
   const liveHourly = (liveMeta.pacing_hourly || []).flatMap((row) => {
     const targetId = campaignTargets.get(String(row.campaign_id))
       || adsetTargets.get(String(row.adset_id));
-    return targetId ? [{ ...row, target_id }] : [];
+    return targetId ? [{ ...row, target_id: targetId }] : [];
   });
   const hourly = liveHourly.length
     ? [

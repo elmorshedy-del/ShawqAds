@@ -48,7 +48,7 @@
     "memory:graph": "agent-memory graph build",
     "memory:worklog": "agent-memory worklog checkpoint",
     "start": "node server.mjs",
-    "build:deploy": "vite build"
+    "build:deploy": "npm run test:campaign-pacing && vite build"
   },
   "dependencies": {
     "@nivo/bar": "latest",
