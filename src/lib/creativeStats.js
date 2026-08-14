@@ -120,6 +120,89 @@ export const getCreativeDataStrength = (visits) => {
   return { key: 'LOW', label: 'LOW DATA' };
 };
 
+/* --- return per dollar ---------------------------------------------------
+ * The verdict above answers "is this creative's conversion rate above the
+ * account's?". That is a real question but not the buyer's one, for two
+ * reasons. Return decomposes as (1000/CPM) × CTR × landing-rate × CVR × AOV, so
+ * conversion rate is one factor of five — a creative with cheap clicks and a
+ * middling CVR can out-earn a creative with the reverse. And the uncertainty in
+ * a return comes from the purchase count, not the visit count: 1,100 visits
+ * carrying 8 sales is an 8-sale sample.
+ *
+ * So return is modelled directly, on purchases per dollar of spend. Gamma-
+ * Poisson is the conjugate pair for counts accrued over an exposure, and the
+ * exposure here is money:
+ *
+ *   prior      Gamma(shape = λ₀·K, rate = K)     K in dollars
+ *   posterior  Gamma(shape = λ₀·K + purchases, rate = K + spend)
+ *   ROAS       = λ × AOV
+ *
+ * K is set to the account's cost per sale, so the prior is worth exactly one
+ * expected sale of spend. That shrinkage is also what stops the winner's curse:
+ * across a couple of hundred creatives several will post a spectacular return by
+ * chance, and the raw figure is the one you would scale by mistake.
+ * ------------------------------------------------------------------------- */
+
+/** Purchases an AOV estimate must carry before it stops leaning on the account's. */
+const K_AOV_PURCHASES = 3;
+/** Expected sales at baseline below which a creative cannot be read at all. */
+const MIN_EXPECTED_SALES = 1;
+/** Posterior probability above/below which the comparison to target is called. */
+const P_ABOVE_TARGET = 0.8;
+const P_BELOW_TARGET = 0.2;
+/** Credible interval reported beside the estimate. */
+const CREDIBLE_LOW = 0.1;
+const CREDIBLE_HIGH = 0.9;
+
+/** Regularized lower incomplete gamma P(shape, x) — the Gamma CDF at rate 1. */
+function lowerRegularizedGamma(shape, x) {
+  if (!(x > 0) || !(shape > 0)) return 0;
+  if (x > 1e8) return 1;
+  // Series expansion; converges quickly for the shapes a creative produces.
+  let sum = 1 / shape;
+  let term = sum;
+  for (let k = 1; k < 500; k += 1) {
+    term *= x / (shape + k);
+    sum += term;
+    if (Math.abs(term) < Math.abs(sum) * 1e-14) break;
+  }
+  const value = sum * Math.exp(-x + shape * Math.log(x) - logGamma(shape));
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+}
+
+function logGamma(z) {
+  const coef = [
+    0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+    771.32342877765313, -176.61502916214059, 12.507343278686905,
+    -0.13857109526572012, 9.984369578019571e-6, 1.5056327351493116e-7,
+  ];
+  if (z < 0.5) return Math.log(Math.PI) - Math.log(Math.sin(Math.PI * z)) - logGamma(1 - z);
+  const y = z - 1;
+  let x = coef[0];
+  for (let i = 1; i < 9; i += 1) x += coef[i] / (y + i);
+  const t = y + 7.5;
+  return 0.5 * Math.log(2 * Math.PI) + (y + 0.5) * Math.log(t) - t + Math.log(x);
+}
+
+/** P(rate parameter exceeds `threshold`) for Gamma(shape, rate). */
+function gammaProbAbove(threshold, shape, rate) {
+  if (!(threshold > 0)) return 1;
+  return 1 - lowerRegularizedGamma(shape, rate * threshold);
+}
+
+/** Gamma quantile by bisection on the CDF — accurate enough, and hard to get wrong. */
+function gammaQuantile(p, shape, rate) {
+  if (!(shape > 0) || !(rate > 0)) return null;
+  let low = 0;
+  let high = (shape / rate) * 10 + 10 / rate;
+  for (let i = 0; i < 200 && lowerRegularizedGamma(shape, rate * high) < p; i += 1) high *= 2;
+  for (let i = 0; i < 200; i += 1) {
+    const mid = (low + high) / 2;
+    if (lowerRegularizedGamma(shape, rate * mid) < p) low = mid; else high = mid;
+  }
+  return (low + high) / 2;
+}
+
 /**
  * The verdict is deliberately gated on data strength: a creative cannot be
  * called dead or a winner until enough visits have accumulated to support it,
@@ -176,6 +259,25 @@ export const computeCreativeBayesianStats = ({ visits, effectivePurchases, basel
     p90: percentileFromSamples(samples, 0.9),
   };
 };
+
+/**
+ * Where a creative's return stands against the target, stated as a fact rather
+ * than as an instruction.
+ *
+ * Four states, and the middle one is not a gap in knowledge: a posterior sitting
+ * between the two thresholds means the return is *indistinguishable from target*
+ * on the delivery so far, which is a finding. "Not enough delivery" is reserved
+ * for creatives that have not yet bought one expected sale of spend, where the
+ * absence of purchases carries no information at all.
+ */
+export function getReturnStanding({ expectedSales, probAboveTarget }) {
+  if (!(expectedSales >= MIN_EXPECTED_SALES) || probAboveTarget == null) {
+    return { key: 'UNREAD', label: 'Not enough delivery' };
+  }
+  if (probAboveTarget >= P_ABOVE_TARGET) return { key: 'ABOVE', label: 'Above target' };
+  if (probAboveTarget <= P_BELOW_TARGET) return { key: 'BELOW', label: 'Below target' };
+  return { key: 'AT', label: 'At target' };
+}
 
 /**
  * Account-wide conversion rate the individual creatives are judged against, and
@@ -235,26 +337,60 @@ export function buildCreativeRows(ads = []) {
 
   const baselineCvr = buildCreativeBaselineCvr(base);
 
+  // Account totals set both the target and the prior. Pooled from sums, never
+  // averaged across creatives, so a $562 creative counts for more than a $5 one.
+  const totals = base.reduce((acc, row) => ({
+    spend: acc.spend + row.spend,
+    purchases: acc.purchases + row.purchases,
+    revenue: acc.revenue + row.revenue,
+  }), { spend: 0, purchases: 0, revenue: 0 });
+  const accountAov = totals.purchases > 0 ? totals.revenue / totals.purchases : 0;
+  const salesPerDollar = totals.spend > 0 ? totals.purchases / totals.spend : 0;
+  const costPerSale = salesPerDollar > 0 ? 1 / salesPerDollar : 0;
+  // Default target is the account's own blended return: "is this creative
+  // better than the average dollar in this account". A margin-based break-even
+  // can be passed in instead when the question is "does this make money".
+  const target = totals.spend > 0 ? totals.revenue / totals.spend : 0;
+
+  const rows = base.map((row) => {
+    const stats = computeCreativeBayesianStats({
+      visits: row.visits,
+      effectivePurchases: row.effectivePurchases,
+      baselineCvr,
+      seedKey: row.key,
+    });
+
+    // Posterior on purchases per dollar, and the return it implies.
+    const shape = salesPerDollar * costPerSale + row.purchases;
+    const rate = costPerSale + row.spend;
+    const aov = (row.revenue + K_AOV_PURCHASES * accountAov) / (row.purchases + K_AOV_PURCHASES);
+    const usable = shape > 0 && rate > 0 && aov > 0;
+    const estimatedRoas = usable ? (shape / rate) * aov : null;
+    const probAboveTarget = usable && target > 0 ? gammaProbAbove(target / aov, shape, rate) : null;
+    const low = usable ? gammaQuantile(CREDIBLE_LOW, shape, rate) : null;
+    const high = usable ? gammaQuantile(CREDIBLE_HIGH, shape, rate) : null;
+    const expectedSales = row.spend * salesPerDollar;
+
+    return {
+      ...row,
+      ...stats,
+      expectedSales,
+      estimatedRoas,
+      probAboveTarget,
+      roasLow: low == null ? null : low * aov,
+      roasHigh: high == null ? null : high * aov,
+      spendShare: totals.spend > 0 ? row.spend / totals.spend : 0,
+      dataStrength: getCreativeDataStrength(row.visits),
+      standing: getReturnStanding({ expectedSales, probAboveTarget }),
+    };
+  });
+
   return {
     baselineCvr,
-    rows: base.map((row) => {
-      const stats = computeCreativeBayesianStats({
-        visits: row.visits,
-        effectivePurchases: row.effectivePurchases,
-        baselineCvr,
-        seedKey: row.key,
-      });
-      return {
-        ...row,
-        ...stats,
-        dataStrength: getCreativeDataStrength(row.visits),
-        verdict: getCreativeVerdict({
-          visits: row.visits,
-          winProb: stats.winProb,
-          p10: stats.p10,
-          baselineCvr,
-        }),
-      };
-    }),
+    target,
+    costPerSale,
+    accountAov,
+    totals,
+    rows,
   };
 }

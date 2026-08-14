@@ -2356,7 +2356,7 @@ function App() {
     delivery: <DailyDelivery data={deliveryShape} developingDay={deliveryDevelopingDay} />,
     growth: <DevelopingGrowth data={growth.data} lines={growth.lines} />,
     decision: <AdSetDecisionTable rows={decisions} />,
-    creative: <CreativeTable rows={creativeTable.rows} baselineCvr={creativeTable.baselineCvr} />,
+    creative: <CreativeTable rows={creativeTable.rows} target={creativeTable.target} costPerSale={creativeTable.costPerSale} />,
     product: <ProductDemand data={productDemand} />,
     country: (
       <CountrySalesPanel
