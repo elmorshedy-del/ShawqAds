@@ -65,6 +65,9 @@ function heroOf(kind: Kind, e?: LeaderLike | null) {
   // Any ad that did spend shows its ROAS as computed — the spend behind it is
   // on the line below, so a large multiple on thin spend reads as thin spend.
   if (kind === "ad" && e.roas == null) return fmtCurrency(e.revenue ?? 0);
+  // A country with revenue but no recorded spend has no return to state. It used
+  // to render as "0.00x", which reads as a market that returned nothing.
+  if (kind === "country" && e.roas == null) return fmtCurrency(e.revenue ?? 0);
   return fmtX(e.roas ?? 0);
 }
 
@@ -83,6 +86,7 @@ function subOf(kind: Kind, e?: LeaderLike | null) {
     }
     return base;
   }
+  if (e.roas == null) return `${e.units ?? 0} units · ${fmtCurrency(e.revenue ?? 0)} · no spend recorded`;
   return `${e.units ?? 0} units · ${fmtCurrency(e.revenue ?? 0)}`;
 }
 
@@ -95,7 +99,15 @@ function compactOf(kind: Kind, e?: LeaderLike | null) {
       metric: e.roas == null ? `${e.sales ?? 0} · ${fmtCurrency(e.revenue ?? 0)}` : `${e.sales ?? 0} · ${fmtX(e.roas)}`,
     };
   }
-  return { name: `${e.flag ?? ""} ${e.country ?? "—"}`.trim(), metric: fmtX(e.roas ?? 0) };
+  // Every compare cell carries its volume. A bare "22.04x" with no denominator
+  // gives the reader nothing to weigh it against, and a bare "0.00x" hides that
+  // the spend behind it was simply never recorded.
+  return {
+    name: `${e.flag ?? ""} ${e.country ?? "—"}`.trim(),
+    metric: e.roas == null
+      ? `${e.units ?? 0}u · ${fmtCurrency(e.revenue ?? 0)} · no spend`
+      : `${e.units ?? 0}u · ${fmtX(e.roas)}`,
+  };
 }
 
 function headingFor(focusLabel: string) {
