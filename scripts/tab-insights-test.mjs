@@ -24,7 +24,10 @@ const funnel = {
   hasData: true,
   icAtc: {
     summary: { currentIndex: 78, launchIndex: 100, deltaSinceLaunch: -22, currentRaw: 62, baseRate: 80 },
-    campaigns: [{ id: 'a', name: 'USA_CBO' }, { id: 'b', name: 'UK_CBO' }],
+    campaigns: [
+      { id: 'a', name: 'USA_CBO', totalDen: 900 },
+      { id: 'b', name: 'UK_CBO', totalDen: 420 },
+    ],
     points: [{ date: '2026-06-10', a: 120, b: 60 }],
   },
   purchaseIc: {
@@ -44,6 +47,26 @@ assert(trend && trend.headline.includes('degraded'), 'funnel: a 22-point drop sh
 assert(!byId(funnelFindings, 'funnel-trend-purchaseIc'), 'funnel: sub-5-point moves should not be reported');
 const spread = byId(funnelFindings, 'funnel-spread-icAtc');
 assert(spread && spread.headline.includes('60'), 'funnel: campaign spread should be reported');
+assert(spread.context.includes('900') && spread.context.includes('420'),
+  'funnel: the traffic behind each end of the gap must be shown');
+assert(/2 campaign lines/.test(spread.context),
+  'funnel: the reader must be told how many lines the widest gap was picked from');
+
+// The same 60-point gap on a thin campaign line is not evidence of anything.
+const thinSpread = buildFunnelFindings({
+  hasData: true,
+  icAtc: {
+    summary: { currentIndex: 78, launchIndex: 100, deltaSinceLaunch: -22, currentRaw: 62, baseRate: 80 },
+    campaigns: [
+      { id: 'a', name: 'USA_CBO', totalDen: 900 },
+      { id: 'b', name: 'Tiny_Test', totalDen: 12 },
+    ],
+    points: [{ date: '2026-06-10', a: 120, b: 60 }],
+  },
+  purchaseIc: { summary: { currentIndex: 100, launchIndex: 100, deltaSinceLaunch: 0 }, campaigns: [], points: [] },
+});
+assert(!byId(thinSpread, 'funnel-spread-icAtc'),
+  'funnel: a campaign line with almost no traffic must not anchor a spread finding');
 
 // A balanced funnel should not invent a bottleneck.
 const balanced = buildFunnelFindings({
@@ -73,6 +96,29 @@ assert(adSpread, 'ads: a spread finding should be produced');
 assert(adSpread.headline.includes('Loser') && adSpread.headline.includes('Winner'), 'ads: both ends should be named');
 assert(!adSpread.headline.includes('Tiny'), 'ads: below-floor spend must not be crowned best');
 assert(adSpread.action.includes('Investigate'), 'ads: a sub-1x ad set should trigger investigation, not a causal cut command');
+assert(/12 sales/.test(adSpread.context) && /5/.test(adSpread.context),
+  'ads: the sales count behind each ROAS must be shown');
+assert(/do not overlap/.test(adSpread.context),
+  'ads: the claim rests on non-overlapping ranges and should say so');
+
+// Two ad sets a hair apart on a handful of sales each are not separable, and
+// must not be dressed up as a winner and a loser.
+const thinAds = buildAdsFindings({
+  adSets: [
+    { adSet: 'A', status: 'Healthy', roas: 2.4, spend: 400, sales: 4 },
+    { adSet: 'B', status: 'Healthy', roas: 1.9, spend: 400, sales: 3 },
+    { adSet: 'C', status: 'Healthy', roas: 2.1, spend: 400, sales: 4 },
+  ],
+  campaigns: [],
+});
+assert(!byId(thinAds, 'ads-spread'),
+  'ads: overlapping ROAS ranges must not produce a best-vs-worst verdict');
+const unresolved = byId(thinAds, 'ads-spread-unresolved');
+assert(unresolved && unresolved.tone === 'neutral',
+  'ads: "cannot tell them apart yet" is itself a finding, not silence');
+assert(/could still swap order/.test(unresolved.context),
+  'ads: the unresolved note should say why the ranking is not safe to act on');
+
 const fatigue = byId(adsFindings, 'ads-fatigue');
 assert(fatigue && fatigue.headline.includes('1 ad set'), 'ads: fatigue should be counted');
 const attribution = byId(adsFindings, 'ads-attribution');

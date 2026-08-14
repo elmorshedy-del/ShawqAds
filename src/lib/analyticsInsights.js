@@ -7,82 +7,78 @@
  * no re-derivation of business logic.
  *
  * Statistical choices, and why:
- *  - Median + MAD instead of mean + stdev. Daily ecommerce series are short and
- *    spiky; one launch day or one outage day would drag a mean-based band far
- *    enough to hide every real anomaly.
- *  - MAD is scaled by 1.4826 so the band is comparable to a normal-distribution
- *    sigma, which keeps the "unusual" threshold interpretable.
+ *  - Unusual days are judged by anomalyStats.js, which compares a day only
+ *    against days that were actually measured and reports the result as a rank
+ *    and a multiple rather than a sigma. See that file for why the previous
+ *    median+MAD band produced claims like "typical day $0 ... a 6.5σ move".
+ *  - Ranges shown to the reader are quartiles ("half the days ran between X and
+ *    Y"), which can be counted off the chart, instead of median ± k·spread,
+ *    which cannot.
  *  - Ratio metrics (ROAS, CAC, AOV) are recomputed from summed numerators and
  *    denominators, never averaged across days. Averaging daily ROAS weights a
  *    $30 day the same as a $3,000 day and reliably overstates weak periods.
  * ------------------------------------------------------------------------- */
 
-const MAD_TO_SIGMA = 1.4826;
+import {
+  ANOMALY_LIMITS,
+  assessDay,
+  describeDay,
+  percentile,
+  summarizeBaseline,
+} from './anomalyStats.js';
+
+/** Idle days before a restart that make "spend resumed" worth reporting. */
+const RESUMED_AFTER_IDLE_DAYS = 3;
 
 const num = (value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 };
 
-export function median(values = []) {
-  const sorted = values.map(Number).filter(Number.isFinite).sort((a, b) => a - b);
-  if (!sorted.length) return null;
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
+export const median = (values = []) => percentile(values, 0.5);
 
-/** Median absolute deviation, scaled to be sigma-comparable. */
-export function medianAbsoluteDeviation(values = [], center = null) {
-  const finite = values.map(Number).filter(Number.isFinite);
-  if (finite.length < 2) return null;
-  const mid = center == null ? median(finite) : center;
-  if (mid == null) return null;
-  const deviations = finite.map((value) => Math.abs(value - mid));
-  const rawMad = median(deviations);
-  return rawMad == null ? null : rawMad * MAD_TO_SIGMA;
+/** Consecutive idle days at the end of a baseline, newest last. */
+function trailingIdleDays(history = []) {
+  let count = 0;
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    if (num(history[i]) > 0) break;
+    count += 1;
+  }
+  return count;
 }
 
 /**
- * Expected operating range for a daily series.
- * `k` is in sigma-equivalents: 2 covers roughly the middle 95% of a well-behaved
- * series, which is the band we call "normal" in the UI.
+ * How far from typical a day sits, as a fold-change — used only for ordering.
+ *
+ * Both ends are clamped. A multiple close to zero sends its reciprocal to
+ * Infinity, and two Infinities in the sort comparator subtract to NaN, which
+ * leaves the order of the findings undefined rather than merely wrong.
  */
-export function robustBand(values = [], k = 2) {
-  const finite = values.map(Number).filter(Number.isFinite);
-  if (finite.length < 3) return null;
-  const mid = median(finite);
-  const spread = medianAbsoluteDeviation(finite, mid);
-  if (mid == null || spread == null) return null;
-  // A perfectly flat stretch yields MAD 0, which would flag every later wobble as
-  // infinitely unusual. Fall back to a 10% band so the range stays meaningful.
-  const fallbackScale = Math.max(
-    Math.abs(mid) * 0.1,
-    Math.max(...finite.map((value) => Math.abs(value))) * 0.1,
-    1,
-  );
-  const width = spread > 0 ? spread : fallbackScale;
-  const low = mid - k * width;
-  return {
-    median: mid,
-    spread: width,
-    low: finite.every((value) => value >= 0) ? Math.max(0, low) : low,
-    high: mid + k * width,
-    n: finite.length,
-  };
-}
-
-/** Robust z-score: how many sigma-equivalents a value sits from the median. */
-export function robustZScore(value, band) {
-  if (!band || !band.spread) return 0;
-  return (num(value) - band.median) / band.spread;
+function materiality(assessment) {
+  const multiple = assessment?.multiple;
+  if (!Number.isFinite(multiple) || multiple <= 0) return 1;
+  const fold = Math.max(multiple, 1 / multiple);
+  return Number.isFinite(fold)
+    ? Math.min(fold, ANOMALY_LIMITS.MAX_REPORTED_MULTIPLE)
+    : ANOMALY_LIMITS.MAX_REPORTED_MULTIPLE;
 }
 
 /**
- * Flags days in `rows` that sit outside the robust band built from the days
- * before them. Uses an expanding window so a day is only ever judged against
- * history that preceded it — no lookahead.
+ * Flags days that a measured baseline can genuinely show to be unusual. Uses an
+ * expanding window so a day is only ever judged against history that preceded
+ * it — no lookahead.
+ *
+ * `coverageKey` names a boolean field marking days the upstream platform
+ * actually reported. Days missing it are dropped from the baseline rather than
+ * read as zeros; treating "no Meta row" as "$0 spent" is what collapsed the
+ * typical day to $0 and turned ordinary spending days into 6.5σ events.
+ *
+ * Two different things are returned, and they are different claims:
+ *  - `deviation` — the baseline supports calling this day unusual;
+ *  - `resumed`   — the series was idle and started again. That is an operational
+ *                  fact, not a statistical finding, and is worded as one.
  */
-export function detectAnomalies(rows = [], key, { minHistory = 5, threshold = 2.5, excludeDates = [] } = {}) {
+export function detectAnomalies(rows = [], key, { excludeDates = [], coverageKey = '' } = {}) {
   const skip = new Set(excludeDates.filter(Boolean));
   const sorted = [...rows]
     .filter((row) => row && row.date)
@@ -91,26 +87,55 @@ export function detectAnomalies(rows = [], key, { minHistory = 5, threshold = 2.
   for (let i = 0; i < sorted.length; i += 1) {
     const row = sorted[i];
     if (skip.has(row.date)) continue;
-    const history = sorted.slice(0, i).map((r) => num(r[key]));
-    if (history.length < minHistory) continue;
-    const band = robustBand(history);
-    if (!band) continue;
+    const history = sorted
+      .slice(0, i)
+      .filter((prior) => !coverageKey || prior[coverageKey] !== false)
+      .map((prior) => num(prior[key]));
     const value = num(row[key]);
-    const z = robustZScore(value, band);
-    if (Math.abs(z) < threshold) continue;
+    const assessment = assessDay(value, history);
+    const idleRun = trailingIdleDays(history);
+    // A run of idle days is one event — delivery stopped — not a fresh finding
+    // every day it stays stopped. Only the first day of the run is reported.
+    if (value <= 0 && idleRun > 0) continue;
+    const resumed = assessment.limitation === 'intermittent'
+      && value > 0
+      && idleRun >= RESUMED_AFTER_IDLE_DAYS;
+    if (!assessment.unusual && !resumed) continue;
     out.push({
       date: row.date,
       key,
       value,
-      expected: band.median,
-      low: band.low,
-      high: band.high,
-      z,
-      direction: z > 0 ? 'above' : 'below',
-      severity: Math.abs(z) >= 3.5 ? 'high' : 'moderate',
+      kind: assessment.unusual ? 'deviation' : 'resumed',
+      direction: assessment.direction,
+      idleRun,
+      materiality: materiality(assessment),
+      assessment,
     });
   }
   return out;
+}
+
+/**
+ * A rate per unit, or 0 when the division cannot produce a figure a reader could
+ * act on.
+ *
+ * Guarding on `denominator > 0` alone is not enough. A denominator can be
+ * positive and still vanishingly small — a fractional order count surviving a
+ * bad upstream parse, a denormal from an accumulated rounding error — and the
+ * quotient then overflows to Infinity, which renders as "$Infinity AOV". The
+ * result is checked, not just the inputs.
+ *
+ * Negative results are suppressed too. Refunds and ad-account credits can push a
+ * period's revenue or spend below zero, and a negative ROAS is not a worse
+ * return, a negative CAC is not a cheaper customer, and a negative AOV is not a
+ * smaller basket — each is a ratio whose sign has stopped meaning anything. The
+ * underlying negative total is still reported on its own KPI, where it reads
+ * correctly.
+ */
+function perUnit(numerator, denominator) {
+  if (!(denominator > 0)) return 0;
+  const value = numerator / denominator;
+  return Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
 /** Period totals with ratio metrics rebuilt from the sums, not averaged. */
@@ -125,17 +150,49 @@ export function periodTotals(rows = []) {
     spend_usd: spend,
     orders,
     units,
-    aov: orders ? revenue / orders : 0,
-    cac: orders ? spend / orders : 0,
-    roas: spend ? revenue / spend : 0,
+    aov: perUnit(revenue, orders),
+    cac: perUnit(spend, orders),
+    roas: perUnit(revenue, spend),
   };
 }
 
-export function pctChange(current, previous) {
+/**
+ * Percentage change, or null when the base is too small to carry one.
+ *
+ * A percentage is a ratio, so it grows without bound as its denominator shrinks:
+ * $0.01 to $600 is "+5,999,900%", a statement about the denominator rather than
+ * about the business. That is the same failure that produced the 6.5σ claim, in
+ * a different costume — and it lands at the top of the panel, because findings
+ * are ranked by the size of the move.
+ *
+ * `minBase` lets a caller say how large a base has to be before a percentage
+ * means anything in that metric's units. Callers that pass nothing keep the
+ * previous behaviour for non-zero bases.
+ */
+export function pctChange(current, previous, { minBase = 0 } = {}) {
   const prev = num(previous);
-  if (!prev) return null;
-  return ((num(current) - prev) / Math.abs(prev)) * 100;
+  // The base must be positive, not merely non-zero. A percentage change measured
+  // from a negative base inverts its own direction — going from -$1,000 to
+  // +$1,000,000,000 computes as "+100,000,100%", a number with no readable
+  // meaning. Refunds and credits make negative period totals reachable, so this
+  // is a live path, not a theoretical one.
+  if (!(prev > 0)) return null;
+  if (prev < minBase) return null;
+  const value = ((num(current) - prev) / prev) * 100;
+  return Number.isFinite(value) ? value : null;
 }
+
+/**
+ * Smallest previous-period value that makes a percentage change meaningful.
+ * Below these, findings state the absolute move instead.
+ */
+export const MIN_PCT_BASE = {
+  revenue_usd: 50,
+  spend_usd: 50,
+  orders: 2,
+  aov: 5,
+  roas: 0.1,
+};
 
 /**
  * Ranks named items by how much of a period-over-period change they account for.
@@ -176,7 +233,10 @@ export function concentration(items = []) {
     .sort((a, b) => num(b.value) - num(a.value));
   const top = sorted[0];
   if (!top) return null;
-  return { name: top.name, value: num(top.value), share: (num(top.value) / total) * 100, total };
+  // The total counts only positive contributors, so a market sitting net-negative
+  // on refunds cannot push another past 100% of revenue.
+  const share = Math.min(100, (num(top.value) / total) * 100);
+  return { name: top.name, value: num(top.value), share, total };
 }
 
 const fmtMoney = (value) => {
@@ -270,7 +330,7 @@ export function buildKeyFindings({
   const usingWindowBaseline = priorRows.length < 5;
   const baselineRows = usingWindowBaseline ? windowRows : priorRows;
   const baselineWord = usingWindowBaseline ? 'this window\'s' : 'the usual';
-  const revenueBand = robustBand(baselineRows.map((row) => num(row.revenue_usd)));
+  const revenueBaseline = summarizeBaseline(baselineRows.map((row) => num(row.revenue_usd)));
   const roasBaseline = periodTotals(baselineRows);
 
   const findings = [];
@@ -281,24 +341,31 @@ export function buildKeyFindings({
   const hasComparableDrivers = !compareText.includes('same time');
 
   /* --- Revenue --------------------------------------------------------- */
-  const revenueDelta = hasComparison ? pctChange(current.revenue_usd, previous.revenue_usd) : null;
+  const revenueDelta = hasComparison ? pctChange(current.revenue_usd, previous.revenue_usd, { minBase: MIN_PCT_BASE.revenue_usd }) : null;
   if (current.revenue_usd > 0 || hasComparison) {
     const dailyRevenue = current.days ? current.revenue_usd / current.days : 0;
-    const inBand = revenueBand
-      ? dailyRevenue >= revenueBand.low && dailyRevenue <= revenueBand.high
+    // Quartiles, not a median ± spread band: "half the days ran between X and Y"
+    // is a claim the reader can check by counting bars on the revenue chart.
+    const inBand = revenueBaseline.usable
+      ? dailyRevenue >= revenueBaseline.middleLow && dailyRevenue <= revenueBaseline.middleHigh
       : null;
-    const context = revenueBand
-      ? `${fmtMoney(dailyRevenue)}/day ${inBand ? 'sits inside' : 'sits outside'} ${baselineWord} ${fmtMoney(revenueBand.low)}–${fmtMoney(revenueBand.high)} daily range.`
-      : 'Not enough days yet to judge whether this is normal.';
+    const context = revenueBaseline.usable
+      ? `${fmtMoney(dailyRevenue)}/day against a typical ${fmtMoney(revenueBaseline.typical)} day — ${inBand ? 'inside' : 'outside'} the ${fmtMoney(revenueBaseline.middleLow)}–${fmtMoney(revenueBaseline.middleHigh)} range that held half of ${baselineWord} days.`
+      : `Not enough completed days yet to say whether ${fmtMoney(dailyRevenue)}/day is normal.`;
     findings.push({
       id: 'revenue',
       metric: 'revenue_usd',
       tone: revenueDelta == null ? 'neutral' : revenueDelta >= 0 ? 'positive' : 'negative',
       evidence: revenueDelta == null ? 'Observed' : 'Compared',
       priority: revenueDelta == null ? 40 : Math.min(90, 40 + Math.abs(revenueDelta)),
-      headline: revenueDelta == null
-        ? `Revenue ${fmtMoney(current.revenue_usd)} across ${current.days} day${current.days === 1 ? '' : 's'}`
-        : `Revenue ${fmtMoney(current.revenue_usd)}, ${fmtPct(revenueDelta)} ${compareText}`,
+      // A comparison exists but the prior period was too small to carry a
+      // percentage. State both absolute figures rather than a five-digit percent
+      // that only describes how small the denominator was.
+      headline: revenueDelta != null
+        ? `Revenue ${fmtMoney(current.revenue_usd)}, ${fmtPct(revenueDelta)} ${compareText}`
+        : hasComparison
+          ? `Revenue ${fmtMoney(current.revenue_usd)} against ${fmtMoney(previous.revenue_usd)} ${compareText}`
+          : `Revenue ${fmtMoney(current.revenue_usd)} across ${current.days} day${current.days === 1 ? '' : 's'}`,
       context,
       driver: hasComparableDrivers
         ? driverSentence(revenueDrivers.countries, fmtMoney)
@@ -314,8 +381,8 @@ export function buildKeyFindings({
 
   /* --- Orders vs basket size ------------------------------------------- */
   if (hasComparison && previous.orders > 0 && current.orders > 0) {
-    const orderDelta = pctChange(current.orders, previous.orders);
-    const aovDelta = pctChange(current.aov, previous.aov);
+    const orderDelta = pctChange(current.orders, previous.orders, { minBase: MIN_PCT_BASE.orders });
+    const aovDelta = pctChange(current.aov, previous.aov, { minBase: MIN_PCT_BASE.aov });
     if (orderDelta != null && aovDelta != null && Math.abs(orderDelta - aovDelta) > 8) {
       const demandLed = Math.abs(orderDelta) > Math.abs(aovDelta);
       findings.push({
@@ -340,8 +407,8 @@ export function buildKeyFindings({
 
   /* --- Efficiency ------------------------------------------------------- */
   if (current.spend_usd > 0) {
-    const roasDelta = hasComparison && previous.roas ? pctChange(current.roas, previous.roas) : null;
-    const spendDelta = hasComparison ? pctChange(current.spend_usd, previous.spend_usd) : null;
+    const roasDelta = hasComparison && previous.roas ? pctChange(current.roas, previous.roas, { minBase: MIN_PCT_BASE.roas }) : null;
+    const spendDelta = hasComparison ? pctChange(current.spend_usd, previous.spend_usd, { minBase: MIN_PCT_BASE.spend_usd }) : null;
     const baselineRoas = roasBaseline.roas;
     const vsBaseline = baselineRoas ? ((current.roas - baselineRoas) / baselineRoas) * 100 : null;
     let driver = '';
@@ -375,44 +442,65 @@ export function buildKeyFindings({
     });
   }
 
-  /* --- Anomalies -------------------------------------------------------- */
+  /* --- Unusual days ------------------------------------------------------ */
   const anomalySeries = [
     { key: 'revenue_usd', label: 'Revenue', format: fmtMoney, outcome: true },
     { key: 'orders', label: 'Orders', format: fmtInt, outcome: true },
     // Spend is an input, not an outcome: an unusual drop is a delivery problem and an
     // unusual jump is an unplanned budget change. Neither reads as a win.
-    { key: 'spend_usd', label: 'Meta spend', format: fmtMoney, outcome: false },
+    // `meta_covered` keeps days Meta never reported out of the spend baseline.
+    { key: 'spend_usd', label: 'Meta spend', format: fmtMoney, outcome: false, coverageKey: 'meta_covered' },
   ];
   const windowDates = new Set(windowRows.map((row) => row.date));
   const anomalyHits = anomalySeries.flatMap((series) =>
-    detectAnomalies(sortedHistory, series.key, { excludeDates: [reportingToday] })
+    detectAnomalies(sortedHistory, series.key, {
+      excludeDates: [reportingToday],
+      coverageKey: series.coverageKey || '',
+    })
       .filter((hit) => windowDates.has(hit.date))
       .map((hit) => ({ ...hit, series })));
   // One day that breaks three series at once is one event, not three findings.
+  // Supported deviations outrank bare restarts, then bigger fold-changes first.
   const seenAnomalyDates = new Set();
-  for (const hit of anomalyHits.sort((a, b) => Math.abs(b.z) - Math.abs(a.z))) {
+  const rankedHits = anomalyHits.sort((a, b) => (
+    (a.kind === b.kind ? 0 : a.kind === 'deviation' ? -1 : 1)
+    || b.materiality - a.materiality
+  ));
+  for (const hit of rankedHits) {
     if (seenAnomalyDates.has(hit.date)) continue;
     if (seenAnomalyDates.size >= 2) break;
     seenAnomalyDates.add(hit.date);
     const { series } = hit;
     const above = hit.direction === 'above';
     const tone = series.outcome ? (above ? 'positive' : 'negative') : 'watch';
+    const copy = describeDay({
+      assessment: hit.assessment,
+      label: series.label,
+      format: series.format,
+      date: hit.date,
+    });
     findings.push({
       id: `anomaly-${series.key}-${hit.date}`,
       metric: series.key,
       tone,
       evidence: 'Compared',
-      priority: 70 + Math.min(20, Math.abs(hit.z) * 3),
-      headline: `${hit.date}: ${series.label} ${series.format(hit.value)} was ${above ? 'far above' : 'far below'} normal`,
-      context: `Typical day around ${series.format(hit.expected)} (usual range ${series.format(hit.low)}–${series.format(hit.high)}). This is a ${Math.abs(hit.z).toFixed(1)}σ move.`,
+      // A restart is a fact worth seeing but not an emergency, so it sits below
+      // a deviation the baseline actually supports.
+      priority: (hit.kind === 'deviation' ? 70 : 58)
+        + Math.min(20, (hit.materiality - 1) * 8),
+      headline: copy.headline,
+      context: copy.context,
+      formal: copy.formal,
       driver: '',
-      action: series.outcome
-        ? above
-          ? 'Worth understanding — check what ran that day so it can be repeated.'
-          : 'Check Ads → Ad set edits for a budget or creative change on that date.'
-        : above
-          ? 'Confirm this budget increase was intentional, then check whether revenue followed.'
-          : 'Delivery may have stalled. Check the ad set was not paused or budget-capped that day.',
+      action: hit.kind === 'resumed'
+        ? 'Confirm the restart was intentional, then watch whether revenue follows over the next few days.'
+        : series.outcome
+          ? above
+            ? 'Worth understanding — check what ran that day so it can be repeated.'
+            : 'Check Ads → Ad set edits for a budget or creative change on that date.'
+          : above
+            ? 'Confirm this budget increase was intentional, then check whether revenue followed.'
+            : 'Delivery may have stalled. Check the ad set was not paused or budget-capped that day.',
     });
   }
 

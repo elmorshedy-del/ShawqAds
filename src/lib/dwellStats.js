@@ -39,6 +39,34 @@ function rankBiserial(z, nA, nB) {
   return (2 * z) / Math.sqrt(nA + nB);
 }
 
+/**
+ * Plain-language gloss on an adjusted p-value.
+ *
+ * The comparison behind it is sound — Mann-Whitney on dwell times, then a
+ * Benjamini-Hochberg adjustment because every page on the site is tested — but
+ * the panel published neither the evidence nor the sample sizes, so a six-session
+ * fluke and a six-hundred-session pattern read identically.
+ *
+ * The number is kept for anyone who wants it, and the sentence says what it
+ * actually means. Left bare, "p=0.02" is widely read as "98% chance this is
+ * real", which is not what a p-value states.
+ */
+function describeEvidence(pAdjusted) {
+  const p = Number(pAdjusted);
+  if (!Number.isFinite(p) || p < 0 || p > 1) return '';
+  const tail = 'adjusted for testing every page';
+  if (p < 0.01) {
+    return `A gap this size turns up fewer than 1 time in 100 when the two groups really behave the same (p=${p.toFixed(3)}, ${tail}).`;
+  }
+  const inHundred = Math.max(1, Math.round(p * 100));
+  return `A gap this size turns up about ${inHundred} time${inHundred === 1 ? '' : 's'} in 100 when the two groups really behave the same (p=${p.toFixed(2)}, ${tail}).`;
+}
+
+/** The denominator behind every median on the card. */
+function describeCohorts(nonBuyerSessions, buyerSessions) {
+  return `Measured across ${nonBuyerSessions} non-buyer and ${buyerSessions} buyer session${buyerSessions === 1 ? '' : 's'}.`;
+}
+
 function sessionLevelRows(pageFacts = []) {
   const byKey = new Map();
   for (const fact of pageFacts) {
@@ -123,7 +151,12 @@ function buildInsight(row) {
   if (row.pattern === 'significant_non_buyer_longer') {
     return {
       headline: 'Non-buyers linger longer',
-      detail: `Non-buyers spend a median ${formatDwellSeconds(nonBuyerMedian)} here versus ${formatDwellSeconds(buyerMedian)} for buyers. Check copy, price, sizing and load time.`,
+      detail: [
+        `Non-buyers spend a median ${formatDwellSeconds(nonBuyerMedian)} here versus ${formatDwellSeconds(buyerMedian)} for buyers.`,
+        describeCohorts(nonBuyerSessions, buyerSessions),
+        describeEvidence(row.p_value_adjusted),
+        'Check copy, price, sizing and load time.',
+      ].filter(Boolean).join(' '),
       pattern: row.pattern,
     };
   }
@@ -131,7 +164,12 @@ function buildInsight(row) {
   if (row.pattern === 'significant_buyer_longer') {
     return {
       headline: 'Buyers research here',
-      detail: `Buyers spend a median ${formatDwellSeconds(buyerMedian)} here versus ${formatDwellSeconds(nonBuyerMedian)} for non-buyers. Strengthen trust, reviews and size guidance.`,
+      detail: [
+        `Buyers spend a median ${formatDwellSeconds(buyerMedian)} here versus ${formatDwellSeconds(nonBuyerMedian)} for non-buyers.`,
+        describeCohorts(nonBuyerSessions, buyerSessions),
+        describeEvidence(row.p_value_adjusted),
+        'Strengthen trust, reviews and size guidance.',
+      ].filter(Boolean).join(' '),
       pattern: row.pattern,
     };
   }

@@ -147,7 +147,12 @@ export function toAdLeaders(adRows, cap = 8) {
       category: a.product_family || a.product_subtype || "Uncategorized",
       campaigns: Math.max(1, (campaignsByAd.get(a.ad_name) || new Set()).size),
       sales: num(a.shopify_sales),
-      roas: num(a.shopify_roas),
+      // Deliberately not coerced through num(): null means "this ad has not spent
+      // enough for a return to be measurable", which is a different statement
+      // from 0x and must survive to the card rather than being flattened.
+      roas: a.shopify_roas == null ? null : num(a.shopify_roas),
+      roasBasisSpend: a.shopify_roas_basis_spend == null ? null : num(a.shopify_roas_basis_spend),
+      revenue: num(a.shopify_revenue_usd),
       ctr: num(a.ctr),
       atc: num(a.add_to_cart),
       ic: num(a.checkout_initiated),

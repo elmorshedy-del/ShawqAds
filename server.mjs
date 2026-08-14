@@ -85,12 +85,22 @@ const DEFAULT_META_LIVE_TTL_MS = 120000;
 const META_ACCOUNT_CACHE_TTL_MS = 3600000;
 const DEFAULT_FX_MAX_LOOKBACK_DAYS = 7;
 const DEFAULT_DATA_REFRESH_COOLDOWN_MS = 300000;
+/**
+ * How old a payload covering today may get before the current day inside it is
+ * refetched. The refresh cooldown still rate-limits the actual fetches, so this
+ * only decides when a refresh becomes worth asking for.
+ */
+const DEFAULT_INTRADAY_CACHE_MAX_AGE_MS = 1800000;
 const metaLiveTtlRaw = Number(process.env.SHAWQ_META_LIVE_TTL_MS || process.env.META_LIVE_TTL_MS || DEFAULT_META_LIVE_TTL_MS);
 const fxMaxLookbackRaw = Number(process.env.SHAWQ_FX_MAX_LOOKBACK_DAYS || process.env.FX_MAX_LOOKBACK_DAYS || DEFAULT_FX_MAX_LOOKBACK_DAYS);
 const dataRefreshCooldownRaw = Number(process.env.DATA_REFRESH_COOLDOWN_MS || DEFAULT_DATA_REFRESH_COOLDOWN_MS);
 const metaLiveTtlMs = Number.isFinite(metaLiveTtlRaw) && metaLiveTtlRaw > 0 ? metaLiveTtlRaw : DEFAULT_META_LIVE_TTL_MS;
 const fxMaxLookbackDays = Number.isFinite(fxMaxLookbackRaw) && fxMaxLookbackRaw >= 0 ? Math.floor(fxMaxLookbackRaw) : DEFAULT_FX_MAX_LOOKBACK_DAYS;
 const dataRefreshCooldownMs = Number.isFinite(dataRefreshCooldownRaw) && dataRefreshCooldownRaw > 0 ? dataRefreshCooldownRaw : DEFAULT_DATA_REFRESH_COOLDOWN_MS;
+const intradayCacheMaxAgeRaw = Number(process.env.INTRADAY_CACHE_MAX_AGE_MS || DEFAULT_INTRADAY_CACHE_MAX_AGE_MS);
+const intradayCacheMaxAgeMs = Number.isFinite(intradayCacheMaxAgeRaw) && intradayCacheMaxAgeRaw > 0
+  ? intradayCacheMaxAgeRaw
+  : DEFAULT_INTRADAY_CACHE_MAX_AGE_MS;
 let metaLiveCache = { key: '', fetchedAt: 0, payload: null };
 let metaLiveInFlight = { key: '', promise: null };
 let metaAccountCache = { fetchedAt: 0, payload: null };
@@ -345,15 +355,39 @@ function cacheUntilBeforeToday(filePath, timeZone) {
   return Boolean(today && (!until || until < today));
 }
 
+/**
+ * True when a payload that already covers today was built long enough ago that
+ * today's figures inside it have gone stale.
+ *
+ * Date coverage is not freshness. `cacheUntilBeforeToday` stops asking for a
+ * refresh the moment a payload's `until` reaches today, so the first fetch of
+ * the morning froze the current day for the rest of it: spend kept accruing at
+ * Meta while the dashboard held the 04:30 snapshot. Orders landing later were
+ * then divided by that morning's spend, which is how one $93.99 order against
+ * $0.78 of recorded spend published a 120x ad ROAS on a day Meta reported 7.4x
+ * for the same ad.
+ */
+function cacheGeneratedBefore(filePath, maxAgeMs) {
+  if (!fs.existsSync(filePath)) return true;
+  const generatedAt = Date.parse((readJsonCached(filePath) || {}).generated_at || '');
+  // An unreadable or missing timestamp is treated as stale: refusing to refresh
+  // on the strength of a timestamp we could not read is how data freezes.
+  if (!Number.isFinite(generatedAt)) return true;
+  return Date.now() - generatedAt > maxAgeMs;
+}
+
 function metaCacheNeedsRefresh(filePath) {
   if (cacheUntilBeforeToday(filePath, metaReportingTimezone)) return true;
+  if (cacheGeneratedBefore(filePath, intradayCacheMaxAgeMs)) return true;
   const { since } = readDataPeriod(filePath);
   const desiredSince = process.env.META_SINCE || process.env.SINCE || process.env.BACKFILL_START_DATE || '2026-06-03';
   return Boolean(since && desiredSince && since > desiredSince);
 }
 
 function shopifyCacheNeedsRefresh(filePath) {
-  return shopifyCacheNeedsHistoricalBackfill(filePath) || cacheUntilBeforeToday(filePath, shopifyReportingTimezone);
+  return shopifyCacheNeedsHistoricalBackfill(filePath)
+    || cacheUntilBeforeToday(filePath, shopifyReportingTimezone)
+    || cacheGeneratedBefore(filePath, intradayCacheMaxAgeMs);
 }
 
 function inDataRefreshCooldown(lastAttemptAt, now = Date.now()) {

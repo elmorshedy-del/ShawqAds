@@ -17,6 +17,12 @@ export interface Finding {
   tone: FindingTone;
   headline: string;
   context?: string;
+  /**
+   * One-line technical restatement of `context` — the formal statistic behind a
+   * plain-language claim. Additive: `context` always stands on its own, so a
+   * reader who skips this line loses nothing.
+   */
+  formal?: string;
   driver?: string;
   action?: string;
   evidence?: "Observed" | "Compared" | "Heuristic" | "Modelled";
@@ -93,6 +99,11 @@ function FindingRow({ finding }: { finding: Finding }) {
           </div>
           {finding.context ? (
             <p className="text-xs leading-relaxed text-muted-foreground">{finding.context}</p>
+          ) : null}
+          {finding.formal ? (
+            <p className="text-[11px] leading-relaxed text-muted-foreground/70 tabular-nums">
+              {finding.formal}
+            </p>
           ) : null}
           {finding.driver ? (
             <p className="text-xs leading-relaxed text-muted-foreground">

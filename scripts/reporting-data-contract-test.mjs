@@ -4,6 +4,10 @@ function assertIncludes(source, needle, message) {
   if (!source.includes(needle)) throw new Error(message);
 }
 
+function assertExcludes(source, needle, message) {
+  if (source.includes(needle)) throw new Error(message);
+}
+
 const app = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const server = fs.readFileSync(new URL('../server.mjs', import.meta.url), 'utf8');
 const metaFetch = fs.readFileSync(new URL('../scripts/fetch-meta-insights.mjs', import.meta.url), 'utf8');
@@ -19,6 +23,23 @@ assertIncludes(
   server,
   'metaCacheNeedsRefresh',
   'Server must detect stale Meta cache windows so Yesterday is not served from old data.',
+);
+
+// Covering today is not the same as being current. Once a payload's `until`
+// reached today the old check stopped asking for a refresh, so the first fetch
+// of the morning froze the current day: spend kept accruing at Meta while the
+// dashboard held the 04:30 snapshot, and orders landing later were divided by
+// that morning's spend.
+assertIncludes(
+  server,
+  'cacheGeneratedBefore',
+  'Server must refresh a payload that covers today but was generated hours ago.',
+);
+
+assertIncludes(
+  server,
+  'intradayCacheMaxAgeMs',
+  'Intraday staleness must be a named, configurable budget rather than a literal.',
 );
 
 assertIncludes(
@@ -143,6 +164,42 @@ assertIncludes(
   topMovers,
   'return fmtX(e.roas ?? 0)',
   'Top movers should still surface ROAS for ad and country cards even though ranking is count-based.',
+);
+
+// Ad ROAS is reported as it computes. The 120x this card once showed was a
+// stale denominator, not a small one: the payload had frozen that ad's spend at
+// its 04:30 value while the real day ran on. Freshness fixes that; a minimum
+// spend cutoff would only have hidden it behind an arbitrary line and buried
+// genuinely small, genuinely profitable ads with it.
+assertExcludes(
+  app,
+  'AD_ROAS_MIN_SPEND_USD',
+  'Ad ROAS must not be gated behind a hardcoded minimum-spend threshold.',
+);
+
+assertIncludes(
+  topMovers,
+  'day in progress',
+  'A high multiple on an unfinished day must carry the partial-spend caveat.',
+);
+
+assertIncludes(
+  topMovers,
+  'converge lower',
+  'The caveat must name the direction the figure moves, not only that the day is unfinished.',
+);
+
+assertIncludes(
+  app,
+  'partialDay',
+  'The top-ad card must know whether its window is a day still in progress.',
+);
+
+// The card is scoped by the date picker, not pinned to a single day.
+assertIncludes(
+  app,
+  "label: 'Prev period'",
+  'Top movers must compare a multi-day scope against the previous period of equal length.',
 );
 
 console.log('reporting data contract checks passed');

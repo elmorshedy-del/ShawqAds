@@ -76,18 +76,80 @@ const hourlyFields = [
   'spend', 'impressions',
 ].join(',');
 
-async function graphGet(url) {
-  const res = await fetch(url);
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Meta API ${res.status}: ${text.slice(0, 1000)}`);
-  return JSON.parse(text);
+/**
+ * Meta error codes that mean "you are going too fast", as opposed to "this
+ * request is wrong". Only these are worth retrying: 4 and 17 are the app- and
+ * user-level call limits, 613 is the per-endpoint limit, and the 80000 block is
+ * the business-use-case limit that ad accounts hit during a wide backfill.
+ */
+const META_THROTTLE_CODES = new Set([4, 17, 613, 80000, 80001, 80002, 80003, 80004]);
+const META_RETRY_ATTEMPTS = 5;
+const META_RETRY_BASE_MS = 2000;
+/**
+ * Only objects still switched on are worth pulling. Paused, archived and deleted
+ * campaigns cannot pace against a budget today, and on a long-lived account they
+ * are the bulk of the edge — fetching them is what drove the account into the
+ * "too many calls" limit that left the pacing panel empty.
+ */
+const PACING_EFFECTIVE_STATUSES = ['ACTIVE'];
+
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+function parseMetaError(text) {
+  try {
+    return JSON.parse(text)?.error || null;
+  } catch {
+    return null;
+  }
 }
 
-async function getAccountEdge(edge, fields) {
+/** Operator-facing summary of a Meta failure — never the raw JSON envelope. */
+function describeMetaError(error) {
+  if (!error) return '';
+  if (META_THROTTLE_CODES.has(Number(error.code))) {
+    return 'Meta is rate-limiting this ad account. Budget pacing will refresh on the next run.';
+  }
+  if (Number(error.code) === 190) {
+    return 'The Meta access token has expired or been revoked. Reconnect the ad account.';
+  }
+  return error.error_user_msg || error.message || 'Meta did not return budget data.';
+}
+
+async function graphGet(url) {
+  let lastError = null;
+  for (let attempt = 0; attempt < META_RETRY_ATTEMPTS; attempt += 1) {
+    const res = await fetch(url);
+    const text = await res.text();
+    if (res.ok) return JSON.parse(text);
+
+    const error = parseMetaError(text);
+    const throttled = res.status === 429 || META_THROTTLE_CODES.has(Number(error?.code));
+    lastError = Object.assign(
+      new Error(`Meta API ${res.status}: ${describeMetaError(error) || text.slice(0, 300)}`),
+      { metaError: error, status: res.status, throttled },
+    );
+    // A throttle is a "come back later", not a bad request. Backing off and
+    // retrying keeps one busy minute from blanking a whole panel for the day.
+    if (!throttled || attempt === META_RETRY_ATTEMPTS - 1) throw lastError;
+    const waitMs = META_RETRY_BASE_MS * (2 ** attempt);
+    console.warn(`Meta rate limit hit; retrying in ${waitMs / 1000}s (attempt ${attempt + 1}/${META_RETRY_ATTEMPTS - 1}).`);
+    await sleep(waitMs);
+  }
+  throw lastError;
+}
+
+/**
+ * `effectiveStatuses` filters server-side so Meta never builds or paginates the
+ * turned-off objects. Filtering after the fetch would still pay the API cost.
+ */
+async function getAccountEdge(edge, fields, { effectiveStatuses = null } = {}) {
   const base = new URL(`https://graph.facebook.com/${graphVersion}/act_${account}/${edge}`);
   base.searchParams.set('access_token', token);
   base.searchParams.set('limit', '500');
   base.searchParams.set('fields', fields);
+  if (effectiveStatuses?.length) {
+    base.searchParams.set('effective_status', JSON.stringify(effectiveStatuses));
+  }
   let url = base.toString();
   const rows = [];
   while (url) {
@@ -532,18 +594,21 @@ let campaignBudgetObjects = [];
 let adsetBudgetObjects = [];
 let pacingMetadataError = '';
 try {
-  [campaignBudgetObjects, adsetBudgetObjects] = await Promise.all([
-    getAccountEdge(
-      'campaigns',
-      'id,name,status,effective_status,daily_budget,lifetime_budget,budget_remaining,start_time,stop_time,updated_time',
-    ),
-    getAccountEdge(
-      'adsets',
-      'id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,budget_remaining,start_time,end_time,updated_time',
-    ),
-  ]);
+  // Sequential, not Promise.all: two wide edge reads fired together against an
+  // account that is already near its call limit make throttling more likely, and
+  // a rejection in either half of a Promise.all discards the half that succeeded.
+  campaignBudgetObjects = await getAccountEdge(
+    'campaigns',
+    'id,name,status,effective_status,daily_budget,lifetime_budget,budget_remaining,start_time,stop_time,updated_time',
+    { effectiveStatuses: PACING_EFFECTIVE_STATUSES },
+  );
+  adsetBudgetObjects = await getAccountEdge(
+    'adsets',
+    'id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,budget_remaining,start_time,end_time,updated_time',
+    { effectiveStatuses: PACING_EFFECTIVE_STATUSES },
+  );
 } catch (error) {
-  pacingMetadataError = error.message;
+  pacingMetadataError = describeMetaError(error.metaError) || error.message;
   console.warn(`Could not fetch Meta budget metadata: ${error.message}`);
 }
 
@@ -791,8 +856,12 @@ const adsetTargets = adsetBudgetObjects
   .filter((object) => !campaignTargetById.has(String(object.campaign_id || '')))
   .map((object) => targetFromObject(object, 'adset'))
   .filter(Boolean);
+// Second gate on the same rule the edge query already applied. Meta occasionally
+// returns an object whose effective_status moved between the request and the
+// response, and a turned-off campaign has no budget to pace against.
 const pacingTargets = [...campaignTargets, ...adsetTargets]
-  .filter((target) => !['DELETED', 'ARCHIVED'].includes(String(target.effective_status || target.status).toUpperCase()));
+  .filter((target) => PACING_EFFECTIVE_STATUSES
+    .includes(String(target.effective_status || target.status).toUpperCase()));
 const adsetTargetById = new Map(adsetTargets.map((target) => [target.adset_id, target.id]));
 const targetIdForRow = (row) => campaignTargetById.get(String(row.campaign_id || ''))
   || adsetTargetById.get(String(row.adset_id || ''))

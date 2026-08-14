@@ -10,6 +10,7 @@ import {
 } from './lib/businessKpiInsights.js';
 import { metricDefinition } from './lib/metricDefinitions.js';
 import { buildKeyFindings, topDrivers } from './lib/analyticsInsights.js';
+import { buildCreativeRows } from './lib/creativeStats.js';
 import {
   buildAdsFindings,
   buildFunnelFindings,
@@ -42,6 +43,7 @@ import { UsaComparison } from './components/dashboard/UsaComparison';
 import { DailyDelivery } from './components/dashboard/DailyDelivery';
 import { DevelopingGrowth } from './components/dashboard/DevelopingGrowth';
 import { AdSetDecisionTable } from './components/dashboard/AdSetDecisionTable';
+import { CreativeTable } from './components/dashboard/CreativeTable';
 import { ProductDemand } from './components/dashboard/ProductDemand';
 import { CountrySalesPanel } from './components/dashboard/CountrySalesPanel';
 import { TopMovers } from './components/dashboard/TopMovers';
@@ -81,6 +83,7 @@ const SECTION_LABELS = {
   delivery: 'Daily delivery',
   growth: 'Product growth',
   decision: 'Ad set decisions',
+  creative: 'Creative performance',
   product: 'Product demand',
   country: 'Country sales',
   mobileTops: 'Top movers',
@@ -365,6 +368,26 @@ function shopifyAdHints(line = {}) {
     attribution.utm?.ad,
   ].filter(Boolean);
 }
+/**
+ * Ad ROAS is the window's Shopify-attributed revenue over the window's own Meta
+ * spend, reported as it comes out.
+ *
+ * There is no spend threshold here on purpose. The absurd figures this card used
+ * to show — 120x on an ad Meta put at 7.4x — were never a property of the ratio.
+ * The served payload had frozen that ad's spend at its 04:30 value of $0.78
+ * while the day's real spend ran on to 578.81 TRY, so the number was a stale
+ * denominator, correct only for the moment it was captured. Refreshing the
+ * current day intraday (see cacheGeneratedBefore in server.mjs) is what fixes
+ * it. A minimum-spend cutoff would only have hidden the symptom behind an
+ * arbitrary line, and would have suppressed genuinely small, genuinely
+ * profitable ads along with it.
+ *
+ * A settled day needs no such care: its spend is final. Only the day still in
+ * progress depends on the denominator being current.
+ *
+ * What the reader gets instead of a threshold is the denominator itself, so a
+ * high multiple on thin spend is visible as exactly that.
+ */
 function enrichAdsWithShopifySales(ads = [], orderLines = []) {
   const rows = (ads || []).map((ad) => ({
     ...ad,
@@ -396,10 +419,18 @@ function enrichAdsWithShopifySales(ads = [], orderLines = []) {
   });
   return rows.map((ad) => {
     const shopifySales = ad.shopify_order_ids.size;
+    const spend = Number(ad.spend_usd || 0);
+    const revenue = Number(ad.shopify_revenue_usd || 0);
+    // No spend means no return to divide — undefined, which is a different claim
+    // from 0x. The quotient is checked as well as the divisor, since a
+    // positive-but-vanishing spend would otherwise overflow to Infinity.
+    const raw = spend > 0 ? revenue / spend : null;
+    const roas = Number.isFinite(raw) ? raw : null;
     const out = {
       ...ad,
       shopify_sales: shopifySales,
-      shopify_roas: Number(ad.spend_usd || 0) ? Number(ad.shopify_revenue_usd || 0) / Number(ad.spend_usd || 0) : 0,
+      shopify_roas: roas,
+      shopify_roas_basis_spend: spend,
     };
     delete out.shopify_order_ids;
     return out;
@@ -1229,13 +1260,22 @@ function mergeBusinessRows(metaDaily, shopifyDaily) {
     const orders = Number(shop.orders || 0);
     return {
       date,
+      // Whether Meta reported this date at all. A Shopify-only day has no Meta
+      // row, so spend_usd falls back to 0 — that is missing measurement, not a
+      // day on which nothing was spent. Insight baselines must be able to tell
+      // the two apart, or "typical day" collapses onto the manufactured zeros.
+      meta_covered: metaByDate.has(date),
       revenue_usd: revenueUsd,
       spend_usd: spendUsd,
       orders,
       units: Number(shop.units || 0),
-      aov: orders ? revenueUsd / orders : 0,
-      cac: orders ? spendUsd / orders : 0,
-      roas: spendUsd ? revenueUsd / spendUsd : 0,
+      aov: orders > 0 ? revenueUsd / orders : 0,
+      // Meta credits and adjustments can land a day's net spend below zero. A
+      // negative ROAS is not a worse return and a negative CAC is not a cheaper
+      // customer — both are meaningless, so they are suppressed rather than
+      // charted. Zero spend with orders is a genuine $0 CAC and is kept.
+      cac: orders > 0 && spendUsd >= 0 ? spendUsd / orders : 0,
+      roas: spendUsd > 0 ? revenueUsd / spendUsd : 0,
     };
   });
 }
@@ -1279,12 +1319,15 @@ function pickTopProductByUnits(products = []) {
   }
   return adapt.toProductLeaders([top], 1)[0] || null;
 }
-function pickTopAdBySales(adRows = []) {
+function pickTopAdBySales(adRows = [], { partialDay = false } = {}) {
   const top = [...(adRows || [])]
     .sort((a, b) => Number(b.shopify_sales || 0) - Number(a.shopify_sales || 0) || Number(b.shopify_revenue_usd || 0) - Number(a.shopify_revenue_usd || 0) || Number(b.spend_usd || 0) - Number(a.spend_usd || 0))
     [0];
   if (!top) return null;
-  return adapt.toAdLeaders([top], 1)[0] || null;
+  const leader = adapt.toAdLeaders([top], 1)[0] || null;
+  // The card needs to know the day is unfinished to caveat a high multiple. The
+  // ROAS itself is unchanged either way.
+  return leader ? { ...leader, partialDay } : null;
 }
 
 function dateListForRange(range) {
@@ -2054,6 +2097,13 @@ function App() {
   const deliveryShape = adapt.toDeliveryShape(deliveryRowsExcludingToday);
   const growth = adapt.toProductDevelopment(productData);
   const decisions = adapt.toAdSetDecisions(filtered, adsetPerfById, statusLabels);
+  // Per-creative conversion assessment, scoped to the selected window like every
+  // other panel. The posterior sampling runs once per ad, so it is memoised
+  // against the windowed ad rows rather than recomputed on each render.
+  const creativeTable = useMemo(
+    () => buildCreativeRows(matchedData.ads || []),
+    [matchedData],
+  );
   const productDemand = adapt.toProductDemand(productData, activeDateRange.since);
   const countrySales = adapt.toCountrySales(matchedProductData.countries || [], countryRoasMetaByCode);
   // Mobile "Top movers" — today's leader as the hero, with the current week and
@@ -2071,47 +2121,59 @@ function App() {
       const adRowsForWindow = enrichAdsWithShopifySales(wm.ads || [], ws.order_lines || []);
       return {
         product: pickTopProductByUnits(ws.products || []),
-        ad: pickTopAdBySales(adRowsForWindow),
+        // A window running up to the current reporting day has only part of that
+        // day's spend recorded, which lifts any ratio built on it.
+        ad: pickTopAdBySales(adRowsForWindow, {
+          partialDay: Boolean(reportingToday && win?.until && win.until >= reportingToday),
+        }),
         country: pickTopCountryByUnits(countryLeaders),
       };
     };
-    if (!anchor) return { anchor: '', today: {}, currentWeek: {}, prevWeek: {} };
-    const todayWin = clampDateRange({ since: anchor, until: anchor }, loadedBounds);
-    const currentWeekWin = reportingWeekToDate(anchor, loadedBounds);
-    const prevWeekWin = previousWeekToDate(anchor, loadedBounds);
+    if (!anchor) return { anchor: '', hero: {}, compare: [] };
+    const anchorWin = clampDateRange({ since: anchor, until: anchor }, loadedBounds);
+    // The hero follows the selected scope. It used to be pinned to a single day
+    // whatever the picker said, so a 30-day view still crowned one day's leader.
+    // A one-day scope keeps the week-over-week context that suits a day view;
+    // any longer scope compares against the previous period of equal length,
+    // which is what every other comparison on the dashboard uses.
+    const isSingleDay = dayCount(activeDateRange) === 1;
+    const spanDays = Math.max(1, dayCount(activeDateRange));
+    const prevPeriodWin = clampDateRange({
+      since: shiftDate(activeDateRange.since, -spanDays),
+      until: shiftDate(activeDateRange.until, -spanDays),
+    }, loadedBounds);
+    const compareWins = isSingleDay
+      ? [
+        { label: 'This week', win: reportingWeekToDate(anchor, loadedBounds) },
+        { label: 'Prev week', win: previousWeekToDate(anchor, loadedBounds) },
+      ]
+      : [
+        { label: 'Prev period', win: prevPeriodWin },
+        { label: 'Latest day', win: anchorWin },
+      ];
     return {
       anchor,
-      today: leadersFor(todayWin),
-      currentWeek: leadersFor(currentWeekWin),
-      prevWeek: leadersFor(prevWeekWin),
+      hero: leadersFor(isSingleDay ? anchorWin : clampDateRange(activeDateRange, loadedBounds)),
+      compare: compareWins.map((entry) => ({ label: entry.label, leaders: leadersFor(entry.win) })),
     };
-  }, [baseProductData, baseData, loadedBounds, movesAnchorDay]);
+  }, [baseProductData, baseData, loadedBounds, movesAnchorDay, activeDateRange, reportingToday]);
   const topMoverCards = useMemo(() => ([
-    {
-      kind: 'product',
-      label: 'Top product',
-      today: topMovers.today.product,
-      currentWeek: topMovers.currentWeek.product,
-      prevWeek: topMovers.prevWeek.product,
-    },
-    {
-      kind: 'ad',
-      label: 'Top ad / source',
-      today: topMovers.today.ad,
-      currentWeek: topMovers.currentWeek.ad,
-      prevWeek: topMovers.prevWeek.ad,
-    },
-    {
-      kind: 'country',
-      label: 'Top country',
-      today: topMovers.today.country,
-      currentWeek: topMovers.currentWeek.country,
-      prevWeek: topMovers.prevWeek.country,
-    },
-  ]), [topMovers]);
-  const topMoverFocusLabel = movesAnchorDay === reportingToday
-    ? 'Today'
-    : movesAnchorDay || 'Selected range';
+    { kind: 'product', label: 'Top product' },
+    { kind: 'ad', label: 'Top ad / source' },
+    { kind: 'country', label: 'Top country' },
+  ].map((card) => ({
+    ...card,
+    hero: topMovers.hero?.[card.kind] ?? null,
+    compare: (topMovers.compare || []).map((entry) => ({
+      label: entry.label,
+      entry: entry.leaders?.[card.kind] ?? null,
+    })),
+  }))), [topMovers]);
+  // Names the window the hero actually covers, so the card cannot claim "Today"
+  // while showing a month.
+  const topMoverFocusLabel = dayCount(activeDateRange) === 1
+    ? (movesAnchorDay === reportingToday ? 'Today' : movesAnchorDay || 'Selected day')
+    : 'Selected range';
 
   const todayOrderMovers = useMemo(() => {
     const lines = baseProductData?.order_lines || [];
@@ -2294,6 +2356,7 @@ function App() {
     delivery: <DailyDelivery data={deliveryShape} developingDay={deliveryDevelopingDay} />,
     growth: <DevelopingGrowth data={growth.data} lines={growth.lines} />,
     decision: <AdSetDecisionTable rows={decisions} />,
+    creative: <CreativeTable rows={creativeTable.rows} target={creativeTable.target} costPerSale={creativeTable.costPerSale} />,
     product: <ProductDemand data={productDemand} />,
     country: (
       <CountrySalesPanel
@@ -2361,7 +2424,7 @@ function App() {
       label: 'Media',
       icon: Megaphone,
       question: 'Where should delivery or spend be investigated?',
-      ids: ['mediaFindings', 'campaignPacing', 'decision', 'tree', 'delivery', 'usa', 'benchmarks', 'edits'],
+      ids: ['mediaFindings', 'campaignPacing', 'decision', 'creative', 'tree', 'delivery', 'usa', 'benchmarks', 'edits'],
     },
     {
       key: 'conversion',

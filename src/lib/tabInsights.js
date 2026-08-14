@@ -11,6 +11,8 @@
  * fabricated conclusion.
  * ------------------------------------------------------------------------- */
 
+import { intervalsSeparate, ratioCountInterval } from './statsTests.js';
+
 const num = (value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -20,11 +22,40 @@ const fmtMoney = (value) => {
   const n = num(value);
   return Math.abs(n) >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${Math.round(n)}`;
 };
+
+/**
+ * One item's share of a total, as a percentage, or null when the total cannot
+ * carry one.
+ *
+ * Testing `total > 0` is not sufficient. Refunds and credits can leave a total
+ * that is positive but vanishingly small — a few thousand dollars of revenue in
+ * one market against nearly the same in refunds elsewhere — and the quotient
+ * then overflows, publishing "C0 is Infinity% of revenue". The result is checked
+ * and clamped, not just the divisor.
+ */
+function shareOfTotal(part, total) {
+  if (!(total > 0)) return null;
+  const share = (num(part) / total) * 100;
+  return Number.isFinite(share) ? Math.min(100, Math.max(0, share)) : null;
+}
 const fmtX = (value) => `${num(value).toFixed(2)}x`;
 const fmtIdx = (value) => (value == null || !Number.isFinite(Number(value)) ? '—' : String(Math.round(Number(value))));
 const fmtPct = (value) => `${num(value) >= 0 ? '+' : ''}${Math.round(num(value))}%`;
 
 /* ============================ Funnel ==================================== */
+
+/** Sessions a campaign line needs before its index is worth comparing. */
+const FUNNEL_MIN_CAMPAIGN_VOLUME = 50;
+/** Index points between two campaign lines before the gap is worth reporting. */
+const FUNNEL_MIN_SPREAD_POINTS = 20;
+/**
+ * Delivery days needed before reach and frequency trends are compared. The
+ * saturation test splits the window into thirds, so six days meant averaging
+ * two days against two — well inside normal day-to-day movement.
+ */
+const LAUNCH_MIN_DELIVERY_DAYS = 9;
+/** Percent move in reach or frequency that counts as a real trend, not wobble. */
+const LAUNCH_TREND_PCT = 10;
 
 /**
  * The funnel has two measurable steps. The reader needs to know which one is
@@ -94,21 +125,25 @@ export function buildFunnelFindings(funnel) {
       if (campaigns.some((c) => points[i]?.[c.id] != null)) { latest = points[i]; break; }
     }
     if (!latest) continue;
+    // Both ends must carry real traffic. This is the widest gap among every
+    // campaign line, so with enough thin lines a 20-point spread appears without
+    // anything differing — and the reader was never told how many were compared
+    // or how much traffic sat behind either end.
     const values = campaigns
-      .map((c) => ({ name: c.name, value: latest[c.id] }))
-      .filter((row) => row.value != null)
+      .map((c) => ({ name: c.name, value: latest[c.id], volume: num(c.totalDen) }))
+      .filter((row) => row.value != null && row.volume >= FUNNEL_MIN_CAMPAIGN_VOLUME)
       .sort((a, b) => num(b.value) - num(a.value));
     if (values.length < 2) continue;
     const top = values[0];
     const bottom = values[values.length - 1];
     const spread = num(top.value) - num(bottom.value);
-    if (spread < 20) continue;
+    if (spread < FUNNEL_MIN_SPREAD_POINTS) continue;
     findings.push({
       id: `funnel-spread-${step.key}`,
       tone: 'watch',
       evidence: 'Compared',
       headline: `${step.label} varies ${Math.round(spread)} points across campaigns`,
-      context: `${top.name} converts at ${fmtIdx(top.value)} while ${bottom.name} sits at ${fmtIdx(bottom.value)}.`,
+      context: `${top.name} converts at ${fmtIdx(top.value)} on ${Math.round(top.volume)} sessions while ${bottom.name} sits at ${fmtIdx(bottom.value)} on ${Math.round(bottom.volume)}, the widest gap among ${values.length} campaign lines carrying real traffic. Both are shrunk toward the account rate, so thin lines already read closer to 100 than their raw numbers.`,
       driver: '',
       action: `A gap this wide is an audience or creative difference, not site friction. Compare ${top.name} and ${bottom.name} in the Ads tab.`,
     });
@@ -140,17 +175,42 @@ export function buildAdsFindings({
     const byRoas = [...funded].sort((a, b) => num(b.roas) - num(a.roas));
     const best = byRoas[0];
     const worst = byRoas[byRoas.length - 1];
-    if (num(best.roas) - num(worst.roas) >= 1) {
+    // Best-vs-worst over many ad sets is the widest gap the account contains, so
+    // it looks impressive whether or not anything real separates the two. A ROAS
+    // built on a handful of orders inherits the order count's sampling error
+    // (roughly 1/sqrt(n) — 58% at three orders), and the old copy quoted the
+    // three-conversion floor as if clearing it made the ranking trustworthy.
+    // Only claim a difference when the two plausible ranges do not overlap.
+    const bestRange = ratioCountInterval(num(best.roas), num(best.sales));
+    const worstRange = ratioCountInterval(num(worst.roas), num(worst.sales));
+    if (intervalsSeparate(bestRange, worstRange)) {
       findings.push({
         id: 'ads-spread',
         tone: num(worst.roas) < 1 ? 'negative' : 'watch',
         evidence: 'Compared',
         headline: `${worst.adSet} returns ${fmtX(worst.roas)} while ${best.adSet} returns ${fmtX(best.roas)}`,
-        context: `Both cleared ${fmtMoney(minSpend)} of spend and ${minConversions} conversions. ${worst.adSet} has spent ${fmtMoney(worst.spend)}.`,
+        context: `${best.adSet} is measured on ${num(best.sales)} sales and ${worst.adSet} on ${num(worst.sales)}. Allowing for how few that is, the true figures sit near ${fmtX(bestRange.low)}–${fmtX(bestRange.high)} and ${fmtX(worstRange.low)}–${fmtX(worstRange.high)} — the ranges do not overlap, so the gap is larger than counting noise. ${worst.adSet} has spent ${fmtMoney(worst.spend)}.`,
         driver: '',
-        action: num(worst.roas) < 1
-          ? `Investigate ${worst.adSet}'s targeting and creative before adding budget.`
-          : `Test a measured shift from ${worst.adSet} toward ${best.adSet}, then verify the result.`,
+        // Investigating is cheap, so a sub-1x point estimate is enough to warrant
+        // it. The stronger sentence is reserved for an ad set whose whole
+        // plausible range sits below break-even.
+        action: worstRange.high < 1
+          ? `Even the optimistic end of ${worst.adSet}'s range is below break-even. Investigate its targeting and creative before adding budget.`
+          : num(worst.roas) < 1
+            ? `Investigate ${worst.adSet}'s targeting and creative before adding budget.`
+            : `Test a measured shift from ${worst.adSet} toward ${best.adSet}, then verify the result.`,
+      });
+    } else if (funded.length >= 3) {
+      // Saying "we looked and cannot yet tell them apart" is a finding. Silence
+      // reads as "nothing to see", which is how thin samples get scaled on.
+      findings.push({
+        id: 'ads-spread-unresolved',
+        tone: 'neutral',
+        evidence: 'Observed',
+        headline: `${funded.length} funded ad sets are not yet separable on ROAS`,
+        context: `${best.adSet} leads at ${fmtX(best.roas)} and ${worst.adSet} trails at ${fmtX(worst.roas)}, but with ${num(worst.sales)}–${num(best.sales)} sales behind them those figures could still swap order.`,
+        driver: '',
+        action: 'Let the low-volume ad sets accumulate sales before moving budget on this ranking.',
       });
     }
   }
@@ -197,8 +257,9 @@ export function buildAdsFindings({
   // Spend concentration across campaigns.
   const totalSpend = campaigns.reduce((sum, c) => sum + num(c.spend), 0);
   const topSpender = [...campaigns].sort((a, b) => num(b.spend) - num(a.spend))[0];
-  if (totalSpend > 0 && topSpender && num(topSpender.spend) / totalSpend >= 0.4 && campaigns.length > 2) {
-    const share = (num(topSpender.spend) / totalSpend) * 100;
+  const spendShare = topSpender ? shareOfTotal(topSpender.spend, totalSpend) : null;
+  if (spendShare != null && spendShare >= 40 && campaigns.length > 2) {
+    const share = spendShare;
     findings.push({
       id: 'ads-concentration',
       tone: 'neutral',
@@ -271,8 +332,9 @@ export function buildMarketFindings({ countries = [], minOrders = 5 } = {}) {
 
   const totalRevenue = countries.reduce((sum, c) => sum + num(c.revenue), 0);
   const top = [...countries].sort((a, b) => num(b.revenue) - num(a.revenue))[0];
-  if (totalRevenue > 0 && top && num(top.revenue) / totalRevenue >= 0.5) {
-    const share = (num(top.revenue) / totalRevenue) * 100;
+  const revenueShare = top ? shareOfTotal(top.revenue, totalRevenue) : null;
+  if (revenueShare != null && revenueShare >= 50) {
+    const share = revenueShare;
     findings.push({
       id: 'market-concentration',
       tone: 'watch',
@@ -330,14 +392,14 @@ export function buildLaunchFindings({ delivery = [], phases = null } = {}) {
 
   // Saturation: compare the first and last third of the delivery window.
   const rows = (delivery || []).filter((row) => num(row.reach) > 0);
-  if (rows.length >= 6) {
-    const third = Math.max(2, Math.floor(rows.length / 3));
+  if (rows.length >= LAUNCH_MIN_DELIVERY_DAYS) {
+    const third = Math.max(3, Math.floor(rows.length / 3));
     const head = rows.slice(0, third);
     const tail = rows.slice(-third);
     const mean = (arr, key) => arr.reduce((sum, row) => sum + num(row[key]), 0) / (arr.length || 1);
     const reachDelta = mean(head, 'reach') ? ((mean(tail, 'reach') - mean(head, 'reach')) / mean(head, 'reach')) * 100 : 0;
     const freqDelta = mean(head, 'frequency') ? ((mean(tail, 'frequency') - mean(head, 'frequency')) / mean(head, 'frequency')) * 100 : 0;
-    const saturating = reachDelta < -5 && freqDelta > 5;
+    const saturating = reachDelta < -LAUNCH_TREND_PCT && freqDelta > LAUNCH_TREND_PCT;
     if (saturating) {
       findings.push({
         id: 'launch-saturation',
@@ -348,7 +410,7 @@ export function buildLaunchFindings({ delivery = [], phases = null } = {}) {
         driver: '',
         action: 'Broaden targeting or refresh creative — more budget into a saturated audience raises CPM without adding buyers.',
       });
-    } else if (reachDelta > 5 && freqDelta < 5) {
+    } else if (reachDelta > LAUNCH_TREND_PCT && freqDelta < LAUNCH_TREND_PCT) {
       findings.push({
         id: 'launch-headroom',
         tone: 'positive',

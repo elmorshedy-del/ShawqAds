@@ -167,19 +167,31 @@ function buildLifetimePace(target, pacing, today) {
   };
 }
 
+/** A budget only paces while it is switched on. */
+export function isLiveTarget(target) {
+  return String(target?.effective_status || target?.status || '').toUpperCase() === 'ACTIVE';
+}
+
 export function buildCampaignPacing(pacing, {
   today,
   hour = new Date().getHours(),
 } = {}) {
-  const targets = pacing?.targets || [];
+  // Turned-off campaigns cannot spend against today's budget, so they are not
+  // pacing rows. Older payloads were fetched before the upstream status filter
+  // existed and can still carry paused objects, so drop them here too.
+  const targets = (pacing?.targets || []).filter(isLiveTarget);
   if (!targets.length) {
+    const hadTurnedOffOnly = Boolean(pacing?.targets?.length);
     return {
       configured: false,
       generatedAt: pacing?.generated_at || '',
       timezone: pacing?.timezone || 'Europe/Istanbul',
       rows: [],
       counts: {},
-      reason: pacing?.error || 'No Meta campaign or ad-set budget targets were returned.',
+      reason: pacing?.error
+        || (hadTurnedOffOnly
+          ? 'Every campaign and ad set with a budget is currently switched off, so there is nothing pacing today.'
+          : 'No active Meta campaign or ad-set budgets were returned.'),
     };
   }
   const rows = targets.map((target) =>

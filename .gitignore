@@ -8,6 +8,12 @@ data/
 .DS_Store
 .claude/*
 !.claude/skills/
+# Skills are installed from skills-lock.json (`npx skills add ...`), which is the
+# tracked source of truth. The materialised skill content and the symlinks into it
+# are install output, so only this repo's own skill is committed.
+.agents/
+.claude/skills/*
+!.claude/skills/shawqads-repo-guide/
 public/data/*.json
 !public/data/adset-radar.json
 !public/data/behavior-intelligence.json

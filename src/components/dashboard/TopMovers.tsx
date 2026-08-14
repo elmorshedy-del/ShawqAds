@@ -9,23 +9,42 @@ interface LeaderLike {
   units?: number;
   revenue?: number;
   sales?: number;
-  roas?: number;
+  /** null when there was no spend to divide by — not the same as 0x. */
+  roas?: number | null;
+  roasBasisSpend?: number | null;
+  /** True when the window is a day still in progress, so spend is incomplete. */
+  partialDay?: boolean;
   flag?: string;
   country?: string;
+}
+
+export interface TopMoverCompare {
+  label: string;
+  entry?: LeaderLike | null;
 }
 
 export interface TopMoverCard {
   kind: Kind;
   label: string;
-  today?: LeaderLike | null;
-  currentWeek?: LeaderLike | null;
-  prevWeek?: LeaderLike | null;
+  /** Leader over the window the card is scoped to — not necessarily a single day. */
+  hero?: LeaderLike | null;
+  /** Context windows, labelled by the caller because they depend on the scope. */
+  compare?: TopMoverCompare[];
 }
 
 interface TopMoversProps {
   cards: TopMoverCard[];
   focusLabel?: string;
 }
+
+/**
+ * Multiple above which a still-running day earns the partial-spend caveat.
+ *
+ * This gates a sentence, never a number: every ad's ROAS is reported as it
+ * computes, whatever this is set to. It is only the point past which a figure is
+ * better explained by the day being young than by the ad being exceptional.
+ */
+const SAME_DAY_CAVEAT_ABOVE_ROAS = 5;
 
 const kindMeta: Record<Kind, { icon: LucideIcon; color: string; heroLabel: string }> = {
   product: { icon: Package, color: "var(--color-brand)", heroLabel: "revenue" },
@@ -42,20 +61,40 @@ function titleOf(kind: Kind, e?: LeaderLike | null) {
 function heroOf(kind: Kind, e?: LeaderLike | null) {
   if (!e) return "—";
   if (kind === "product") return fmtCurrency(e.revenue ?? 0);
+  // An ad with no spend has no return to divide, which is not the same as 0x.
+  // Any ad that did spend shows its ROAS as computed — the spend behind it is
+  // on the line below, so a large multiple on thin spend reads as thin spend.
+  if (kind === "ad" && e.roas == null) return fmtCurrency(e.revenue ?? 0);
   return fmtX(e.roas ?? 0);
 }
 
 function subOf(kind: Kind, e?: LeaderLike | null) {
   if (!e) return "Awaiting first sale";
   if (kind === "product") return `${e.units ?? 0} units · ${e.category ?? "—"}`;
-  if (kind === "ad") return `${e.sales ?? 0} sales · ${e.category ?? "—"}`;
+  if (kind === "ad") {
+    const base = `${e.sales ?? 0} sales · ${e.category ?? "—"}`;
+    if (e.roas == null) return `${base} · no spend recorded`;
+    // A day still running has only part of its spend recorded. Early on, the
+    // denominator is a small fraction of where it will close, which both widens
+    // the range this figure can take and biases it upward — so the note names
+    // the spread and the direction, not just the fact that the day is unfinished.
+    if (e.partialDay && (e.roas ?? 0) >= SAME_DAY_CAVEAT_ABOVE_ROAS) {
+      return `${base} (day in progress — spend accrues through the day, so early readings range widely and converge lower)`;
+    }
+    return base;
+  }
   return `${e.units ?? 0} units · ${fmtCurrency(e.revenue ?? 0)}`;
 }
 
 function compactOf(kind: Kind, e?: LeaderLike | null) {
   if (!e) return { name: "—", metric: "no data" };
   if (kind === "product") return { name: e.name ?? "—", metric: `${e.units ?? 0}u · ${fmtCurrency(e.revenue ?? 0)}` };
-  if (kind === "ad") return { name: e.name ?? "—", metric: `${e.sales ?? 0} · ${fmtX(e.roas ?? 0)}` };
+  if (kind === "ad") {
+    return {
+      name: e.name ?? "—",
+      metric: e.roas == null ? `${e.sales ?? 0} · ${fmtCurrency(e.revenue ?? 0)}` : `${e.sales ?? 0} · ${fmtX(e.roas)}`,
+    };
+  }
   return { name: `${e.flag ?? ""} ${e.country ?? "—"}`.trim(), metric: fmtX(e.roas ?? 0) };
 }
 
@@ -66,8 +105,8 @@ function headingFor(focusLabel: string) {
 }
 
 function copyFor(focusLabel: string) {
+  if (focusLabel === "Selected range") return "Leaders for the selected range, against the previous period of equal length";
   if (focusLabel === "Today") return "Today's leaders with this week & last week for context";
-  if (focusLabel === "Selected range") return "Leaders for selected range with this week & last week for context";
   return `Leaders for ${focusLabel} with this week & last week for context`;
 }
 
@@ -109,18 +148,21 @@ function MoverCard({ card, focusLabel }: { card: TopMoverCard; focusLabel: strin
 
       <div className="mt-3 flex items-start justify-between gap-3">
         <p className="min-w-0 flex-1 break-words font-display text-base font-semibold leading-snug">
-          {titleOf(card.kind, card.today)}
+          {titleOf(card.kind, card.hero)}
         </p>
         <p className="shrink-0 font-display text-lg font-semibold tabular-nums" style={{ color: m.color }}>
-          {heroOf(card.kind, card.today)}
+          {heroOf(card.kind, card.hero)}
         </p>
       </div>
-      <p className="mt-0.5 break-words text-xs leading-snug text-muted-foreground">{subOf(card.kind, card.today)}</p>
+      <p className="mt-0.5 break-words text-xs leading-snug text-muted-foreground">{subOf(card.kind, card.hero)}</p>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
-        <CompareCell label="This week" kind={card.kind} entry={card.currentWeek} />
-        <CompareCell label="Prev week" kind={card.kind} entry={card.prevWeek} />
-      </div>
+      {card.compare?.length ? (
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
+          {card.compare.map((c) => (
+            <CompareCell key={c.label} label={c.label} kind={card.kind} entry={c.entry} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
