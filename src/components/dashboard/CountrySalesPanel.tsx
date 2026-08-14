@@ -8,7 +8,10 @@ import { cn } from "@/lib/utils";
 // five units without providing five observations.
 const LOW_SAMPLE_ORDERS = 5;
 
-function roasClass(v: number, lowSample = false) {
+function roasClass(v: number | null, lowSample = false) {
+  // No recorded spend is a missing denominator, not a bad return — it must not
+  // be coloured as one.
+  if (v == null) return "text-muted-foreground";
   if (lowSample) return "text-muted-foreground";
   if (v >= 3) return "text-positive";
   if (v >= 1.5) return "text-gold";
@@ -49,10 +52,10 @@ function CountryRow({ c, delay }: { c: CountrySales; delay: number }) {
                 : undefined
             }
           >
-            {c.roas.toFixed(2)}x
+            {c.roas == null ? "—" : `${c.roas.toFixed(2)}x`}
           </p>
           <p className="text-[0.6rem] uppercase tracking-[0.1em] text-muted-foreground">
-            {lowSample ? "ROAS · low sample" : "ROAS"}
+            {c.roas == null ? "no spend recorded" : lowSample ? "ROAS · low sample" : "ROAS"}
           </p>
         </div>
       </button>
