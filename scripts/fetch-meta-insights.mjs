@@ -83,8 +83,19 @@ const hourlyFields = [
  * the business-use-case limit that ad accounts hit during a wide backfill.
  */
 const META_THROTTLE_CODES = new Set([4, 17, 613, 80000, 80001, 80002, 80003, 80004]);
-const META_RETRY_ATTEMPTS = 5;
-const META_RETRY_BASE_MS = 2000;
+/**
+ * Codes Meta returns for its own transient failures rather than for anything
+ * wrong with the request. Code 1 ("An unknown error occurred", subcode 99) and
+ * code 2 ("temporary service error") are what a heavily-throttled ad account
+ * gets on an insights call once it stops being told plainly that it is
+ * throttled. Treating them as permanent is what killed the whole fetch and left
+ * two months of stale data on the dashboard.
+ */
+const META_TRANSIENT_CODES = new Set([1, 2]);
+const META_RETRY_ATTEMPTS = 6;
+const META_RETRY_BASE_MS = 5000;
+/** Backoff ceiling — Meta's account limits clear in minutes, not seconds. */
+const META_RETRY_MAX_MS = 120000;
 /**
  * Only objects still switched on are worth pulling. Paused, archived and deleted
  * campaigns cannot pace against a budget today, and on a long-lived account they
@@ -123,16 +134,21 @@ async function graphGet(url) {
     if (res.ok) return JSON.parse(text);
 
     const error = parseMetaError(text);
-    const throttled = res.status === 429 || META_THROTTLE_CODES.has(Number(error?.code));
+    const code = Number(error?.code);
+    // Retry anything that is Meta being busy rather than the request being
+    // wrong: an explicit throttle code, a 429, one of Meta's own transient
+    // codes, or any 5xx. A 400 with a real validation message still fails fast.
+    const retryable = res.status === 429
+      || res.status >= 500
+      || META_THROTTLE_CODES.has(code)
+      || META_TRANSIENT_CODES.has(code);
     lastError = Object.assign(
       new Error(`Meta API ${res.status}: ${describeMetaError(error) || text.slice(0, 300)}`),
-      { metaError: error, status: res.status, throttled },
+      { metaError: error, status: res.status, throttled: retryable },
     );
-    // A throttle is a "come back later", not a bad request. Backing off and
-    // retrying keeps one busy minute from blanking a whole panel for the day.
-    if (!throttled || attempt === META_RETRY_ATTEMPTS - 1) throw lastError;
-    const waitMs = META_RETRY_BASE_MS * (2 ** attempt);
-    console.warn(`Meta rate limit hit; retrying in ${waitMs / 1000}s (attempt ${attempt + 1}/${META_RETRY_ATTEMPTS - 1}).`);
+    if (!retryable || attempt === META_RETRY_ATTEMPTS - 1) throw lastError;
+    const waitMs = Math.min(META_RETRY_MAX_MS, META_RETRY_BASE_MS * (2 ** attempt));
+    console.warn(`Meta ${res.status}${Number.isFinite(code) ? ` (code ${code})` : ''}; retrying in ${waitMs / 1000}s (attempt ${attempt + 1}/${META_RETRY_ATTEMPTS - 1}).`);
     await sleep(waitMs);
   }
   throw lastError;
