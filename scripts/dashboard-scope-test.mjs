@@ -48,9 +48,10 @@ const currentMeta = {
   ],
 };
 const current = sourceCoverageBounds(currentMeta, shopify, '2026-08-04');
-assert(current.has_today_data === true, 'Both sources current should enable today');
+assert(current.has_today_data === true, 'A small no-delivery gap must not hide a current Meta day');
 assert(current.latest_common_data_day === '2026-08-04', 'Matched coverage should reach today');
 assert(current.lagging_source === '', 'Equal coverage must not name a lagging source');
+assert(current.coverage_gap === false, 'A one-day Meta gap is allowed');
 const currentWeek = rollingMatchedRange({
   today: '2026-08-04',
   latest_data_day: current.latest_common_data_day,
@@ -61,6 +62,42 @@ assert(
   currentWeek.since === '2026-07-29' && currentWeek.until === '2026-08-04',
   'Last week should end on today when both sources are current',
 );
+
+// Regression: the static Meta snapshot can be months old while /api/meta/live-spend
+// injects one fresh row for today. That must not make the missing intervening spend
+// look like a continuous window, or weekly Shopify revenue gets divided by one day's
+// Meta spend and produces huge fake ROAS values.
+const bridgedMeta = {
+  account_daily_metrics: [
+    { date: '2026-06-10', spend_usd: 90 },
+    { date: '2026-06-11', spend_usd: 95 },
+    { date: '2026-06-12', spend_usd: 105 },
+    { date: '2026-08-15', spend_usd: 40, live_today: true },
+  ],
+};
+const currentShopify = {
+  daily: [
+    { date: '2026-06-10', revenue_usd: 200 },
+    { date: '2026-06-11', revenue_usd: 220 },
+    { date: '2026-06-12', revenue_usd: 210 },
+    { date: '2026-08-10', revenue_usd: 180 },
+    { date: '2026-08-11', revenue_usd: 160 },
+    { date: '2026-08-12', revenue_usd: 190 },
+    { date: '2026-08-13', revenue_usd: 170 },
+    { date: '2026-08-14', revenue_usd: 205 },
+    { date: '2026-08-15', revenue_usd: 188 },
+  ],
+};
+const bridged = sourceCoverageBounds(bridgedMeta, currentShopify, '2026-08-15');
+assert(bridged.coverage_gap === true, 'A months-long Meta bridge must be detected');
+assert(bridged.coverage_gap_source === 'Meta', 'The denominator gap must identify Meta');
+assert(bridged.coverage_gap_after === '2026-06-12', 'The gap must start after the last trusted Meta date');
+assert(bridged.coverage_gap_before === '2026-08-15', 'The isolated live Meta row must be the far side of the gap');
+assert(bridged.meta_latest_row_date === '2026-08-15', 'Diagnostics should retain the raw latest Meta row');
+assert(bridged.meta_until === '2026-06-12', 'Trusted Meta coverage must stop before the large gap');
+assert(bridged.latest_common_data_day === '2026-06-12', 'Blended ROAS coverage must not bridge the missing Meta spend');
+assert(bridged.has_today_data === false, 'An isolated live Meta row is not enough to make a multi-day window current');
+assert(bridged.lagging_source === 'Meta', 'Meta must be named as the lagging source across the bridge');
 
 const behavior = {
   period: { since: '2026-06-03', until: '2026-08-04' },
