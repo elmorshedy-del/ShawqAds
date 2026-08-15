@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1 --port 5177",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 5178",
-    "fetch:meta": "node scripts/fetch-meta-insights.mjs",
+    "fetch:meta": "node scripts/fetch-meta-safe.mjs",
     "fetch:shopify": "node scripts/fetch-shopify-products.mjs",
     "fetch:behavior": "node scripts/fetch-behavior-intelligence.mjs",
     "fetch:all": "npm run fetch:meta && npm run fetch:shopify && npm run fetch:behavior",
@@ -48,7 +48,7 @@
     "memory:graph": "agent-memory graph build",
     "memory:worklog": "agent-memory worklog checkpoint",
     "start": "node server.mjs",
-    "build:deploy": "npm run test:campaign-pacing && vite build"
+    "build:deploy": "npm run test:dashboard-scope && node --check scripts/fetch-meta-safe.mjs && npm run test:campaign-pacing && vite build"
   },
   "dependencies": {
     "@nivo/bar": "latest",
