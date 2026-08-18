@@ -1,0 +1,31 @@
+name: Apply mobile display fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/apply-mobile-display-fix.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply source refactor
+        run: node scripts/apply-mobile-display-fix.mjs
+      - name: Verify build
+        run: npm ci && npm run build
+      - name: Commit clean source only
+        run: |
+          rm scripts/apply-mobile-display-fix.mjs .github/workflows/apply-mobile-display-fix.yml
+          git config user.name "shawqads-ui-bot"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Fix mobile product friction and creative name display"
+          git push
