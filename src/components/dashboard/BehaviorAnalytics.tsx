@@ -348,144 +348,133 @@ function ExtractionStatus({ behavior }: { behavior: BehaviorData }) {
   );
 }
 
-function StepCell({ row, label, siteRate }: { row: any; label: string; siteRate?: number | null }) {
-  if (!row || !Number(row.exposed || 0)) {
-    return (
-      <div className="rounded-lg border border-dashed border-border bg-surface-2/30 p-3">
-        <p className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-0.5 font-display text-sm font-semibold text-muted-foreground">n/a</p>
-        <p className="mt-0.5 text-[0.65rem] text-muted-foreground">No sessions reached this step</p>
-      </div>
-    );
-  }
-  const exposed = Number(row.exposed || 0);
-  const abandoned = Number(row.abandoned || 0);
+function ProductRankRow({
+  row,
+  siteRate,
+  rank,
+}: {
+  row: any;
+  siteRate?: number | null;
+  rank: number;
+}) {
+  const exposed = Number(row?.exposed || 0);
+  const abandoned = Number(row?.abandoned || 0);
   const rate = exposed ? abandoned / exposed : 0;
   const vs = vsBaseline(rate, siteRate);
   const tone = comparisonTone(vs);
-  const siteLabel = siteRate == null ? null : rateLabel(siteRate);
+  const name = row?.product || "Unknown product";
+  const detail = [row?.family, row?.subtype].filter(Boolean).join(" · ");
   return (
-    <div className="rounded-lg border border-border bg-surface p-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">{label}</p>
-        <TierPill sessions={exposed} />
-      </div>
-      <p className="mt-0.5 font-display text-xl font-semibold tabular-nums tracking-tight">
-        {rateLabel(rate)}
-        <span className="ml-1 text-sm font-medium text-muted-foreground">abandon</span>
-      </p>
-      <p className="text-[0.65rem] leading-relaxed text-muted-foreground">
-        {abandoned} of {exposed} left here
-        {siteLabel ? ` · site avg ${siteLabel}` : ""}
-      </p>
-      <div className="mt-1.5">
-        <span
-          title={
-            vs == null
-              ? "No site-wide rate for this step yet, so there is nothing to compare against"
-              : "Percentage points above or below your site-wide abandon rate at this step"
-          }
-          className={cn("rounded-full px-1.5 py-0.5 text-[0.6rem] tabular-nums", comparisonClass[tone])}
-        >
-          {vs == null ? "no site average yet" : `${ratePoints(vs)} vs avg`}
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-surface px-2.5 py-2">
+      <span className="flex min-w-0 items-center gap-2 text-xs">
+        <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">{rank}</span>
+        {row?.image_url ? (
+          <img src={row.image_url} alt="" className="h-7 w-7 shrink-0 rounded-md object-cover" />
+        ) : (
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-soft font-display text-[0.65rem] font-semibold text-brand">
+            {(row?.family || name || "S").slice(0, 1)}
+          </span>
+        )}
+        <span className="min-w-0">
+          <span className="block break-words font-medium leading-snug">{name}</span>
+          {detail ? <span className="block break-words text-[0.6rem] leading-snug text-muted-foreground">{detail}</span> : null}
         </span>
+      </span>
+      <div className="flex shrink-0 items-center gap-2 text-right">
+        <div>
+          <p className={cn("text-xs font-semibold tabular-nums", comparisonTextClass[tone])}>
+            {rateLabel(rate)} <span className="font-normal text-muted-foreground">abandon</span>
+          </p>
+          <p className="text-[0.6rem] tabular-nums text-muted-foreground">
+            {abandoned}/{exposed}
+            {vs == null ? "" : ` · ${ratePoints(vs)} vs avg`}
+          </p>
+        </div>
+        <TierPill sessions={exposed} />
       </div>
     </div>
   );
 }
 
+function ProductStepRanking({
+  title,
+  rows,
+  siteRate,
+}: {
+  title: string;
+  rows: any[];
+  siteRate?: number | null;
+}) {
+  const all = rows || [];
+  const comparable = all.filter((row) => Number(row?.exposed || 0) >= MIN_COMPARABLE_SESSIONS);
+  const ranked = [...comparable].sort((a, b) => {
+    const ra = observedRate(a) ?? 0;
+    const rb = observedRate(b) ?? 0;
+    return ra - rb || Number(b?.exposed || 0) - Number(a?.exposed || 0);
+  });
+  const setAside = all.length - comparable.length;
+  const siteLabel = siteRate == null ? null : rateLabel(siteRate);
+
+  return (
+    <div className="rounded-xl border border-border bg-surface-2/40 p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold">{title}</p>
+        {siteLabel ? (
+          <span className="shrink-0 text-[0.65rem] tabular-nums text-muted-foreground">
+            Site avg {siteLabel}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-0.5 text-[0.65rem] text-muted-foreground">Ranked best (fewest abandons) to worst</p>
+      {ranked.length ? (
+        <div className="mt-3 space-y-1.5">
+          {ranked.map((row, index) => (
+            <ProductRankRow
+              key={`product-${row?.key || row?.product || index}`}
+              row={row}
+              siteRate={siteRate}
+              rank={index + 1}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-3">
+          <EmptyBlock
+            dense
+            title="Not enough sessions to compare yet"
+            text={`Products appear here once they reach ${MIN_COMPARABLE_SESSIONS} sessions so the rates are comparable.`}
+          />
+        </div>
+      )}
+      {setAside > 0 ? (
+        <p className="mt-2 text-[0.6rem] text-muted-foreground">
+          {setAside} {setAside === 1 ? "product" : "products"} set aside — fewer than {MIN_COMPARABLE_SESSIONS} sessions.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ProductMatrix({ behavior }: { behavior: BehaviorData }) {
-  const developingDay = Boolean(behavior?.coverage?.developing_day);
   const checkoutRows = behavior?.matrix?.checkout?.products || [];
   const paymentRows = behavior?.matrix?.submit_payment?.products || [];
   const checkoutGlobal = siteBaseline(behavior?.matrix?.checkout?.global);
   const paymentGlobal = siteBaseline(behavior?.matrix?.submit_payment?.global);
-  const checkoutByKey = new Map(checkoutRows.map((row: any) => [row.key, row]));
-  const paymentByKey = new Map(paymentRows.map((row: any) => [row.key, row]));
-  const keys = [...new Set([...checkoutByKey.keys(), ...paymentByKey.keys()])];
 
-  const merged = keys
-    .map((key) => {
-      const checkout = checkoutByKey.get(key);
-      const payment = paymentByKey.get(key);
-      const main = checkout || payment || {};
-      const checkoutExposed = Number(checkout?.exposed || 0);
-      const paymentExposed = Number(payment?.exposed || 0);
-      // Rank on the checkout step when it has a comparable sample; otherwise fall back to payment.
-      const useCheckout =
-        checkoutExposed >= MIN_COMPARABLE_SESSIONS || checkoutExposed >= paymentExposed;
-      const rate = useCheckout ? observedRate(checkout) : observedRate(payment);
-      const sample = Math.max(checkoutExposed, paymentExposed);
-      const comparable = sample >= MIN_COMPARABLE_SESSIONS;
-      return { key, main, checkout, payment, rate: rate ?? 0, sample, comparable };
-    })
-    .filter(
-      ({ checkout, payment }) =>
-        Number(checkout?.exposed || 0) > 0 || Number(payment?.exposed || 0) > 0,
-    );
-
-  // Highest abandonment first. This list is capped at 8, and sorting the other way
-  // meant the worst-leaking products were the ones truncated off the end — the exact
-  // rows the panel exists to surface.
-  const comparableRows = merged
-    .filter((row) => row.comparable)
-    .sort((a, b) => b.rate - a.rate || b.sample - a.sample)
-    .slice(0, 8);
-  const setAside = merged.filter((row) => !row.comparable).length;
-
+  // Product friction intentionally mirrors country drop-off: one ranking per
+  // funnel step, same best-to-worst direction, baseline and sample threshold.
   return (
     <div className="space-y-3">
       <SectionHeading
         icon={Package}
         title="Friction by product"
-        subtitle="Products with a comparable sample, worst abandonment first — the top row is where most money is leaking. Checkout abandonment comes from Shopify; submit-payment from Meta AddPaymentInfo plus session-pixel rows."
+        subtitle="Every product with a comparable sample, ranked from fewest to most abandons at each step."
       />
       <SampleTierLegend />
-      {comparableRows.length ? (
-        <div className="space-y-3">
-          {comparableRows.map(({ key, main, checkout, payment }) => (
-            <div key={key} className="rounded-xl border border-border bg-surface-2/40 p-4">
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
-                <div className="flex items-center gap-3">
-                  {main.image_url ? (
-                    <img
-                      src={main.image_url}
-                      alt=""
-                      className="h-11 w-11 shrink-0 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-soft font-display text-sm font-semibold text-brand">
-                      {(main.family || "S").slice(0, 1)}
-                    </span>
-                  )}
-                  <div className="min-w-0">
-                    <p className="break-words text-sm font-semibold">{main.product || "Unknown product"}</p>
-                    <p className="break-words text-xs leading-snug text-muted-foreground">
-                      {main.family || "Other"} · {main.subtype || "Unknown"}
-                    </p>
-                  </div>
-                </div>
-                <StepCell row={checkout} label="Checkout" siteRate={checkoutGlobal} />
-                <StepCell row={payment} label="Submit payment" siteRate={paymentGlobal} />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyBlock
-          title={developingDay ? "Today's friction aggregates are still building" : "No products with a comparable sample yet"}
-          text={
-            developingDay
-              ? "Behavior JSON refreshes after Shopify/Meta extracts and session-pixel rollups. Switch to Since launch for full-window context, or check back after the next behavior refresh."
-              : `Products appear here once they reach ${MIN_COMPARABLE_SESSIONS} checkout sessions so the abandon rates can be compared fairly.`
-          }
-        />
-      )}
-      {setAside > 0 ? (
-        <p className="text-[0.65rem] text-muted-foreground">
-          {setAside} {setAside === 1 ? "product" : "products"} set aside — fewer than {MIN_COMPARABLE_SESSIONS} sessions, so their rates are not comparable yet.
-        </p>
-      ) : null}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <ProductStepRanking title="Checkout" rows={checkoutRows} siteRate={checkoutGlobal} />
+        <ProductStepRanking title="Submit payment" rows={paymentRows} siteRate={paymentGlobal} />
+      </div>
     </div>
   );
 }
