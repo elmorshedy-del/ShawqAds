@@ -7,16 +7,21 @@ on:
     paths:
       - scripts/refactor-top-movers-and-creatives.mjs
       - .github/workflows/apply-clean-dashboard-refactor.yml
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   refactor:
+    if: github.head_ref == 'clean/top-movers-creative-identity' || github.ref == 'refs/heads/clean/top-movers-creative-identity'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: clean/top-movers-creative-identity
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
