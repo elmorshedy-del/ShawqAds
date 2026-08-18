@@ -1,22 +1,21 @@
 name: Apply clean dashboard refactor
 
 on:
+  issue_comment:
+    types: [created]
   push:
     branches:
       - clean/top-movers-creative-identity
     paths:
       - scripts/refactor-top-movers-and-creatives.mjs
       - .github/workflows/apply-clean-dashboard-refactor.yml
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: write
 
 jobs:
   refactor:
-    if: github.head_ref == 'clean/top-movers-creative-identity' || github.ref == 'refs/heads/clean/top-movers-creative-identity'
+    if: github.event_name == 'push' || (github.event.issue.number == 90 && contains(github.event.comment.body, 'run-clean-refactor'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
