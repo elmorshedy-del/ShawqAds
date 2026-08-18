@@ -26,6 +26,25 @@ function rowsForTarget(rows, targetId) {
 }
 
 /**
+ * The pacing clock must use the advertiser/reporting timezone, not the viewer's
+ * browser timezone. Otherwise the chart can be correctly bucketed in Istanbul
+ * while the headline percentage compares spend with the wrong hour of that curve.
+ */
+export function reportingHour(timeZone = 'Europe/Istanbul', now = new Date()) {
+  try {
+    const hourPart = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(now).find((part) => part.type === 'hour');
+    const hour = Number(hourPart?.value);
+    return Number.isFinite(hour) ? clamp(hour, 0, 23) : now.getUTCHours();
+  } catch {
+    return now.getUTCHours();
+  }
+}
+
+/**
  * Median cumulative delivery share reached by an hour across completed days.
  * Falls back to linear clock progress until at least three historical days exist.
  */
@@ -193,8 +212,11 @@ export function isLiveTarget(target) {
 
 export function buildCampaignPacing(pacing, {
   today,
-  hour = new Date().getHours(),
+  hour,
 } = {}) {
+  const effectiveHour = Number.isFinite(Number(hour))
+    ? clamp(Number(hour), 0, 23)
+    : reportingHour(pacing?.timezone || 'Europe/Istanbul');
   const targets = (pacing?.targets || []).filter(isLiveTarget);
   if (!targets.length) {
     const hadTurnedOffOnly = Boolean(pacing?.targets?.length);
@@ -213,7 +235,7 @@ export function buildCampaignPacing(pacing, {
   const rows = targets.map((target) =>
     target.budget_type === 'lifetime'
       ? buildLifetimePace(target, pacing, today)
-      : buildDailyPace(target, pacing, today, hour));
+      : buildDailyPace(target, pacing, today, effectiveHour));
   const counts = rows.reduce((out, row) => {
     out[row.status] = (out[row.status] || 0) + 1;
     return out;
@@ -224,7 +246,7 @@ export function buildCampaignPacing(pacing, {
     timezone: pacing.timezone || 'Europe/Istanbul',
     currency: pacing.currency || 'USD',
     today,
-    hour,
+    hour: effectiveHour,
     rows: rows.sort((a, b) => {
       const priority = { stalled: 0, over: 1, under: 2, stale: 3, unknown: 4, on_track: 5, paused: 6 };
       return (priority[a.status] ?? 9) - (priority[b.status] ?? 9)
