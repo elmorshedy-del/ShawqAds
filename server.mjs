@@ -1799,15 +1799,47 @@ async function serveData(req, res, name, script) {
   streamJsonFile(res, file);
 }
 
+// These must mirror what the fetch scripts themselves accept. fetch-meta-insights.mjs
+// falls back to META_ACCESS_TOKEN / META_AD_ACCOUNT_ID, and fetch-shopify-products.mjs
+// defaults the store when it is unset — so gating the boot fetch on the SHAWQ_ names
+// alone skipped credentials the scripts could have used, with nothing logged to say why.
+function metaCredentials() {
+  return {
+    token: process.env.SHAWQ_META_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN || '',
+    account: process.env.SHAWQ_META_AD_ACCOUNT_ID || process.env.META_AD_ACCOUNT_ID || '',
+  };
+}
+
+function shopifyCredentials() {
+  return { token: process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN || '' };
+}
+
 async function warmData() {
-  if (!refreshOnStart) return;
-  const jobs = [];
-  if (process.env.SHAWQ_META_ACCESS_TOKEN && process.env.SHAWQ_META_AD_ACCOUNT_ID) jobs.push(runScript('fetch:meta'));
-  if (process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN && process.env.SHAWQ_SHOPIFY_STORE) {
-    jobs.push(runShopifyFetch());
+  if (!refreshOnStart) {
+    console.warn('Startup data refresh disabled (REFRESH_ON_START=false).');
+    return;
   }
+  const meta = metaCredentials();
+  const shopify = shopifyCredentials();
+  const jobs = [];
+
+  if (meta.token && meta.account) {
+    jobs.push(runScript('fetch:meta'));
+  } else {
+    const missing = [!meta.token && 'SHAWQ_META_ACCESS_TOKEN', !meta.account && 'SHAWQ_META_AD_ACCOUNT_ID']
+      .filter(Boolean)
+      .join(' and ');
+    console.warn(`Skipping Meta warm fetch: ${missing} not set.`);
+  }
+
+  if (shopify.token) {
+    jobs.push(runShopifyFetch());
+  } else {
+    console.warn('Skipping Shopify warm fetch: SHAWQ_SHOPIFY_ACCESS_TOKEN not set.');
+  }
+
   const results = jobs.length ? await Promise.all(jobs) : [];
-  if (process.env.SHAWQ_META_ACCESS_TOKEN || process.env.SHAWQ_SHOPIFY_ACCESS_TOKEN) {
+  if (meta.token || shopify.token) {
     results.push(await runScript('fetch:behavior', behaviorBackfillEnv()));
   }
   results.forEach((r) => { if (r.code !== 0) console.warn(r.output); });
