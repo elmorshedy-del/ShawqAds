@@ -59,6 +59,13 @@ function currentReportingDay() {
   }).format(new Date());
 }
 
+function shiftIsoDate(date: string, days: number) {
+  if (!date) return "";
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 function titleOf(kind: Kind, e?: LeaderLike | null) {
   if (!e) return "No sale captured";
   if (kind === "country") return `${e.flag ?? ""} ${e.country ?? e.name ?? "—"}`.trim();
@@ -237,8 +244,10 @@ export function TopMovers({ cards, focusLabel = "Today" }: TopMoversProps) {
   }, [cards, settled, todayScope]);
 
   const settledDay = settled?.windows?.hero?.until || "";
+  const reportingToday = currentReportingDay();
+  const expectedYesterday = shiftIsoDate(reportingToday, -1);
   const displayFocus = todayScope && settled
-    ? (settledDay ? "Yesterday" : "Latest completed")
+    ? (settledDay === expectedYesterday ? "Yesterday" : (settledDay || "Latest completed"))
     : focusLabel;
 
   return (
@@ -262,14 +271,17 @@ export function TopMovers({ cards, focusLabel = "Today" }: TopMoversProps) {
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3">
-        {displayCards.map((card, index) => (
-          <MoverCard
-            key={card.kind}
-            card={card}
-            focusLabel={displayFocus}
-            live={todayScope ? { ...(cards[index]?.hero || {}), partialDay: true } : null}
-          />
-        ))}
+        {displayCards.map((card, index) => {
+          const liveHero = cards[index]?.hero;
+          return (
+            <MoverCard
+              key={card.kind}
+              card={card}
+              focusLabel={displayFocus}
+              live={todayScope && liveHero ? { ...liveHero, partialDay: true } : null}
+            />
+          );
+        })}
       </div>
     </section>
   );
