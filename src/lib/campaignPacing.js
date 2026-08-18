@@ -57,13 +57,29 @@ export function expectedIntradayShare(hourlyRows = [], hour = 0, { minDays = 3 }
   };
 }
 
+/**
+ * Pace ratio means actual spend / expected spend *by now* — not percent of budget used.
+ *
+ * Very early in the reporting day small dollar moves create noisy ratios, so the
+ * first four hours intentionally use a wider tolerance band. Once four hours have
+ * elapsed, 85–115% of expected delivery is considered on pace. Keep this separate
+ * from budget utilization; the UI presents those as two different concepts.
+ */
 function paceStatus({ active, expected, actual, hour, hasCurrentData }) {
   if (!active) return 'paused';
   if (!hasCurrentData) return 'stale';
   if (expected <= 0) return 'unknown';
+
   const ratio = actual / expected;
-  if (ratio > 1.15) return 'over';
-  if (hour >= 4 && ratio < 0.7) return actual <= 0 ? 'stalled' : 'under';
+  const early = hour < 4;
+  const lowerBound = early ? 0.7 : 0.85;
+  const upperBound = early ? 1.3 : 1.15;
+
+  if (ratio > upperBound) return 'over';
+  if (ratio < lowerBound) {
+    if (!early && actual <= 0) return 'stalled';
+    return 'under';
+  }
   return 'on_track';
 }
 
@@ -106,6 +122,7 @@ function buildDailyPace(target, pacing, today, hour) {
     expected,
     budget,
     paceRatio: expected > 0 ? actual / expected : null,
+    budgetUsedShare: budget > 0 ? actual / budget : null,
     projected,
     remaining: Math.max(0, budget - actual),
     expectedShare: expectedShare.share,
@@ -134,6 +151,7 @@ function buildLifetimePace(target, pacing, today) {
       budget,
       expected: null,
       paceRatio: null,
+      budgetUsedShare: budget > 0 ? actual / budget : null,
       projected: null,
       remaining: Math.max(0, budget - actual),
       status: active ? 'unknown' : 'paused',
@@ -151,6 +169,7 @@ function buildLifetimePace(target, pacing, today) {
     expected,
     budget,
     paceRatio: expected > 0 ? actual / expected : null,
+    budgetUsedShare: budget > 0 ? actual / budget : null,
     projected,
     remaining: Math.max(0, budget - actual),
     expectedShare: elapsedShare,
@@ -176,9 +195,6 @@ export function buildCampaignPacing(pacing, {
   today,
   hour = new Date().getHours(),
 } = {}) {
-  // Turned-off campaigns cannot spend against today's budget, so they are not
-  // pacing rows. Older payloads were fetched before the upstream status filter
-  // existed and can still carry paused objects, so drop them here too.
   const targets = (pacing?.targets || []).filter(isLiveTarget);
   if (!targets.length) {
     const hadTurnedOffOnly = Boolean(pacing?.targets?.length);
@@ -294,7 +310,7 @@ export function buildCampaignPacingFindings(model) {
       findings.push({
         id: `pace-${row.id}`,
         tone: 'watch',
-        headline: `${row.name} is ${Math.round((row.paceRatio - 1) * 100)}% ahead of pace`,
+        headline: `${row.name} is ${Math.round((row.paceRatio - 1) * 100)}% ahead of expected delivery`,
         context: `${fmtMoney(row.actual)} spent against ${fmtMoney(row.expected)} expected by now; projected ${fmtMoney(row.projected)}.`,
         driver: '',
         action: 'Confirm the faster delivery is intentional before changing the budget.',
@@ -304,7 +320,7 @@ export function buildCampaignPacingFindings(model) {
       findings.push({
         id: `pace-${row.id}`,
         tone: 'watch',
-        headline: `${row.name} is ${Math.round((1 - row.paceRatio) * 100)}% behind pace`,
+        headline: `${row.name} is ${Math.round((1 - row.paceRatio) * 100)}% behind expected delivery`,
         context: `${fmtMoney(row.actual)} spent against ${fmtMoney(row.expected)} expected by now; projected ${fmtMoney(row.projected)}.`,
         driver: '',
         action: 'Check delivery constraints before raising budget; underdelivery is not necessarily lack of budget.',
