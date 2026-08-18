@@ -120,7 +120,16 @@ function topAd(meta, lines, range) {
     const name = adHint(line);
     const key = logicalCreativeKey(name);
     if (!key) continue;
-    const current = salesMap.get(key) || { name, orderIds: new Set(), revenue: 0 };
+
+    // Top Ad means a real Meta ad, not merely an attribution/source token.
+    // UTM values such as `link_in_bio` can describe where an order came from but
+    // are not ad names. Only accept a Shopify hint after it resolves to an exact
+    // logical creative present in Meta delivery for the same reporting window.
+    // Future editors: keep source/channel reporting separate from creative ranking.
+    const delivery = metaMap.get(key);
+    if (!delivery) continue;
+
+    const current = salesMap.get(key) || { name: delivery.name, orderIds: new Set(), revenue: 0 };
     const orderId = line.order_id || line.order_name || `${line.date}:${line.created_at || ''}:${key}`;
     current.orderIds.add(String(orderId));
     current.revenue += Number(line.line_revenue_usd || 0);
@@ -128,11 +137,11 @@ function topAd(meta, lines, range) {
   }
 
   const rows = [...salesMap.entries()].map(([key, sales]) => {
-    const delivery = metaMap.get(key) || { name: sales.name, category: 'Uncategorized', spend: 0 };
-    const spend = Number(delivery.spend || 0);
+    const delivery = metaMap.get(key);
+    const spend = Number(delivery?.spend || 0);
     return {
-      name: delivery.name || sales.name,
-      category: delivery.category,
+      name: delivery?.name || sales.name,
+      category: delivery?.category || 'Uncategorized',
       sales: sales.orderIds.size,
       revenue: sales.revenue,
       spend,
