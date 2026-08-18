@@ -40,12 +40,15 @@ const shopify = normalizeDashboardPayload('/api/data/shopify-products.json', {
     { date: '2026-08-13', orders: 1, revenue_usd: 80 },
     { date: '2026-08-14', orders: 1, revenue_usd: 80 },
     { date: '2026-08-15', orders: 1, revenue_usd: 80 },
-    { date: '2026-08-16', orders: 2, revenue_usd: 200 },
+    { date: '2026-08-16', orders: 3, revenue_usd: 1200 },
     { date: '2026-08-17', orders: 1, revenue_usd: 100 },
   ],
   order_lines: [
     { date: '2026-08-16', order_id: 'o1', quantity: 1, line_revenue_usd: 100, product: 'Tee', family: 'Tops', country_code: 'US', country: 'United States', attribution: { match_hints: { ad_name: 'Quote VO' } } },
     { date: '2026-08-16', order_id: 'o2', quantity: 1, line_revenue_usd: 100, product: 'Tee', family: 'Tops', country_code: 'US', country: 'United States', attribution: { match_hints: { ad_name: 'Quote VO - Copy 2' } } },
+    // This is an attribution/source label, not a Meta creative. Even with much
+    // higher revenue it must never become Top Ad.
+    { date: '2026-08-16', order_id: 'o-source', quantity: 1, line_revenue_usd: 1000, product: 'Tee', family: 'Tops', country_code: 'US', country: 'United States', attribution: { utm: { utm_content: 'link_in_bio' } } },
     { date: '2026-08-17', order_id: 'o3', quantity: 1, line_revenue_usd: 100, product: 'Tee', family: 'Tops', country_code: 'US', country: 'United States', attribution: { match_hints: { ad_name: 'Quote VO - Copy' } } },
   ],
 });
@@ -55,7 +58,8 @@ assert.equal(model.hero.ad.name, 'Quote VO');
 assert.equal(model.hero.ad.sales, 2, 'original + Copy orders merge into one logical creative');
 assert.equal(model.hero.ad.spend, 50, 'copy spend is summed before ROAS is computed');
 assert.equal(model.hero.ad.roas, 4, 'ROAS is recomputed from merged revenue / merged spend');
-assert.equal(model.hero.country.roas, 4, 'country hero uses the completed-day spend denominator');
+assert.notEqual(model.hero.ad.name, 'link_in_bio', 'source/UTM labels are not eligible Top Ads');
+assert.equal(model.hero.country.roas, 24, 'country hero uses all paid-order revenue over the completed-day country spend');
 assert.equal(model.thisWeek.ad, null, 'live Monday data is not allowed into the settled current-week card');
 assert.equal(model.lastWeek.ad.sales, 2, 'full prior week remains available for context');
 
