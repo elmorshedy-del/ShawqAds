@@ -1,0 +1,41 @@
+name: Refactor product friction layout
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/refactor-product-friction-layout.mjs
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply clean UI refactor
+        run: node scripts/refactor-product-friction-layout.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Regression checks
+        run: |
+          npm run test:render
+          npm run build
+      - name: Remove one-shot refactor machinery
+        run: |
+          rm scripts/refactor-product-friction-layout.mjs
+          rm .github/workflows/refactor-product-friction-layout.yml
+      - name: Commit clean source change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Align product friction with country rankings"
+          git push origin HEAD:main
