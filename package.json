@@ -34,6 +34,8 @@
     "test:customer-clock": "node scripts/customer-clock-test.mjs",
     "test:dashboard-scope": "node scripts/dashboard-scope-test.mjs",
     "test:campaign-pacing": "node scripts/campaign-pacing-test.mjs",
+    "test:spend-ledger": "node scripts/spend-ledger-test.mjs",
+    "test:meta-fetch-window": "node scripts/meta-fetch-window-test.mjs",
     "test:location-label": "node scripts/location-label-test.mjs",
     "test:order-merchandise": "node scripts/order-merchandise-test.mjs",
     "test:order-locality": "node scripts/order-locality-test.mjs",
