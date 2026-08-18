@@ -120,16 +120,22 @@ function buildDailyPace(target, pacing, today, hour) {
 
   let actualCumulative = 0;
   const hourlyCurve = Array.from({ length: 24 }, (_, curveHour) => {
-    const actualHour = todayHourly
-      .filter((row) => num(row.hour) === curveHour)
-      .reduce((sum, row) => sum + num(row.spend_usd), 0);
-    actualCumulative += actualHour;
+    const isObservedHour = curveHour <= hour;
+    const actualHour = isObservedHour
+      ? todayHourly
+        .filter((row) => num(row.hour) === curveHour)
+        .reduce((sum, row) => sum + num(row.spend_usd), 0)
+      : null;
+    if (isObservedHour) actualCumulative += num(actualHour);
     const curveShare = expectedIntradayShare(historicalHourly, curveHour);
     return {
       hour: curveHour,
       label: `${String(curveHour).padStart(2, '0')}:00`,
       actualHour,
-      actualCumulative,
+      // Future hours are unknown, not zero. Returning null makes the observed
+      // cumulative line stop at "now" instead of drawing a meaningless flat line
+      // across the rest of the day. The expected curve still extends to 23:00.
+      actualCumulative: isObservedHour ? actualCumulative : null,
       expectedCumulative: budget * curveShare.share,
     };
   });
