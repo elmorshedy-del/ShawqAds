@@ -3,6 +3,7 @@ import {
   buildCampaignPacingFindings,
   expectedIntradayShare,
   mergeLivePacing,
+  reportingHour,
 } from '../src/lib/campaignPacing.js';
 
 function assert(condition, message) {
@@ -24,6 +25,13 @@ assert(Math.abs(learned.share - 0.5) < 1e-9, 'historical share through hour 11 s
 const sparse = expectedIntradayShare(hourly.slice(0, 3), 11);
 assert(sparse.source === 'linear', 'an undersampled curve must fall back to clock progress');
 assert(Math.abs(sparse.share - 0.5) < 1e-9, 'linear fallback through hour 11 should be 50%');
+
+// Pacing and the hourly chart share one reporting clock. The viewer can be in New
+// York; the campaign still evaluates the expected curve at Istanbul local time.
+assert(
+  reportingHour('Europe/Istanbul', new Date('2026-08-17T13:05:00Z')) === 16,
+  'pacing hour must resolve in the advertiser timezone',
+);
 
 const pacing = {
   generated_at: '2026-08-04T12:00:00Z',
@@ -77,8 +85,20 @@ const pacing = {
 
 const model = buildCampaignPacing(pacing, { today: '2026-08-04', hour: 11 });
 const daily = model.rows.find((row) => row.id === 'campaign:1');
-assert(daily.status === 'over', '75 spent against 50 expected should be over pace');
+assert(daily.status === 'over', '75 spent against 50 expected should be ahead of pace');
 assert(daily.projected === 150, 'intraday projection should use the learned delivery share');
+assert(daily.budgetUsedShare === 0.75, 'budget utilization must be separate from expected-delivery pace');
+assert(daily.paceRatio === 1.5, 'pace ratio remains actual divided by expected-by-now');
+
+// After the early-day noise window, 80% of expected delivery is materially behind.
+const behindPacing = {
+  ...pacing,
+  targets: [pacing.targets[0]],
+  daily: [{ target_id: 'campaign:1', date: '2026-08-04', spend_usd: 40 }],
+};
+const behind = buildCampaignPacing(behindPacing, { today: '2026-08-04', hour: 11 }).rows[0];
+assert(behind.paceRatio === 0.8 && behind.status === 'under', '80% of expected delivery after hour 4 should be behind');
+
 // A switched-off ad set cannot spend against today's budget, so it is not a
 // pacing row at all — it used to render as a permanent "paused" line.
 assert(!model.rows.some((row) => row.id === 'adset:2'),
@@ -87,10 +107,8 @@ assert(!Object.hasOwn(model.counts, 'paused'),
   'the status roll-up must not carry a paused bucket any more');
 const flight = model.rows.find((row) => row.id === 'campaign:3');
 assert(flight.status === 'on_track', '40% of lifetime budget after 40% of flight should be on track');
-assert(buildCampaignPacingFindings(model).some((finding) => finding.headline.includes('ahead of pace')), 'overpace should produce a review finding');
+assert(buildCampaignPacingFindings(model).some((finding) => finding.headline.includes('ahead of expected delivery')), 'ahead status should use unambiguous expected-delivery language');
 
-// An account whose budgets are all switched off is a normal state, not an error,
-// and must not surface a raw Meta API envelope.
 const allPaused = buildCampaignPacing(
   { targets: [{ id: 'adset:9', budget_type: 'daily', budget_usd: 20, effective_status: 'PAUSED' }] },
   { today: '2026-08-04', hour: 11 },
