@@ -25,7 +25,10 @@ interface PaceRow {
   actual: number;
   expected: number | null;
   budget: number;
+  /** Actual spend / expected spend by this point in the reporting day. */
   paceRatio: number | null;
+  /** Actual spend / full daily or lifetime budget. Kept separate from paceRatio. */
+  budgetUsedShare?: number | null;
   projected: number | null;
   remaining: number;
   curveSource?: "historical" | "linear" | "flight";
@@ -108,6 +111,23 @@ function PacingTooltip({ active, payload, label }: any) {
       </div>
     </div>
   );
+}
+
+/**
+ * Human wording for actual / expected-by-now. Do not display the raw ratio as a
+ * percent: "74%" reads like budget utilization even though it means 26% behind
+ * the learned delivery curve.
+ */
+function paceVsExpected(row: PaceRow) {
+  if (row.paceRatio == null) return "—";
+  const delta = Math.round((row.paceRatio - 1) * 100);
+  if (Math.abs(delta) <= 1) return "On pace";
+  return delta > 0 ? `${delta}% ahead` : `${Math.abs(delta)}% behind`;
+}
+
+function budgetUsed(row: PaceRow) {
+  const share = row.budgetUsedShare ?? (row.budget > 0 ? row.actual / row.budget : null);
+  return share == null ? "—" : `${Math.round(share * 100)}%`;
 }
 
 export function CampaignPacing({ model }: { model: CampaignPacingModel }) {
@@ -221,16 +241,19 @@ export function CampaignPacing({ model }: { model: CampaignPacingModel }) {
             </div>
             <div className="grid grid-cols-3 gap-x-5 gap-y-1 text-right">
               <div>
-                <p className="text-xs text-muted-foreground">Pace</p>
-                <p className="text-sm font-semibold tabular-nums">{selected.paceRatio == null ? "—" : `${Math.round(selected.paceRatio * 100)}%`}</p>
+                <p className="text-xs text-muted-foreground">Vs expected</p>
+                <p className="text-sm font-semibold tabular-nums">{paceVsExpected(selected)}</p>
+                <p className="mt-0.5 text-[0.62rem] text-muted-foreground">{selected.expected == null ? "" : `${money(selected.actual)} / ${money(selected.expected)} now`}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Remaining</p>
-                <p className="text-sm font-semibold tabular-nums">{money(selected.remaining)}</p>
+                <p className="text-xs text-muted-foreground">Budget used</p>
+                <p className="text-sm font-semibold tabular-nums">{budgetUsed(selected)}</p>
+                <p className="mt-0.5 text-[0.62rem] text-muted-foreground">{money(selected.actual)} / {money(selected.budget)} · {money(selected.remaining)} left</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Projection</p>
+                <p className="text-xs text-muted-foreground">Projected close</p>
                 <p className="text-sm font-semibold tabular-nums">{selected.projected == null ? "—" : money(selected.projected)}</p>
+                <p className="mt-0.5 text-[0.62rem] text-muted-foreground">if today follows its learned curve</p>
               </div>
             </div>
           </div>
