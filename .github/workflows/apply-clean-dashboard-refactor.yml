@@ -1,5 +1,6 @@
 name: Apply clean dashboard refactor
 
+# One-shot workflow; the successful refactor removes this file from the branch.
 on:
   push:
     branches:
