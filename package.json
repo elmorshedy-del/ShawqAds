@@ -44,11 +44,13 @@
     "test:behavior-actions": "node scripts/behavior-actions-test.mjs",
     "test:behavior-persistence": "node scripts/behavior-persistence-test.mjs",
     "test:behavior-tiers": "node scripts/behavior-tiers-test.mjs",
+    "test:logical-creative": "node scripts/logical-creative-contract-test.mjs",
+    "test:top-movers": "node scripts/top-mover-settled-test.mjs",
     "memory:maintain": "agent-memory maintain --since main",
     "memory:graph": "agent-memory graph build",
     "memory:worklog": "agent-memory worklog checkpoint",
     "start": "node server.mjs",
-    "build:deploy": "npm run test:dashboard-scope && node --check scripts/fetch-meta-safe.mjs && npm run test:campaign-pacing && vite build"
+    "build:deploy": "npm run test:dashboard-scope && npm run test:logical-creative && npm run test:top-movers && node --check scripts/fetch-meta-safe.mjs && npm run test:campaign-pacing && vite build"
   },
   "dependencies": {
     "@nivo/bar": "latest",
