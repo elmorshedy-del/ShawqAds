@@ -157,12 +157,15 @@ export function CreativeTable({
               {sorted.map((creative, index) => (
                 <tr key={creative.key} className="border-b border-border/60 last:border-b-0">
                   <td className="px-4 py-3 tabular-nums text-muted-foreground">{index + 1}</td>
-                  <td className="max-w-[16rem] px-4 py-3">
-                    <div className="truncate font-medium" title={creative.name}>
+                  <td className="min-w-[18rem] max-w-[24rem] px-4 py-3 align-top">
+                    {/* Ad names are analytical identifiers, so never collapse them to a
+                        single ellipsis. The table already scrolls horizontally; let the
+                        identifier wrap while keeping metrics compact. */}
+                    <div className="font-medium leading-snug [overflow-wrap:anywhere]" title={creative.name}>
                       {creative.name}
                     </div>
                     {creative.category ? (
-                      <div className="truncate text-xs text-muted-foreground">{creative.category}</div>
+                      <div className="mt-0.5 text-xs leading-snug text-muted-foreground [overflow-wrap:anywhere]">{creative.category}</div>
                     ) : null}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">{money(creative.spend)}</td>

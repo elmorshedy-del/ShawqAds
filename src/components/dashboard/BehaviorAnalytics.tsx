@@ -365,27 +365,29 @@ function ProductRankRow({
   const name = row?.product || "Unknown product";
   const detail = [row?.family, row?.subtype].filter(Boolean).join(" · ");
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-surface px-2.5 py-2">
-      <span className="flex min-w-0 items-center gap-2 text-xs">
-        <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">{rank}</span>
+    <div className="rounded-lg border border-border/70 bg-surface px-3 py-3">
+      {/* Mobile is intentionally stacked: long product names must get the full row width
+          instead of competing with metrics and confidence for a narrow text column. */}
+      <div className="flex min-w-0 items-start gap-2.5">
+        <span className="w-4 shrink-0 pt-0.5 text-right text-xs tabular-nums text-muted-foreground">{rank}</span>
         {row?.image_url ? (
-          <img src={row.image_url} alt="" className="h-7 w-7 shrink-0 rounded-md object-cover" />
+          <img src={row.image_url} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover" />
         ) : (
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-soft font-display text-[0.65rem] font-semibold text-brand">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand-soft font-display text-[0.7rem] font-semibold text-brand">
             {(row?.family || name || "S").slice(0, 1)}
           </span>
         )}
-        <span className="min-w-0">
-          <span className="block break-words font-medium leading-snug">{name}</span>
-          {detail ? <span className="block break-words text-[0.6rem] leading-snug text-muted-foreground">{detail}</span> : null}
-        </span>
-      </span>
-      <div className="flex shrink-0 items-center gap-2 text-right">
-        <div>
-          <p className={cn("text-xs font-semibold tabular-nums", comparisonTextClass[tone])}>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug [overflow-wrap:anywhere]">{name}</p>
+          {detail ? <p className="mt-0.5 text-[0.65rem] leading-snug text-muted-foreground [overflow-wrap:anywhere]">{detail}</p> : null}
+        </div>
+      </div>
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-2.5 sm:ml-[4.35rem] sm:mt-2 sm:border-t-0 sm:pt-0">
+        <div className="min-w-0">
+          <p className={cn("text-sm font-semibold tabular-nums", comparisonTextClass[tone])}>
             {rateLabel(rate)} <span className="font-normal text-muted-foreground">abandon</span>
           </p>
-          <p className="text-[0.6rem] tabular-nums text-muted-foreground">
+          <p className="text-[0.65rem] tabular-nums text-muted-foreground">
             {abandoned}/{exposed}
             {vs == null ? "" : ` · ${ratePoints(vs)} vs avg`}
           </p>
