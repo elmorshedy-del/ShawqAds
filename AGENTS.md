@@ -75,6 +75,15 @@ Treat Gemini comments as a required pre-merge checklist, not optional feedback.
 - **Rule:** any series spread through `...meta` that is later used as a fallback must be
   date-filtered in the same function. Adding a new fallback source means adding a filter.
 
+### Incident: paid Top Movers admitted Shopify-only countries (Aug 2026)
+
+- **Symptom:** Yesterday's Top Country could show Sweden or Switzerland with no Meta spend,
+  while no corresponding campaign appeared in pacing, the ROAS tree, or Conversion.
+- **Cause:** `paidLines()` excluded email and tips but did not require campaign attribution.
+- **Rule:** paid Top Movers must use the same campaign gate as Conversion: direct campaign
+  ID/name first, otherwise country fallback only when one campaign owns at least 70% of
+  Meta spend in that country and window. Shopify-only orders stay out of paid rankings.
+
 ### Rule: never render an inference from absent data
 
 Deltas, all-time-high/low badges and month projections were still drawn for windows with
