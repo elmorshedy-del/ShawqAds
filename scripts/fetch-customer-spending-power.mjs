@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildCustomerSpendingPowerAnalysis } from '../src/lib/customerSpendingPower.js';
+import { loadUsAcsReference } from './lib/us-acs-reference.mjs';
 
 const envPaths = [process.env.ENV_FILE, path.resolve('.env')].filter(Boolean);
 for (const envPath of envPaths) {
@@ -27,7 +28,8 @@ const dataDir = process.env.DATA_DIR
     ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'shawq-data')
     : path.resolve('data'));
 const ACS_VINTAGE = process.env.SHAWQ_AFFLUENCE_ACS_VINTAGE || '2024';
-const ACS_URL = `https://api.census.gov/data/${ACS_VINTAGE}/acs/acs5?get=NAME,B19013_001E,B11001_001E&for=zip%20code%20tabulation%20area:*`;
+const ACS_PUBLIC_URL = `https://www.census.gov/data/developers/data-sets/acs-5year/${ACS_VINTAGE}.html`;
+const censusApiKey = process.env.SHAWQ_CENSUS_API_KEY || process.env.CENSUS_API_KEY || '';
 const censusCachePath = path.join(dataDir, `customer-spending-power-us-acs-${ACS_VINTAGE}.json`);
 const analysisCachePath = path.join(dataDir, 'customer-spending-power-analysis.json');
 const refreshHoursRaw = Number(process.env.SHAWQ_SPENDING_POWER_REFRESH_HOURS || 24);
@@ -163,34 +165,12 @@ async function getLifetimeOrders(since, until) {
 }
 
 async function loadUsReference() {
-  try {
-    const cached = JSON.parse(fs.readFileSync(censusCachePath, 'utf8'));
-    if (cached?.vintage === ACS_VINTAGE && Array.isArray(cached.rows) && cached.rows.length) return cached.rows;
-  } catch {}
-
-  const res = await fetch(ACS_URL, { headers: { accept: 'application/json' } });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Census ACS ${res.status}: ${text.slice(0, 500)}`);
-  const raw = JSON.parse(text);
-  const [headers, ...rows] = raw;
-  const idxIncome = headers.indexOf('B19013_001E');
-  const idxHouseholds = headers.indexOf('B11001_001E');
-  const idxZip = headers.indexOf('zip code tabulation area');
-  const parsed = rows.map((row) => ({
-    postal_code: String(row[idxZip] || ''),
-    area_income_usd: Number(row[idxIncome]),
-    households: Number(row[idxHouseholds]),
-  })).filter((row) => row.postal_code && row.area_income_usd > 0 && row.households > 0);
-
-  fs.mkdirSync(path.dirname(censusCachePath), { recursive: true });
-  fs.writeFileSync(censusCachePath, JSON.stringify({
-    provider: 'U.S. Census Bureau',
-    dataset: 'American Community Survey 5-year',
+  const result = await loadUsAcsReference({
     vintage: ACS_VINTAGE,
-    fetched_at: new Date().toISOString(),
-    rows: parsed,
-  }));
-  return parsed;
+    cachePath: censusCachePath,
+    apiKey: censusApiKey,
+  });
+  return result.rows;
 }
 
 function readAnalysisCache() {
@@ -298,7 +278,7 @@ async function main() {
       geography: 'ZIP Code Tabulation Area (ZCTA)',
       income_variable: 'B19013_001E — Median household income',
       household_variable: 'B11001_001E — Total households',
-      url: ACS_URL,
+      url: ACS_PUBLIC_URL,
     },
   });
   analysis.generated_at = new Date().toISOString();

@@ -1,9 +1,19 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   buildCustomerSpendingPowerAnalysis,
   linearRegression,
   weightedIncomePercentiles,
 } from '../src/lib/customerSpendingPower.js';
+import {
+  buildCensusApiUrl,
+  buildCensusReporterUrls,
+  loadUsAcsReference,
+  parseCensusAcsRows,
+  parseCensusReporterRows,
+} from './lib/us-acs-reference.mjs';
 
 const pct = weightedIncomePercentiles([
   { postal_code: '10001', area_income_usd: 50000, households: 100 },
@@ -21,6 +31,67 @@ const regression = linearRegression([
 assert.equal(regression.slope, 2);
 assert.equal(regression.intercept, 0);
 assert.equal(regression.r2, 1);
+
+const officialRows = parseCensusAcsRows([
+  ['NAME', 'B19013_001E', 'B11001_001E', 'zip code tabulation area'],
+  ['ZCTA5 10001', '101234', '12000', '10001'],
+  ['ZCTA5 00000', '-666666666', '10', '00000'],
+]);
+assert.deepEqual(officialRows, [
+  { postal_code: '10001', area_income_usd: 101234, households: 12000 },
+]);
+
+const reporterPayload = {
+  data: {
+    '86000US10001': {
+      B19013: { estimate: { B19013001: 101234 } },
+      B11001: { estimate: { B11001001: 12000 } },
+    },
+  },
+};
+assert.deepEqual(parseCensusReporterRows(reporterPayload), officialRows);
+
+const keyedCensusUrl = new URL(buildCensusApiUrl('2024', 'test-key'));
+assert.equal(keyedCensusUrl.searchParams.get('key'), 'test-key');
+assert.equal(keyedCensusUrl.searchParams.get('for'), 'zip code tabulation area:*');
+const reporterUrls = buildCensusReporterUrls('2024', ['36', '34']);
+assert.equal(reporterUrls.length, 2, 'fallback requests one state expansion per URL');
+assert.equal(new URL(reporterUrls[0]).searchParams.get('geo_ids'), '860|04000US36');
+assert.equal(reporterUrls[0].includes('/acs2024_5yr?'), true);
+
+const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shawq-acs-test-'));
+try {
+  const cachePath = path.join(tempDir, 'acs.json');
+  const calls = [];
+  const fallback = await loadUsAcsReference({
+    vintage: '2024',
+    cachePath,
+    reporterStateFips: ['36'],
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(reporterPayload),
+      };
+    },
+  });
+  assert.equal(fallback.access, 'census_reporter');
+  assert.equal(fallback.rows.length, 1);
+  assert.equal(calls.length, 1, 'no Census API request is made when no key is configured');
+  assert.equal(calls[0].includes('api.censusreporter.org'), true);
+
+  const cached = await loadUsAcsReference({
+    vintage: '2024',
+    cachePath,
+    reporterStateFips: ['36'],
+    fetchImpl: async () => { throw new Error('network should not be used when durable cache exists'); },
+  });
+  assert.equal(cached.access, 'durable_cache');
+  assert.deepEqual(cached.rows, fallback.rows);
+} finally {
+  fs.rmSync(tempDir, { recursive: true, force: true });
+}
 
 const analysis = buildCustomerSpendingPowerAnalysis({
   lifetimeSince: '2020-01-01',
