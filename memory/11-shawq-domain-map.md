@@ -1,6 +1,6 @@
 # ShawQ domain map (read before grepping)
 
-**Last Updated:** 2026-08-04
+**Last Updated:** 2026-09-03
 
 Use this file to find code by feature. Open the listed paths directly instead of searching the whole repo.
 
@@ -59,7 +59,7 @@ Use this file to find code by feature. Open the listed paths directly instead of
 2. **KPI all-time highs** — intraday requires strict beat (`>`); confetti only on `strictBeat`; records scoped to launch date.
 3. **Item count** — use `orderMerchandise.js` / `merchandiseItemCount()`; tips excluded from merchandise count.
 4. **UAE/EU locations** — `orderLocality.js`: compound city strings fall back to province; country-as-city falls back to province.
-5. **Merge without Gemini review** — always poll `gemini-code-assist` before merge (see `AGENTS.md`).
+5. **Review workflow** — Gemini Code Assist is retired as a required gate. Do not poll it or block merges on it; validate with relevant tests/builds, diff inspection, and available review feedback.
 6. **Unwindowed fallback series** — every series returned by `filterMetaDataByDateRange` must be
    date-filtered. `daily_metrics` was not, so a window with no Meta rows fell through to
    full-history spend and reported it as that window's spend.

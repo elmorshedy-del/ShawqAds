@@ -7,37 +7,16 @@ Cursor Cloud Agents read this file automatically. Follow it on every task.
 1. Branch from `main` using `cursor/<descriptive-name>-d573`.
 2. Commit and push before testing; update the PR after each meaningful iteration.
 3. Open a **draft** PR against `main` unless the user asks otherwise.
-4. **Wait for Gemini Code Assist review before merging.** Do not merge until Gemini has commented on the PR.
-5. Address actionable Gemini feedback (critical and medium first), push fixes, then merge.
-6. If the user approves merge but Gemini has not reviewed yet, wait for Gemini — do not merge early.
+4. Run the relevant test/build checks for the changed subsystem and inspect the diff for unrelated edits.
+5. Address actionable review feedback when review is available.
+6. Mark the PR ready and merge when the change is validated and the user has authorized shipping it.
 
-### Gemini review gate (required every time)
+### Review policy
 
-After pushing a PR:
-
-1. Check for a review from `gemini-code-assist` (from the PR branch):
-   ```bash
-   gh pr view --json reviews,comments
-   PR_NUM=$(gh pr view --json number --jq .number)
-   gh api repos/elmorshedy-del/ShawqAds/pulls/$PR_NUM/reviews
-   gh api repos/elmorshedy-del/ShawqAds/pulls/$PR_NUM/comments
-   ```
-   Use `/reviews` for review summaries; use `/comments` for inline diff comments.
-2. If no Gemini review yet, **keep polling autonomously** — do not ask the user to prompt again. Poll several times in the same session (e.g. 30–60s apart, up to 5 times max) before ending the turn. On the next session, poll again first if the PR is still open.
-3. Read inline comments and the review summary; fix real bugs and worthwhile suggestions.
-4. Push follow-up commits addressing feedback, then re-check that nothing new is blocking.
-5. Only then: mark the PR ready (if draft) and merge.
-
-**Never merge a PR without a Gemini review pass**, even for small UI-only changes.
-
-When waiting for Gemini, report status briefly (e.g. “PR #22 open — polling for Gemini”) and continue polling yourself rather than asking the user to check back.
-
-### What Gemini caught before (PR #18)
-
-- **Critical:** Accidentally removed still-used imports (`DataTable`, `adapt`) — would crash at runtime.
-- **Medium:** Redundant work in hot loops, unstable sort ties, overly narrow TypeScript prop types.
-
-Treat Gemini comments as a required pre-merge checklist, not optional feedback.
+- **Gemini Code Assist is not a required reviewer and must not be polled.** The previous Gemini merge gate has been retired.
+- Do not block a PR or merge waiting for `gemini-code-assist` comments or reviews.
+- External review is useful when available, but validation is based on relevant automated tests, build checks, diff inspection, and any review feedback that actually exists.
+- If a reviewer is unavailable or a bot is down, continue using the normal validation workflow instead of waiting.
 
 ## Git
 
@@ -100,7 +79,6 @@ and name the actual record date rather than hardcoding "Yesterday".
 | Layer | Location | Loads how |
 |-------|----------|-----------|
 | **Project instructions + lessons** | `AGENTS.md` | Cloud Agent reads every task |
-| **Gemini review gate** | `.cursor/rules/gemini-review-gate.mdc` | `alwaysApply: true` — never merge without Gemini |
 | **Karpathy guidelines** | `.cursor/rules/karpathy-guidelines.mdc` | `alwaysApply: true` |
 | **Repo memory (AMS)** | `.cursor/rules/ams-memory.mdc` + `memory/` | `alwaysApply: true` — read before grepping |
 | **Session memory behavior** | `.cursor/rules/agentmemory.mdc` | `alwaysApply: true` |
