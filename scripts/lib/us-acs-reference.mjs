@@ -10,6 +10,7 @@ export const US_STATE_FIPS = [
 
 const REPORTER_CONCURRENCY = 4;
 const REPORTER_BASE = 'https://api.censusreporter.org/1.0/data/show';
+const PROJECT_USER_AGENT = 'ShawqAds/1.0 (+https://github.com/elmorshedy-del/ShawqAds; customer-spending-power)';
 
 function finitePositive(value) {
   const n = Number(value);
@@ -82,7 +83,12 @@ export function buildCensusReporterUrls(vintage = '2024', stateFips = US_STATE_F
 }
 
 async function fetchJson(url, label, fetchImpl) {
-  const res = await fetchImpl(url, { headers: { accept: 'application/json' } });
+  const res = await fetchImpl(url, {
+    headers: {
+      accept: 'application/json',
+      'user-agent': PROJECT_USER_AGENT,
+    },
+  });
   const text = await res.text();
   if (!res.ok) throw new Error(`${label} ${res.status}: ${text.slice(0, 500)}`);
   try {
