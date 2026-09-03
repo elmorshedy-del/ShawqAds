@@ -76,7 +76,8 @@
     "rrweb-player": "^2.0.1",
     "tailwind-merge": "latest",
     "tailwindcss": "latest",
-    "topojson-client": "^3.1.0",
+    "topojson-client": "^2.0.2",
+    "tw-animate-css": "latest",
     "typescript": "latest",
     "vite": "latest",
     "world-atlas": "^2.0.2"
