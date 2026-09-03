@@ -3,10 +3,11 @@
 This repo already carries two force-loaded docs written for other agent tools. Read both
 before making changes — don't duplicate their content here, this file just points to them:
 
-1. **`AGENTS.md`** (repo root) — process rules: PR workflow, branch naming, the mandatory
-   Gemini-review wait before merging, and a "Scope discipline" section with real incident
-   postmortems worth reading before touching KPI/date-range code. Written for Cursor Cloud
-   Agents but the rules apply regardless of which agent is making the change.
+1. **`AGENTS.md`** (repo root) — process rules: PR workflow, branch naming, validation and
+   review policy, and a "Scope discipline" section with real incident postmortems worth
+   reading before touching KPI/date-range code. Written for Cursor Cloud Agents but the
+   rules apply regardless of which agent is making the change. Gemini Code Assist is not a
+   required reviewer and must not be polled or treated as a merge gate.
 2. **`.claude/skills/shawqads-repo-guide/SKILL.md`** — architecture, file map, and a
    debugging playbook for this specific dashboard, built from a full first-pass exploration
    so you don't have to repeat it. Load it (the `Skill` tool) at the start of any bug fix,
