@@ -141,9 +141,6 @@ export function buildCustomerSpendingPowerAnalysis({
     current.lifetime_spend += revenue;
     current.orders += 1;
 
-    // Economic-area exposure is fixed to the earliest paid order, including when
-    // that first area is unsupported. A later move must not silently turn a customer
-    // into a US acquisition just because the later ZIP is easier to enrich.
     if (isEarlierOrder(orderDate, current.first_order_at)) {
       current.first_order_at = orderDate;
       current.country_code = countryCode;
@@ -185,7 +182,7 @@ export function buildCustomerSpendingPowerAnalysis({
   points.forEach((point) => {
     point.fitted_spend = regression.slope == null || regression.intercept == null
       ? null
-      : Math.max(0, regression.intercept + regression.slope * point.area_income_usd);
+      : regression.intercept + regression.slope * point.area_income_usd;
   });
   points.sort((a, b) => a.area_income_usd - b.area_income_usd || a.lifetime_spend - b.lifetime_spend);
 
