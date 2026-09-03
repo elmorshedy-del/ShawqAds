@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildCustomerSpendingPowerAnalysis } from '../src/lib/customerSpendingPower.js';
@@ -28,6 +29,13 @@ const dataDir = process.env.DATA_DIR
 const ACS_VINTAGE = process.env.SHAWQ_AFFLUENCE_ACS_VINTAGE || '2024';
 const ACS_URL = `https://api.census.gov/data/${ACS_VINTAGE}/acs/acs5?get=NAME,B19013_001E,B11001_001E&for=zip%20code%20tabulation%20area:*`;
 const censusCachePath = path.join(dataDir, `customer-spending-power-us-acs-${ACS_VINTAGE}.json`);
+const analysisCachePath = path.join(dataDir, 'customer-spending-power-analysis.json');
+const refreshHoursRaw = Number(process.env.SHAWQ_SPENDING_POWER_REFRESH_HOURS || 24);
+const analysisRefreshMs = Number.isFinite(refreshHoursRaw) && refreshHoursRaw > 0
+  ? refreshHoursRaw * 60 * 60 * 1000
+  : 24 * 60 * 60 * 1000;
+const forceRefresh = process.env.SHAWQ_SPENDING_POWER_FORCE === 'true';
+const customerHashSecret = process.env.SHAWQ_CUSTOMER_HASH_SECRET || token || '';
 
 function dateInTimezone(date = new Date(), timeZone = reportingTimezone) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -72,6 +80,18 @@ async function shopMetadata() {
   return JSON.parse(text).shop || {};
 }
 
+async function accessScopes() {
+  const url = new URL(`https://${store}/admin/oauth/access_scopes.json`);
+  try {
+    const res = await fetch(url, { headers: { 'X-Shopify-Access-Token': token } });
+    if (!res.ok) return null;
+    const payload = await res.json();
+    return new Set((payload.access_scopes || []).map((scope) => String(scope.handle || '')));
+  } catch {
+    return null;
+  }
+}
+
 function addressFor(order = {}) {
   const shipping = order.shipping_address;
   const billing = order.billing_address;
@@ -83,6 +103,36 @@ function addressFor(order = {}) {
 function normalizeUsPostal(value = '') {
   const match = String(value || '').trim().match(/^(\d{5})/);
   return match?.[1] || '';
+}
+
+function normalizePostal(value = '', countryCode = '') {
+  return countryCode === 'US'
+    ? normalizeUsPostal(value)
+    : String(value || '').trim().toUpperCase().replace(/\s+/g, ' ').slice(0, 24);
+}
+
+function normalizeIdentityPart(value = '') {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function guestAddressIdentity(address = {}) {
+  return [
+    address.country_code || address.country,
+    address.province_code || address.province,
+    address.city,
+    address.zip,
+    address.address1,
+    address.address2,
+  ].map(normalizeIdentityPart).filter(Boolean).join('|');
+}
+
+function customerKeyFor(order = {}, address = {}) {
+  const shopifyId = String(order.customer?.id || '').trim();
+  if (shopifyId) return { key: `shopify:${shopifyId}`, basis: 'shopify_customer' };
+  const identity = guestAddressIdentity(address);
+  if (!identity || !customerHashSecret) return { key: '', basis: 'unidentified' };
+  const digest = crypto.createHmac('sha256', customerHashSecret).update(identity).digest('hex');
+  return { key: `guest:${digest}`, basis: 'address_hmac' };
 }
 
 function orderRevenue(order = {}) {
@@ -143,6 +193,25 @@ async function loadUsReference() {
   return parsed;
 }
 
+function readAnalysisCache() {
+  try {
+    const cached = JSON.parse(fs.readFileSync(analysisCachePath, 'utf8'));
+    return cached?.methodology?.name === 'Customer Spending Power' ? cached : null;
+  } catch {
+    return null;
+  }
+}
+
+function cacheIsFresh(analysis) {
+  const generatedAt = Date.parse(analysis?.generated_at || '');
+  return Number.isFinite(generatedAt) && Date.now() - generatedAt < analysisRefreshMs;
+}
+
+function writeAnalysisCache(analysis) {
+  fs.mkdirSync(path.dirname(analysisCachePath), { recursive: true });
+  fs.writeFileSync(analysisCachePath, JSON.stringify(analysis, null, 2));
+}
+
 function attachAnalysis(analysis) {
   if (!fs.existsSync(outPath)) throw new Error(`Missing ${outPath}; run the Shopify fetch first.`);
   const current = JSON.parse(fs.readFileSync(outPath, 'utf8'));
@@ -150,19 +219,29 @@ function attachAnalysis(analysis) {
   fs.writeFileSync(outPath, JSON.stringify(current, null, 2));
 }
 
-function attachUnavailable(error) {
+function attachUnavailable(error, fallback = null) {
   if (!fs.existsSync(outPath)) return;
   try {
     const current = JSON.parse(fs.readFileSync(outPath, 'utf8'));
-    current.customer_spending_power = {
-      status: 'unavailable',
-      scope: 'lifetime',
-      error: error.message,
-      methodology: {
-        name: 'Customer Spending Power',
-        note: 'The base Shopify dashboard remains usable; spending-power enrichment will retry on the next Shopify refresh.',
-      },
-    };
+    current.customer_spending_power = fallback
+      ? {
+          ...fallback,
+          stale: true,
+          refresh_error: error.message,
+          methodology: {
+            ...(fallback.methodology || {}),
+            note: `${fallback.methodology?.note || ''} Latest refresh failed; showing the last durable analysis.`.trim(),
+          },
+        }
+      : {
+          status: 'unavailable',
+          scope: 'lifetime',
+          error: error.message,
+          methodology: {
+            name: 'Customer Spending Power',
+            note: 'The base Shopify dashboard remains usable; spending-power enrichment will retry on the next Shopify refresh.',
+          },
+        };
     fs.writeFileSync(outPath, JSON.stringify(current, null, 2));
   } catch {}
 }
@@ -170,12 +249,21 @@ function attachUnavailable(error) {
 async function main() {
   if (!token || !store) throw new Error('Missing SHAWQ_SHOPIFY_ACCESS_TOKEN or SHAWQ_SHOPIFY_STORE.');
   const shop = await shopMetadata();
+  const cachedAnalysis = readAnalysisCache();
+  if (!forceRefresh && cachedAnalysis && cacheIsFresh(cachedAnalysis)) {
+    attachAnalysis(cachedAnalysis);
+    console.log(`Customer spending power: reused durable lifetime analysis from ${cachedAnalysis.generated_at}.`);
+    return;
+  }
+
   const storeCreated = String(shop.created_at || '').slice(0, 10);
   const lifetimeSince = process.env.SHOPIFY_SPENDING_POWER_SINCE
     || process.env.SHOPIFY_LIFETIME_SINCE
     || storeCreated
     || '2010-01-01';
   const lifetimeUntil = process.env.SHOPIFY_SPENDING_POWER_UNTIL || dateInTimezone(new Date(), reportingTimezone);
+  const scopes = await accessScopes();
+  const hasReadAllOrders = scopes ? scopes.has('read_all_orders') : null;
 
   const rawOrders = await getLifetimeOrders(lifetimeSince, lifetimeUntil);
   const includeStatus = new Set(['paid', 'partially_paid', 'partially_refunded']);
@@ -183,12 +271,14 @@ async function main() {
   const analysisOrders = included.map((order) => {
     const address = addressFor(order);
     const countryCode = String(address.country_code || '').toUpperCase();
+    const customer = customerKeyFor(order, address);
     return {
       order_id: String(order.id || ''),
       created_at: order.created_at || '',
-      customer_id: String(order.customer?.id || ''),
+      customer_id: customer.key,
+      customer_key_basis: customer.basis,
       country_code: countryCode,
-      postal_code: countryCode === 'US' ? normalizeUsPostal(address.zip) : '',
+      postal_code: normalizePostal(address.zip, countryCode),
       revenue: orderRevenue(order),
     };
   });
@@ -212,6 +302,10 @@ async function main() {
     },
   });
   analysis.generated_at = new Date().toISOString();
+  const earliestPulledOrderAt = rawOrders
+    .map((order) => order.created_at || '')
+    .filter(Boolean)
+    .sort()[0] || '';
   analysis.shop = {
     created_at: shop.created_at || '',
     lifetime_since_source: process.env.SHOPIFY_SPENDING_POWER_SINCE || process.env.SHOPIFY_LIFETIME_SINCE
@@ -219,16 +313,27 @@ async function main() {
       : storeCreated
         ? 'Shopify shop created_at'
         : 'fallback floor',
+    requested_since: lifetimeSince,
+    requested_until: lifetimeUntil,
     pulled_orders: rawOrders.length,
     included_orders: included.length,
+    earliest_pulled_order_at: earliestPulledOrderAt,
+    read_all_orders_scope: hasReadAllOrders,
+    history_access: hasReadAllOrders === true
+      ? 'full-history scope confirmed'
+      : hasReadAllOrders === false
+        ? 'read_all_orders scope not present; Shopify may restrict older orders'
+        : 'access-scope check unavailable; lifetime request was still attempted',
   };
+  writeAnalysisCache(analysis);
   attachAnalysis(analysis);
-  console.log(`Customer spending power: ${analysis.coverage?.matched_customers || 0}/${analysis.coverage?.identified_customers || 0} identified customers matched; lifetime since ${lifetimeSince}.`);
+  console.log(`Customer spending power: ${analysis.coverage?.matched_customers || 0}/${analysis.coverage?.identified_customers || 0} identified customers matched; lifetime request since ${lifetimeSince}.`);
 }
 
+const staleFallback = readAnalysisCache();
 main().catch((error) => {
   console.warn(`Customer spending power enrichment unavailable: ${error.message}`);
-  attachUnavailable(error);
+  attachUnavailable(error, staleFallback);
   // Do not take down the core Shopify refresh when an external enrichment source is unavailable.
   process.exitCode = 0;
 });
