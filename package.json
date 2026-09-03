@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 5178",
     "fetch:meta": "node scripts/fetch-meta-safe.mjs",
-    "fetch:shopify": "node scripts/fetch-shopify-products.mjs",
+    "fetch:shopify": "node scripts/fetch-shopify-products.mjs && node scripts/fetch-customer-spending-power.mjs",
     "fetch:behavior": "node scripts/fetch-behavior-intelligence.mjs",
     "fetch:all": "npm run fetch:meta && npm run fetch:shopify && npm run fetch:behavior",
     "test:session-events": "node scripts/session-events-smoke-test.mjs",
@@ -28,6 +28,7 @@
     "test:revenue-scope": "node scripts/revenue-scope-test.mjs",
     "test:historical-insights": "node scripts/historical-insights-test.mjs",
     "test:stats": "node scripts/stats-tests.mjs",
+    "test:customer-spending-power": "node scripts/customer-spending-power-test.mjs",
     "test:insights": "node scripts/analytics-insights-test.mjs",
     "test:stress": "node scripts/insight-stress-test.mjs",
     "test:tab-insights": "node scripts/tab-insights-test.mjs",
@@ -50,7 +51,7 @@
     "memory:graph": "agent-memory graph build",
     "memory:worklog": "agent-memory worklog checkpoint",
     "start": "node server.mjs",
-    "build:deploy": "npm run test:dashboard-scope && npm run test:logical-creative && npm run test:top-movers && node --check scripts/fetch-meta-safe.mjs && npm run test:campaign-pacing && vite build"
+    "build:deploy": "npm run test:dashboard-scope && npm run test:logical-creative && npm run test:top-movers && npm run test:customer-spending-power && node --check scripts/fetch-meta-safe.mjs && node --check scripts/fetch-customer-spending-power.mjs && npm run test:campaign-pacing && vite build"
   },
   "dependencies": {
     "@nivo/bar": "latest",
