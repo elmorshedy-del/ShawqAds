@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Globe2 } from "lucide-react";
 import { familyColors, fmtCurrency, type CountrySales } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
+import { CustomerSpendingPower } from "@/components/dashboard/CustomerSpendingPower";
 
 // Conversion count, not unit quantity, determines whether a market has enough
 // independent outcomes to colour its ROAS as a verdict. One bulk order can contain
@@ -111,34 +112,38 @@ export function CountrySalesPanel({
   scopeLabel?: string;
 }) {
   return (
-    <div className="panel min-w-0 overflow-hidden p-4 sm:p-6">
-      <div className="min-w-0">
+    <div className="space-y-7">
+      <div className="panel min-w-0 overflow-hidden p-4 sm:p-6">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
-              <Globe2 className="h-4 w-4" />
-            </span>
-            <h2 className="font-display text-base font-semibold tracking-tight sm:text-lg">
-              Country sales + ROAS
-            </h2>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+                <Globe2 className="h-4 w-4" />
+              </span>
+              <h2 className="font-display text-base font-semibold tracking-tight sm:text-lg">
+                Country sales + ROAS
+              </h2>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Per-market revenue, spend and product mix · {scopeLabel || "selected window"} · tap a country for detail
+            </p>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Per-market revenue, spend and product mix · {scopeLabel || "selected window"} · tap a country for detail
-          </p>
         </div>
+
+        {countries.length ? (
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {countries.map((c, i) => (
+              <CountryRow key={c.country} c={c} delay={i * 40} />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-5 rounded-xl border border-dashed border-border bg-surface-2/40 px-4 py-10 text-center text-sm text-muted-foreground">
+            No country sales in the selected window.
+          </div>
+        )}
       </div>
 
-      {countries.length ? (
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {countries.map((c, i) => (
-            <CountryRow key={c.country} c={c} delay={i * 40} />
-          ))}
-        </div>
-      ) : (
-        <div className="mt-5 rounded-xl border border-dashed border-border bg-surface-2/40 px-4 py-10 text-center text-sm text-muted-foreground">
-          No country sales in the selected window.
-        </div>
-      )}
+      <CustomerSpendingPower />
     </div>
   );
 }
