@@ -126,9 +126,9 @@ async function fetchOfficialReference({ vintage, apiKey, fetchImpl }) {
   };
 }
 
-async function fetchReporterReference({ vintage, fetchImpl }) {
+async function fetchReporterReference({ vintage, fetchImpl, stateFips }) {
   const byPostal = new Map();
-  const urls = buildCensusReporterUrls(vintage);
+  const urls = buildCensusReporterUrls(vintage, stateFips);
   for (let i = 0; i < urls.length; i += REPORTER_CONCURRENCY) {
     const batch = urls.slice(i, i + REPORTER_CONCURRENCY);
     const payloads = await Promise.all(batch.map((url) => fetchJson(url, 'Census Reporter ACS', fetchImpl)));
@@ -151,6 +151,7 @@ export async function loadUsAcsReference({
   cachePath,
   apiKey = '',
   fetchImpl = fetch,
+  reporterStateFips = US_STATE_FIPS,
 } = {}) {
   if (!cachePath) throw new Error('A cachePath is required for the U.S. ACS reference.');
 
@@ -169,7 +170,7 @@ export async function loadUsAcsReference({
 
   if (!result) {
     try {
-      result = await fetchReporterReference({ vintage, fetchImpl });
+      result = await fetchReporterReference({ vintage, fetchImpl, stateFips: reporterStateFips });
     } catch (reporterError) {
       if (officialError) {
         throw new Error(`${officialError.message}; Census Reporter fallback failed: ${reporterError.message}`);
