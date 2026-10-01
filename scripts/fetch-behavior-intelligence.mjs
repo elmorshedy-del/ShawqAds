@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { createInterface } from 'node:readline';
 import { productTaxonomyForName } from '../src/lib/productMapping.js';
 import { normalizePagePath, pagePathLabel } from '../src/lib/pagePath.js';
 import { isBrandPage, pageCategory, brandPageName, BRAND_MISSION_PAGES, SHAWQ_BLOG_PREFIX } from '../src/lib/pageCategory.js';
@@ -249,12 +250,21 @@ function checkoutFacts(checkouts = [], { timezone, imageMap }) {
   return facts;
 }
 
-function parseNdjson(file) {
+async function parseNdjson(file, transform = (row) => row) {
   if (!fs.existsSync(file)) return [];
-  const text = fs.readFileSync(file, 'utf8');
-  return text.split(/\r?\n/).filter(Boolean).flatMap((line) => {
-    try { return [JSON.parse(line)]; } catch { return []; }
-  });
+  const rows = [];
+  const input = fs.createReadStream(file, { encoding: 'utf8' });
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  for await (const line of lines) {
+    if (!line) continue;
+    try {
+      const parsed = transform(JSON.parse(line));
+      if (parsed != null) rows.push(parsed);
+    } catch {
+      // Ignore malformed/incomplete NDJSON rows; the event collector is append-only.
+    }
+  }
+  return rows;
 }
 
 function rawEventName(raw = {}) {
@@ -310,23 +320,26 @@ function countryFromEvent(raw = {}) {
   return checkoutCountry(checkout);
 }
 
+function normalizeSessionEvent(raw = {}, timezone) {
+  const ts = eventTimestamp(raw);
+  const country = countryFromEvent(raw);
+  const event = {
+    date: dayFor(ts, timezone),
+    ts,
+    event_name: rawEventName(raw),
+    session_hash: eventSessionKey(raw),
+    path: eventPath(raw),
+    href: rawHref(raw),
+    referrer: eventReferrer(raw),
+    country_code: country.country_code,
+    country: country.country,
+    line_items: lineItemsFromEvent(raw),
+  };
+  return event.event_name && event.session_hash ? event : null;
+}
+
 function normalizeSessionEvents(rawRows = [], timezone) {
-  return rawRows.map((raw) => {
-    const ts = eventTimestamp(raw);
-    const country = countryFromEvent(raw);
-    return {
-      date: dayFor(ts, timezone),
-      ts,
-      event_name: rawEventName(raw),
-      session_hash: eventSessionKey(raw),
-      path: eventPath(raw),
-      href: rawHref(raw),
-      referrer: eventReferrer(raw),
-      country_code: country.country_code,
-      country: country.country,
-      line_items: lineItemsFromEvent(raw),
-    };
-  }).filter((event) => event.event_name && event.session_hash);
+  return rawRows.map((raw) => normalizeSessionEvent(raw, timezone)).filter(Boolean);
 }
 
 function aggregateSessionFacts(events = []) {
@@ -942,8 +955,12 @@ try {
   console.warn(`Could not fetch Meta payment info: ${error.message}`);
 }
 
-const rawSessionEvents = parseNdjson(sessionEventsPath);
-const allSessionEvents = normalizeSessionEvents(rawSessionEvents, shopifyTimezone);
+// Stream the append-only event log so large Railway volumes never become one giant
+// JavaScript string. Normalize each row immediately so raw payloads are not retained in memory.
+const allSessionEvents = await parseNdjson(
+  sessionEventsPath,
+  (raw) => normalizeSessionEvent(raw, shopifyTimezone),
+);
 const sessionEvents = allSessionEvents.filter((event) => event.date >= since && event.date <= until);
 const fullSessionAgg = aggregateSessionFacts(allSessionEvents);
 const sessionAgg = aggregateSessionFacts(sessionEvents);
