@@ -1884,6 +1884,22 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/behavior/country-summary') {
+    const behavior = readJsonCached(behaviorPublicPath);
+    const summary = behavior?.country_session_summary;
+    if (!summary) {
+      requestBehaviorRefresh();
+      send(res, 202, JSON.stringify({
+        ok: false,
+        status: 'building',
+        message: 'Country behavior summary is being generated from the saved session event history.',
+      }));
+      return;
+    }
+    send(res, 200, JSON.stringify({ ok: true, generated_at: behavior.generated_at || '', ...summary }));
+    return;
+  }
+
   if (url.pathname === '/api/session-events/status') {
     send(res, 200, JSON.stringify({ ok: true, ...sessionEventStatus() }));
     return;
