@@ -431,6 +431,146 @@ function aggregateSessionFacts(events = []) {
   return { paymentFacts, pageFacts, journeyRows, sessions: bySession.size };
 }
 
+
+function behaviorMedian(values = []) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function behaviorMean(values = []) {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+function roundBehavior(value, digits = 2) {
+  const factor = 10 ** digits;
+  return Math.round((Number(value) || 0) * factor) / factor;
+}
+
+function buildCountrySessionSummary(events = []) {
+  const bySession = new Map();
+  for (const event of events) {
+    if (!event?.session_hash) continue;
+    const list = bySession.get(event.session_hash) || [];
+    list.push(event);
+    bySession.set(event.session_hash, list);
+  }
+
+  const sessions = [];
+  for (const list of bySession.values()) {
+    list.sort((a, b) => new Date(a.ts || 0) - new Date(b.ts || 0));
+    const countryEvent = list.find((event) => event.country_code) || {};
+    const rawCountryCode = String(countryEvent.country_code || '').toUpperCase();
+    const countryCode = rawCountryCode === 'UK' ? 'GB' : rawCountryCode;
+    const country = countryEvent.country || countryName(countryCode);
+
+    const pageViews = list.filter((event) => /^(page_viewed|page_view)$/i.test(event.event_name || ''));
+    const productViews = list.filter((event) => /product_viewed/i.test(event.event_name || ''));
+    const addToCartEvents = list.filter((event) => /product_added_to_cart|add_to_cart/i.test(event.event_name || ''));
+    const checkoutStartIndex = list.findIndex((event) => /checkout_started/i.test(event.event_name || ''));
+    const checkoutCompleteIndex = list.findIndex((event) => /checkout_completed|purchase/i.test(event.event_name || ''));
+    const checkoutStarted = checkoutStartIndex >= 0;
+    const checkoutCompleted = checkoutCompleteIndex >= 0;
+    const checkoutAbandoned = checkoutStarted && !checkoutCompleted;
+
+    let browsedAfterCheckout = false;
+    let addedToCartAfterCheckout = false;
+    if (checkoutStarted) {
+      const endIndex = checkoutCompleteIndex > checkoutStartIndex ? checkoutCompleteIndex : list.length;
+      const afterCheckout = list.slice(checkoutStartIndex + 1, endIndex);
+      browsedAfterCheckout = afterCheckout.some((event) => {
+        const name = String(event.event_name || '');
+        if (/product_viewed|collection_viewed/i.test(name)) return true;
+        if (!/^(page_viewed|page_view)$/i.test(name)) return false;
+        return !/\/(checkouts?|cart)(\/|$|\?)/i.test(String(event.path || ''));
+      });
+      addedToCartAfterCheckout = afterCheckout.some((event) => /product_added_to_cart|add_to_cart/i.test(event.event_name || ''));
+    }
+
+    sessions.push({
+      country_code: countryCode,
+      country,
+      page_views: pageViews.length,
+      distinct_pages: new Set(pageViews.map((event) => event.path).filter(Boolean)).size,
+      product_views: productViews.length,
+      added_to_cart: addToCartEvents.length > 0,
+      checkout_started: checkoutStarted,
+      checkout_completed: checkoutCompleted,
+      checkout_abandoned: checkoutAbandoned,
+      browsed_after_checkout: browsedAfterCheckout,
+      added_to_cart_after_checkout: addedToCartAfterCheckout,
+    });
+  }
+
+  function summarize(group, countryCode, country) {
+    const total = group.length;
+    const checkoutStarts = group.filter((row) => row.checkout_started);
+    const abandoned = checkoutStarts.filter((row) => row.checkout_abandoned);
+    const completedStarts = checkoutStarts.filter((row) => row.checkout_completed);
+    const browsedAfter = checkoutStarts.filter((row) => row.browsed_after_checkout);
+    const abandonedThenBrowsed = abandoned.filter((row) => row.browsed_after_checkout);
+    const addedAfter = checkoutStarts.filter((row) => row.added_to_cart_after_checkout);
+    const pageCounts = group.map((row) => row.page_views);
+    const distinctCounts = group.map((row) => row.distinct_pages);
+    const productCounts = group.map((row) => row.product_views);
+    const rate = (numerator, denominator) => denominator ? numerator / denominator : 0;
+
+    return {
+      country_code: countryCode,
+      country,
+      sessions: total,
+      page_views: group.reduce((sum, row) => sum + row.page_views, 0),
+      page_views_per_session_mean: roundBehavior(behaviorMean(pageCounts)),
+      page_views_per_session_median: roundBehavior(behaviorMedian(pageCounts)),
+      distinct_pages_per_session_mean: roundBehavior(behaviorMean(distinctCounts)),
+      distinct_pages_per_session_median: roundBehavior(behaviorMedian(distinctCounts)),
+      product_views_per_session_mean: roundBehavior(behaviorMean(productCounts)),
+      add_to_cart_sessions: group.filter((row) => row.added_to_cart).length,
+      add_to_cart_rate: roundBehavior(rate(group.filter((row) => row.added_to_cart).length, total), 4),
+      checkout_started_sessions: checkoutStarts.length,
+      checkout_start_rate: roundBehavior(rate(checkoutStarts.length, total), 4),
+      checkout_completed_sessions: completedStarts.length,
+      checkout_completion_rate_of_starts: roundBehavior(rate(completedStarts.length, checkoutStarts.length), 4),
+      checkout_abandoned_sessions: abandoned.length,
+      checkout_abandon_rate_of_starts: roundBehavior(rate(abandoned.length, checkoutStarts.length), 4),
+      browsed_after_checkout_sessions: browsedAfter.length,
+      browsed_after_checkout_rate_of_starts: roundBehavior(rate(browsedAfter.length, checkoutStarts.length), 4),
+      abandoned_then_browsed_sessions: abandonedThenBrowsed.length,
+      abandoned_then_browsed_rate_of_abandons: roundBehavior(rate(abandonedThenBrowsed.length, abandoned.length), 4),
+      added_to_cart_after_checkout_sessions: addedAfter.length,
+      added_to_cart_after_checkout_rate_of_starts: roundBehavior(rate(addedAfter.length, checkoutStarts.length), 4),
+    };
+  }
+
+  const known = sessions.filter((row) => row.country_code);
+  const byCountry = new Map();
+  for (const row of known) {
+    const list = byCountry.get(row.country_code) || [];
+    list.push(row);
+    byCountry.set(row.country_code, list);
+  }
+
+  const rows = [...byCountry.entries()]
+    .map(([countryCode, group]) => summarize(group, countryCode, group[0]?.country || countryName(countryCode)))
+    .sort((a, b) => b.sessions - a.sessions || a.country_code.localeCompare(b.country_code));
+
+  return {
+    event_count: events.length,
+    sessions: sessions.length,
+    sessions_with_country: known.length,
+    country_coverage: roundBehavior(known.length / Math.max(1, sessions.length), 4),
+    all_known_countries: summarize(known, 'ALL', 'All known countries'),
+    non_de: summarize(known.filter((row) => row.country_code !== 'DE'), 'NON_DE', 'All known countries except Germany'),
+    rows,
+    definitions: {
+      checkout_abandoned: 'Session has checkout_started and no checkout_completed/purchase event.',
+      browsed_after_checkout: 'After checkout_started and before completion, session returns to a non-cart/non-checkout page or emits product/collection view.',
+      page_views: 'First-party page_viewed/page_view events.',
+    },
+  };
+}
+
 function actionLookup(actions = []) {
   const map = new Map();
   for (const item of actions || []) map.set(String(item.action_type || '').toLowerCase(), Number(item.value || 0));
@@ -1041,6 +1181,7 @@ let out = {
       note: 'Payment-submit, dwell, and non-purchaser journeys become real after the pixel posts events to /api/session-events.',
     },
   },
+  country_session_summary: buildCountrySessionSummary(allSessionEvents),
   scoring: {
     method: 'Bayesian shrinkage toward site average plus support-weighted excess abandons',
     checkout_window: 'No paid order/recovery in selected window; Shopify abandoned checkout completed_at is treated as recovered.',
