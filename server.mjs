@@ -10,7 +10,6 @@ import { isTipTitle, merchandiseLineItems, merchandiseItemCount } from './src/li
 import { createLocationStore, createGeocoder, buildPurchase, relativeTime } from './src/lib/orderResolver.mjs';
 import { isEmailAttribution, emailCampaignName, emailSourceLabel } from './src/lib/orderChannel.mjs';
 import {
-  buildSessionReplayIndex,
   checkoutOutcomeFromEvents,
   formatCheckoutOutcome,
   hashSessionKey,
@@ -912,6 +911,40 @@ function sessionEventStatus() {
   };
 }
 
+function updateReplayIndexFromPixelEvent(event = {}) {
+  const name = String(event.event_name || '').trim();
+  const pathValue = String(event.path || '');
+  const checkoutRelated = /cart_viewed|checkout_|payment_info_submitted|purchase/i.test(name)
+    || /\/(cart|checkouts?)(\/|$|\?)/i.test(pathValue);
+  if (!checkoutRelated) return;
+
+  const sessionKey = hashSessionKey(event.client_id || event.session_id || '');
+  if (!sessionKey) return;
+
+  const index = readReplayIndex(sessionReplayIndexPath);
+  const existing = index.sessions.find((row) => row.session_key === sessionKey) || {};
+  const existingOutcome = existing.checkout_outcome || 'browsing';
+  let checkoutOutcome = existingOutcome;
+
+  if (/checkout_completed|purchase/i.test(name)) checkoutOutcome = 'completed';
+  else if (existingOutcome !== 'completed' && /payment_info_submitted/i.test(name)) checkoutOutcome = 'payment_abandoned';
+  else if (!/completed|payment_abandoned/.test(existingOutcome) && /checkout_/i.test(name)) checkoutOutcome = 'checkout_abandoned';
+  else if (existingOutcome === 'browsing' && /cart_viewed/i.test(name)) checkoutOutcome = 'cart_only';
+
+  const isCheckoutStep = /cart_viewed|checkout_|payment_info_submitted|purchase/i.test(name);
+  const nextSessions = upsertReplayIndexEntry(index.sessions, {
+    session_id: event.session_id || '',
+    client_id: event.client_id || '',
+    country_code: event.country_code || '',
+    received_at: event.received_at || event.timestamp || new Date().toISOString(),
+    timestamp: event.timestamp || event.received_at || new Date().toISOString(),
+    path: pathValue,
+    checkout_outcome: checkoutOutcome,
+    checkout_steps: Number(existing.checkout_steps || 0) + (isCheckoutStep ? 1 : 0),
+  });
+  writeReplayIndex(sessionReplayIndexPath, nextSessions);
+}
+
 async function recordSessionEvent(req, res, url) {
   if (!isSessionEventAuthorized(req, url)) {
     send(res, 401, JSON.stringify({ ok: false, error: 'unauthorized' }));
@@ -937,6 +970,7 @@ async function recordSessionEvent(req, res, url) {
     }
     fs.mkdirSync(path.dirname(sessionEventsPath), { recursive: true });
     fs.appendFileSync(sessionEventsPath, `${JSON.stringify(event)}\n`);
+    updateReplayIndexFromPixelEvent(event);
     requestBehaviorRefresh();
     send(res, 200, JSON.stringify({ ok: true }));
   } catch (error) {
@@ -1012,17 +1046,16 @@ async function recordSessionReplay(req, res, url) {
 }
 
 function serveSessionReplayIndex(req, res, url) {
-  buildSessionReplayIndex({
-    sessionEventsPath,
-    replayIndexPath: sessionReplayIndexPath,
-    replayPath: sessionReplayPath,
-  });
+  // The index is maintained incrementally as pixel/replay events arrive.
+  // Never rescan the full append-only session history on an HTTP request:
+  // production history is hundreds of MB and a synchronous rebuild can crash
+  // the Node process or block every dashboard request behind it.
   const limit = Number(url.searchParams.get('limit') || 25);
   const sessions = listCheckoutReplaySessions(sessionReplayIndexPath, { limit });
   send(res, 200, JSON.stringify({ ok: true, sessions }));
 }
 
-function serveSessionReplaySession(req, res, sessionKey, url) {
+async function serveSessionReplaySession(req, res, sessionKey, url) {
   const key = String(sessionKey || '').trim();
   if (!/^[a-f0-9]{16}$/.test(key)) {
     send(res, 400, JSON.stringify({ ok: false, error: 'invalid session key' }));
@@ -1030,8 +1063,10 @@ function serveSessionReplaySession(req, res, sessionKey, url) {
   }
   const sessionId = String(url.searchParams.get('session_id') || '').trim();
   const clientId = String(url.searchParams.get('client_id') || '').trim();
-  const replay = loadSessionReplayChunks(sessionReplayPath, key, sessionId, clientId);
-  const pixelEvents = loadSessionPixelEvents(sessionEventsPath, key, sessionId, clientId);
+  const [replay, pixelEvents] = await Promise.all([
+    loadSessionReplayChunks(sessionReplayPath, key, sessionId, clientId),
+    loadSessionPixelEvents(sessionEventsPath, key, sessionId, clientId),
+  ]);
   const outcome = checkoutOutcomeFromEvents(pixelEvents);
   const theater = buildCheckoutTheaterScript(pixelEvents);
   send(res, 200, JSON.stringify({
@@ -2143,7 +2178,7 @@ const server = http.createServer(async (req, res) => {
 
   const replaySessionMatch = url.pathname.match(/^\/api\/session-replay\/([a-f0-9]{16})$/);
   if (replaySessionMatch && req.method === 'GET') {
-    serveSessionReplaySession(req, res, replaySessionMatch[1], url);
+    await serveSessionReplaySession(req, res, replaySessionMatch[1], url);
     return;
   }
 
