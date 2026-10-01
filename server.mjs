@@ -630,16 +630,15 @@ function sanitizePixelPayload(value, depth = 0) {
 
 function behaviorNeedsSessionRefresh(behaviorFile) {
   if (!fs.existsSync(sessionEventsPath)) return false;
-  const status = sessionEventStatus();
-  if (!status.configured || status.count === 0) return false;
-  if (!fs.existsSync(behaviorFile)) return true;
   try {
-    const sessionMtime = fs.statSync(sessionEventsPath).mtimeMs;
-    const behaviorMtime = fs.statSync(behaviorFile).mtimeMs;
-    if (sessionMtime > behaviorMtime) return true;
+    const sessionStat = fs.statSync(sessionEventsPath);
+    if (sessionStat.size === 0) return false;
+    if (!fs.existsSync(behaviorFile)) return true;
+    const behaviorStat = fs.statSync(behaviorFile);
+    if (sessionStat.mtimeMs > behaviorStat.mtimeMs) return true;
     const behavior = JSON.parse(fs.readFileSync(behaviorFile, 'utf8'));
     const cachedCount = Number(behavior?.extraction?.session_events?.count || 0);
-    return status.count > cachedCount;
+    return cachedCount === 0;
   } catch {
     return true;
   }
@@ -665,19 +664,52 @@ function sessionEventStatus() {
   if (!fs.existsSync(sessionEventsPath)) {
     return { configured: false, count: 0, sessions: 0, last_received_at: '', path: sessionEventsPath };
   }
-  const text = fs.readFileSync(sessionEventsPath, 'utf8');
-  const rows = text.split(/\r?\n/).filter(Boolean);
-  const sessions = new Set();
-  let lastReceived = '';
-  for (const line of rows) {
-    try {
-      const event = JSON.parse(line);
-      const session = event.session_id || event.client_id || event.payload?.session_id || event.payload?.client_id || event.payload?.clientId || '';
-      if (session) sessions.add(String(session));
-      lastReceived = event.received_at || lastReceived;
-    } catch {}
+
+  const stat = fs.statSync(sessionEventsPath);
+  const maxScanBytes = Number(process.env.SESSION_EVENTS_STATUS_SCAN_MAX_BYTES || 8 * 1024 * 1024);
+
+  // Small/local files are cheap to scan and keep the existing exact contract used by tests.
+  if (stat.size <= maxScanBytes) {
+    const text = fs.readFileSync(sessionEventsPath, 'utf8');
+    const rows = text.split(/\r?\n/).filter(Boolean);
+    const sessions = new Set();
+    let lastReceived = '';
+    for (const line of rows) {
+      try {
+        const event = JSON.parse(line);
+        const session = event.session_id || event.client_id || event.payload?.session_id || event.payload?.client_id || event.payload?.clientId || '';
+        if (session) sessions.add(String(session));
+        lastReceived = event.received_at || lastReceived;
+      } catch {}
+    }
+    return { configured: true, count: rows.length, sessions: sessions.size, last_received_at: lastReceived, path: sessionEventsPath };
   }
-  return { configured: true, count: rows.length, sessions: sessions.size, last_received_at: lastReceived, path: sessionEventsPath };
+
+  // Production logs can grow past Node's maximum string length. For those, return the
+  // last exact aggregate count plus a one-event freshness signal when raw ingest is newer.
+  let cachedCount = 0;
+  let cachedSessions = 0;
+  let behaviorMtime = 0;
+  try {
+    if (fs.existsSync(behaviorPublicPath)) {
+      const behavior = JSON.parse(fs.readFileSync(behaviorPublicPath, 'utf8'));
+      cachedCount = Number(behavior?.extraction?.session_events?.count || 0);
+      cachedSessions = Number(behavior?.extraction?.session_events?.sessions || 0);
+      behaviorMtime = fs.statSync(behaviorPublicPath).mtimeMs;
+    }
+  } catch {
+    // Fall back to a minimal non-zero signal below.
+  }
+  const hasUnaggregatedEvents = stat.mtimeMs > behaviorMtime;
+  const count = cachedCount > 0 ? cachedCount + (hasUnaggregatedEvents ? 1 : 0) : 1;
+  return {
+    configured: true,
+    count,
+    sessions: cachedSessions,
+    last_received_at: stat.mtime.toISOString(),
+    path: sessionEventsPath,
+    approximate: true,
+  };
 }
 
 async function recordSessionEvent(req, res, url) {
