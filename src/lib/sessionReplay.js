@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { createInterface } from 'node:readline';
 import { normalizePagePath } from './pagePath.js';
 
 export const CHECKOUT_PIXEL_EVENTS = new Set([
@@ -31,6 +32,20 @@ export function parseNdjsonLines(text = '') {
         return [];
       }
     });
+}
+
+async function scanNdjsonRows(filePath, visit) {
+  if (!filePath || !fs.existsSync(filePath)) return;
+  const input = fs.createReadStream(filePath, { encoding: 'utf8' });
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  for await (const line of lines) {
+    if (!line) continue;
+    try {
+      await visit(JSON.parse(line));
+    } catch {
+      // Ignore malformed/incomplete append-only rows.
+    }
+  }
 }
 
 export function rawEventName(raw = {}) {
@@ -215,8 +230,8 @@ export function upsertReplayIndexEntry(indexSessions = [], entry = {}) {
     replay_events: Number(existing.replay_events || 0) + Number(entry.replay_events || 0),
     has_replay: Boolean(existing.has_replay || entry.has_replay || Number(entry.replay_events || 0) > 0),
     last_path: entry.path || existing.last_path || '',
-    checkout_outcome: existing.checkout_outcome || entry.checkout_outcome || 'browsing',
-    checkout_steps: existing.checkout_steps || entry.checkout_steps || 0,
+    checkout_outcome: entry.checkout_outcome || existing.checkout_outcome || 'browsing',
+    checkout_steps: Math.max(Number(existing.checkout_steps || 0), Number(entry.checkout_steps || 0)),
   };
   if (existingIndex >= 0) next[existingIndex] = merged;
   else next.push(merged);
@@ -313,18 +328,20 @@ export function listCheckoutReplaySessions(replayIndexPath, { limit = 25 } = {})
     }));
 }
 
-export function loadSessionReplayChunks(replayPath, sessionKey, sessionId = '', clientId = '') {
+export async function loadSessionReplayChunks(replayPath, sessionKey, sessionId = '', clientId = '') {
   if (!replayPath || !fs.existsSync(replayPath)) {
     return { events: [], chunks: 0 };
   }
   const altSessionKey = hashSessionKey(sessionId);
   const altClientKey = hashSessionKey(clientId);
-  const rows = parseNdjsonLines(fs.readFileSync(replayPath, 'utf8'))
-    .filter((row) => {
-      const key = hashSessionKey(row.client_id || row.session_id);
-      return key === sessionKey || (altSessionKey && key === altSessionKey) || (altClientKey && key === altClientKey);
-    })
-    .sort((a, b) => Number(a.chunk_seq || 0) - Number(b.chunk_seq || 0));
+  const rows = [];
+  await scanNdjsonRows(replayPath, (row) => {
+    const key = hashSessionKey(row.client_id || row.session_id);
+    if (key === sessionKey || (altSessionKey && key === altSessionKey) || (altClientKey && key === altClientKey)) {
+      rows.push(row);
+    }
+  });
+  rows.sort((a, b) => Number(a.chunk_seq || 0) - Number(b.chunk_seq || 0));
   const events = [];
   for (const row of rows) {
     if (Array.isArray(row.events)) events.push(...row.events);
@@ -332,11 +349,24 @@ export function loadSessionReplayChunks(replayPath, sessionKey, sessionId = '', 
   return { events, chunks: rows.length };
 }
 
-export function loadSessionPixelEvents(sessionEventsPath, sessionKey, sessionId = '', clientId = '') {
-  const byKey = readSessionEventsByKey(sessionEventsPath);
+export async function loadSessionPixelEvents(sessionEventsPath, sessionKey, sessionId = '', clientId = '') {
   const altSessionKey = hashSessionKey(sessionId);
   const altClientKey = hashSessionKey(clientId);
-  return byKey.get(sessionKey) || byKey.get(altSessionKey) || byKey.get(altClientKey) || [];
+  const events = [];
+  await scanNdjsonRows(sessionEventsPath, (raw) => {
+    const key = eventSessionKey(raw);
+    if (key !== sessionKey && (!altSessionKey || key !== altSessionKey) && (!altClientKey || key !== altClientKey)) return;
+    events.push({
+      event_name: rawEventName(raw),
+      timestamp: eventTimestamp(raw),
+      path: eventPath(raw),
+      country_code: countryFromEvent(raw),
+      session_id: eventSessionId(raw),
+      client_id: eventClientId(raw),
+      line_items: Array.isArray(raw.line_items) ? raw.line_items : Array.isArray(raw.payload?.line_items) ? raw.payload.line_items : [],
+    });
+  });
+  return events;
 }
 
 export function sessionReplayStatus(replayPath, replayIndexPath) {
