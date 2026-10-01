@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createInterface } from 'node:readline';
 import { productTaxonomyForName } from './src/lib/productMapping.js';
 import { isTipTitle, merchandiseLineItems, merchandiseItemCount } from './src/lib/orderMerchandise.js';
 import { createLocationStore, createGeocoder, buildPurchase, relativeTime } from './src/lib/orderResolver.mjs';
@@ -626,6 +627,205 @@ function sanitizePixelPayload(value, depth = 0) {
     out[key] = sanitizePixelPayload(child, depth + 1);
   }
   return out;
+}
+
+
+let directCountrySummaryCache = { mtimeMs: 0, payload: null };
+let directCountrySummaryBuild = null;
+
+function directSessionEventName(raw = {}) {
+  return String(raw.event_name || raw.eventType || raw.event_type || raw.name || raw.payload?.event_name || raw.payload?.name || '').trim();
+}
+
+function directSessionEventPath(raw = {}) {
+  const value = raw.path || raw.url || raw.page_url || raw.payload?.path || raw.payload?.url
+    || raw.payload?.context?.document?.location?.href || '';
+  try {
+    const parsed = new URL(String(value), 'https://shawq.co');
+    return parsed.pathname || '/';
+  } catch {
+    return String(value || '').split('?')[0] || '/';
+  }
+}
+
+function directSessionEventKey(raw = {}) {
+  return String(
+    raw.session_id || raw.sessionId || raw.client_id || raw.clientId
+    || raw.payload?.session_id || raw.payload?.sessionId
+    || raw.payload?.client_id || raw.payload?.clientId || '',
+  ).trim();
+}
+
+function directSessionCountryCode(raw = {}) {
+  const checkout = raw.checkout || raw.payload?.checkout || raw.data?.checkout || raw.payload?.data?.checkout || {};
+  const code = raw.country_code || raw.countryCode || raw.payload?.country_code || raw.payload?.countryCode
+    || checkout.localization?.country?.isoCode || '';
+  const normalized = String(code || '').trim().toUpperCase();
+  return normalized === 'UK' ? 'GB' : normalized;
+}
+
+function directMedian(values = []) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function directMean(values = []) {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+function directRound(value, digits = 2) {
+  const factor = 10 ** digits;
+  return Math.round((Number(value) || 0) * factor) / factor;
+}
+
+function summarizeDirectCountrySessions(group = [], countryCode = '', country = '') {
+  const total = group.length;
+  const starts = group.filter((row) => row.checkout_started);
+  const abandoned = starts.filter((row) => !row.checkout_completed);
+  const completed = starts.filter((row) => row.checkout_completed);
+  const browsedAfter = starts.filter((row) => row.browsed_after_checkout);
+  const abandonedThenBrowsed = abandoned.filter((row) => row.browsed_after_checkout);
+  const addedAfter = starts.filter((row) => row.added_to_cart_after_checkout);
+  const pageCounts = group.map((row) => row.page_views);
+  const distinctCounts = group.map((row) => row.distinct_pages.size);
+  const productCounts = group.map((row) => row.product_views);
+  const rate = (numerator, denominator) => denominator ? numerator / denominator : 0;
+  const addToCartSessions = group.filter((row) => row.added_to_cart).length;
+
+  return {
+    country_code: countryCode,
+    country,
+    sessions: total,
+    page_views: group.reduce((sum, row) => sum + row.page_views, 0),
+    page_views_per_session_mean: directRound(directMean(pageCounts)),
+    page_views_per_session_median: directRound(directMedian(pageCounts)),
+    distinct_pages_per_session_mean: directRound(directMean(distinctCounts)),
+    distinct_pages_per_session_median: directRound(directMedian(distinctCounts)),
+    product_views_per_session_mean: directRound(directMean(productCounts)),
+    add_to_cart_sessions: addToCartSessions,
+    add_to_cart_rate: directRound(rate(addToCartSessions, total), 4),
+    checkout_started_sessions: starts.length,
+    checkout_start_rate: directRound(rate(starts.length, total), 4),
+    checkout_completed_sessions: completed.length,
+    checkout_completion_rate_of_starts: directRound(rate(completed.length, starts.length), 4),
+    checkout_abandoned_sessions: abandoned.length,
+    checkout_abandon_rate_of_starts: directRound(rate(abandoned.length, starts.length), 4),
+    browsed_after_checkout_sessions: browsedAfter.length,
+    browsed_after_checkout_rate_of_starts: directRound(rate(browsedAfter.length, starts.length), 4),
+    abandoned_then_browsed_sessions: abandonedThenBrowsed.length,
+    abandoned_then_browsed_rate_of_abandons: directRound(rate(abandonedThenBrowsed.length, abandoned.length), 4),
+    added_to_cart_after_checkout_sessions: addedAfter.length,
+    added_to_cart_after_checkout_rate_of_starts: directRound(rate(addedAfter.length, starts.length), 4),
+  };
+}
+
+async function buildDirectCountrySummary() {
+  const stat = fs.statSync(sessionEventsPath);
+  const bySession = new Map();
+  let eventCount = 0;
+  const input = fs.createReadStream(sessionEventsPath, { encoding: 'utf8' });
+  const lines = createInterface({ input, crlfDelay: Infinity });
+
+  for await (const line of lines) {
+    if (!line) continue;
+    let raw;
+    try {
+      raw = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const key = directSessionEventKey(raw);
+    if (!key) continue;
+    eventCount += 1;
+    let state = bySession.get(key);
+    if (!state) {
+      state = {
+        country_code: '',
+        page_views: 0,
+        distinct_pages: new Set(),
+        product_views: 0,
+        added_to_cart: false,
+        checkout_started: false,
+        checkout_completed: false,
+        browsed_after_checkout: false,
+        added_to_cart_after_checkout: false,
+      };
+      bySession.set(key, state);
+    }
+
+    const countryCode = directSessionCountryCode(raw);
+    if (!state.country_code && countryCode) state.country_code = countryCode;
+    const name = directSessionEventName(raw);
+    const eventPath = directSessionEventPath(raw);
+    const isPageView = /^(page_viewed|page_view)$/i.test(name);
+    const isProductView = /product_viewed/i.test(name);
+    const isAddToCart = /product_added_to_cart|add_to_cart/i.test(name);
+    const isCheckoutStart = /checkout_started/i.test(name);
+    const isCheckoutComplete = /checkout_completed|purchase/i.test(name);
+
+    if (isPageView) {
+      state.page_views += 1;
+      if (eventPath) state.distinct_pages.add(eventPath);
+    }
+    if (isProductView) state.product_views += 1;
+    if (isAddToCart) state.added_to_cart = true;
+
+    if (state.checkout_started && !state.checkout_completed) {
+      if (isProductView || /collection_viewed/i.test(name)
+        || (isPageView && !/\/(checkouts?|cart)(\/|$|\?)/i.test(eventPath))) {
+        state.browsed_after_checkout = true;
+      }
+      if (isAddToCart) state.added_to_cart_after_checkout = true;
+    }
+
+    if (isCheckoutStart) state.checkout_started = true;
+    if (isCheckoutComplete) state.checkout_completed = true;
+  }
+
+  const sessions = [...bySession.values()];
+  const known = sessions.filter((row) => row.country_code);
+  const grouped = new Map();
+  for (const row of known) {
+    const list = grouped.get(row.country_code) || [];
+    list.push(row);
+    grouped.set(row.country_code, list);
+  }
+  const rows = [...grouped.entries()]
+    .map(([code, group]) => summarizeDirectCountrySessions(group, code, countryName(code)))
+    .sort((a, b) => b.sessions - a.sessions || a.country_code.localeCompare(b.country_code));
+
+  const payload = {
+    generated_at: new Date().toISOString(),
+    source_mtime: stat.mtime.toISOString(),
+    event_count: eventCount,
+    sessions: sessions.length,
+    sessions_with_country: known.length,
+    country_coverage: directRound(known.length / Math.max(1, sessions.length), 4),
+    all_known_countries: summarizeDirectCountrySessions(known, 'ALL', 'All known countries'),
+    non_de: summarizeDirectCountrySessions(known.filter((row) => row.country_code !== 'DE'), 'NON_DE', 'All known countries except Germany'),
+    rows,
+    definitions: {
+      checkout_abandoned: 'Session has checkout_started and no checkout_completed/purchase event.',
+      browsed_after_checkout: 'After checkout_started and before completion, session returns to a non-cart/non-checkout page or emits product/collection view.',
+      page_views: 'First-party page_viewed/page_view events.',
+    },
+  };
+  directCountrySummaryCache = { mtimeMs: stat.mtimeMs, payload };
+  return payload;
+}
+
+function requestDirectCountrySummaryBuild() {
+  if (directCountrySummaryBuild || !fs.existsSync(sessionEventsPath)) return;
+  directCountrySummaryBuild = buildDirectCountrySummary()
+    .catch((error) => {
+      console.warn('direct country behavior summary failed:', error.message);
+      return null;
+    })
+    .finally(() => {
+      directCountrySummaryBuild = null;
+    });
 }
 
 function behaviorNeedsSessionRefresh(behaviorFile) {
@@ -1885,18 +2085,23 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/api/behavior/country-summary') {
-    const behavior = readJsonCached(behaviorPublicPath);
-    const summary = behavior?.country_session_summary;
-    if (!summary) {
-      requestBehaviorRefresh();
+    if (!fs.existsSync(sessionEventsPath)) {
+      send(res, 503, JSON.stringify({ ok: false, status: 'unavailable', message: 'Session event history is unavailable.' }));
+      return;
+    }
+    const stat = fs.statSync(sessionEventsPath);
+    const cached = directCountrySummaryCache.payload;
+    const stale = Boolean(cached && directCountrySummaryCache.mtimeMs < stat.mtimeMs);
+    if (!cached || stale) requestDirectCountrySummaryBuild();
+    if (!cached) {
       send(res, 202, JSON.stringify({
         ok: false,
         status: 'building',
-        message: 'Country behavior summary is being generated from the saved session event history.',
+        message: 'Country behavior summary is being generated directly from the saved session event history.',
       }));
       return;
     }
-    send(res, 200, JSON.stringify({ ok: true, generated_at: behavior.generated_at || '', ...summary }));
+    send(res, 200, JSON.stringify({ ok: true, stale, ...cached }));
     return;
   }
 
