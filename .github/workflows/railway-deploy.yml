@@ -1,0 +1,78 @@
+# Deploys main to Railway without relying on Railway's GitHub App.
+#
+# Why this exists: Railway's GitHub App lost repository access to this (private)
+# repo, so pushes to main stopped triggering deploys — production sat on commit
+# 0655db2 from 2026-08-05 while main moved on, silently. Railway's dashboard
+# showed "GitHub Repo not found" and an empty repo picker, and no amount of
+# disconnect/reconnect on Railway's side fixes that: the repo list Railway shows
+# is whatever GitHub permits it to see, so the grant has to be repaired on
+# GitHub. This workflow removes that dependency entirely — it pushes the build
+# from CI using a Railway token, so deploys keep working regardless of the
+# App's state.
+#
+# ONE-TIME SETUP (required — the workflow fails fast with instructions without it):
+#   1. Railway dashboard -> project "ShawqAds" -> Settings -> Tokens
+#      (or https://railway.com/account/tokens for an account-wide token)
+#      Create a token scoped to the "production" environment.
+#   2. GitHub -> repo Settings -> Secrets and variables -> Actions -> New
+#      repository secret, named exactly RAILWAY_TOKEN, pasting that value.
+#
+# If you later restore the Railway GitHub App's access to this repo, disable one
+# of the two paths so a single push doesn't deploy twice — either turn off
+# auto-deploy on the Railway service, or disable this workflow.
+
+name: Deploy to Railway
+
+on:
+  push:
+    branches: [main]
+  # Lets you re-run a deploy from the Actions tab without pushing a commit.
+  workflow_dispatch:
+
+# Never let two deploys of the same environment overlap. Deploys are not
+# cancelled mid-flight (that can leave a half-applied release), they queue.
+concurrency:
+  group: railway-deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy to Railway
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the commit being deployed
+        uses: actions/checkout@v4
+
+      - name: Fail early if RAILWAY_TOKEN is missing
+        # Checked through env rather than an `if:` expression, because the
+        # secrets context is not dependably available in step-level conditions.
+        # Without this guard the CLI just reports an opaque "Unauthorized".
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::error::RAILWAY_TOKEN secret is not set."
+            echo "Add it under Settings -> Secrets and variables -> Actions."
+            echo "Generate the token in the Railway dashboard for the 'production' environment."
+            exit 1
+          fi
+          echo "RAILWAY_TOKEN is present."
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install the Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        # --ci makes the CLI stream build output and exit on completion instead
+        # of tailing runtime logs forever, so the job reflects the build result.
+        # The environment is not passed as a flag: a project token is already
+        # scoped to one environment, and passing it again can be rejected.
+        run: railway up --service shawqads --ci
