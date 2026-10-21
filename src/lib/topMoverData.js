@@ -1,5 +1,7 @@
 import { canonicalCreativeName, logicalCreativeKey } from './logicalCreative.js';
 
+const DOMINANT_COUNTRY_CAMPAIGN_SHARE = 0.7;
+
 function shiftDate(date, days) {
   if (!date) return '';
   const d = new Date(`${date}T00:00:00Z`);
@@ -21,6 +23,7 @@ function minDate(rows = [], key = 'date') {
 }
 function minIso(...values) { return values.filter(Boolean).sort()[0] || ''; }
 function maxIso(...values) { return values.filter(Boolean).sort().at(-1) || ''; }
+function norm(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
 
 function coverage(meta = {}, shopify = {}) {
   const metaRows = meta.account_daily_metrics?.length
@@ -66,8 +69,73 @@ function isTipLine(line = {}) {
     .filter(Boolean).join(' ').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
   return /(^|\s)(tip|tips|gratuity)(\s|$)/.test(text);
 }
-function paidLines(shopify, range) {
-  return (shopify?.order_lines || []).filter((line) => inRange(line.date, range) && !isEmailLine(line) && !isTipLine(line));
+
+/**
+ * Top Movers is explicitly a paid-ads view, so a Shopify order must resolve to
+ * a real Meta campaign before it can enter the ranking. Keep this aligned with
+ * Conversion: direct campaign ID/name hints win; otherwise the country may own
+ * the order only when one campaign has at least 70% of Meta spend there.
+ */
+function campaignAttributionResolver(meta, range) {
+  const metaRows = (meta?.ad_daily?.length ? meta.ad_daily : (meta?.ad_country_daily || []))
+    .filter((row) => inRange(row.date || row.date_start, range));
+  const countryRows = (meta?.ad_country_daily || [])
+    .filter((row) => inRange(row.date || row.date_start, range));
+
+  const knownIds = new Set();
+  const nameToId = new Map();
+  for (const row of metaRows) {
+    if (!row?.campaign_id) continue;
+    const id = String(row.campaign_id);
+    knownIds.add(id);
+    if (row.campaign_name) nameToId.set(norm(row.campaign_name), id);
+  }
+
+  const byCountry = new Map();
+  for (const row of countryRows) {
+    if (!row?.country_code || !row?.campaign_id) continue;
+    const country = String(row.country_code).toUpperCase();
+    const campaigns = byCountry.get(country) || new Map();
+    const id = String(row.campaign_id);
+    campaigns.set(id, (campaigns.get(id) || 0) + Number(row.spend_usd ?? row.spend ?? 0));
+    byCountry.set(country, campaigns);
+  }
+
+  const dominantByCountry = new Map();
+  for (const [country, campaigns] of byCountry.entries()) {
+    const list = [...campaigns.entries()].sort((a, b) => b[1] - a[1]);
+    const total = list.reduce((sum, [, spend]) => sum + spend, 0);
+    const [topId, topSpend] = list[0] || [];
+    if (topId && total > 0 && topSpend / total >= DOMINANT_COUNTRY_CAMPAIGN_SHARE) {
+      dominantByCountry.set(country, topId);
+    }
+  }
+
+  return (line) => {
+    const attribution = line?.attribution || {};
+    const hintId = String(attribution.match_hints?.campaign_id || '').trim();
+    if (hintId && knownIds.has(hintId)) return true;
+
+    const hintName = norm(
+      attribution.match_hints?.campaign_name
+      || attribution.campaign_hint
+      || attribution.utm?.utm_campaign,
+    );
+    if (hintName && nameToId.has(hintName)) return true;
+
+    const country = String(line?.country_code || '').toUpperCase();
+    return Boolean(country && dominantByCountry.has(country));
+  };
+}
+
+function paidLines(meta, shopify, range) {
+  const isMetaAttributed = campaignAttributionResolver(meta, range);
+  return (shopify?.order_lines || []).filter((line) => (
+    inRange(line.date, range)
+    && !isEmailLine(line)
+    && !isTipLine(line)
+    && isMetaAttributed(line)
+  ));
 }
 
 function countryFlag(code) {
@@ -196,7 +264,7 @@ function topCountry(meta, lines, range) {
 
 export function leadersForRange(meta, shopify, range) {
   if (!range) return { product: null, ad: null, country: null };
-  const lines = paidLines(shopify, range);
+  const lines = paidLines(meta, shopify, range);
   return {
     product: topProduct(lines),
     ad: topAd(meta, lines, range),
