@@ -14,6 +14,11 @@ import {
   parseCensusAcsRows,
   parseCensusReporterRows,
 } from './lib/us-acs-reference.mjs';
+import {
+  buildWorldBankIndicatorUrl,
+  loadWorldBankCountryReference,
+  parseWorldBankIndicator,
+} from './lib/world-bank-country-reference.mjs';
 
 const pct = weightedIncomePercentiles([
   { postal_code: '10001', area_income_usd: 50000, households: 100 },
@@ -93,6 +98,70 @@ try {
   fs.rmSync(tempDir, { recursive: true, force: true });
 }
 
+const wbUrl = new URL(buildWorldBankIndicatorUrl('NY.GNP.PCAP.PP.CD', ['US', 'GB'], {
+  startYear: 2024,
+  endYear: 2026,
+}));
+assert.equal(wbUrl.pathname.includes('/country/GB;US/indicator/NY.GNP.PCAP.PP.CD'), true);
+assert.equal(wbUrl.searchParams.get('format'), 'json');
+assert.equal(wbUrl.searchParams.get('date'), '2024:2026');
+
+const wbPayload = [
+  { page: 1, pages: 1, per_page: 1000, total: 4 },
+  [
+    { indicator: { id: 'NY.GNP.PCAP.PP.CD' }, country: { id: 'US', value: 'United States' }, date: '2025', value: 89490 },
+    { indicator: { id: 'NY.GNP.PCAP.PP.CD' }, country: { id: 'US', value: 'United States' }, date: '2024', value: 85000 },
+    { indicator: { id: 'NY.GNP.PCAP.PP.CD' }, country: { id: 'GB', value: 'United Kingdom' }, date: '2025', value: 64210 },
+    { indicator: { id: 'NY.GNP.PCAP.PP.CD' }, country: { id: 'GB', value: 'United Kingdom' }, date: '2024', value: null },
+  ],
+];
+const parsedWb = parseWorldBankIndicator(wbPayload, 'NY.GNP.PCAP.PP.CD');
+assert.equal(parsedWb.get('US')?.value, 89490);
+assert.equal(parsedWb.get('US')?.year, 2025);
+assert.equal(parsedWb.get('GB')?.value, 64210);
+
+const wbTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shawq-world-bank-test-'));
+try {
+  const cachePath = path.join(wbTempDir, 'world-bank.json');
+  const calls = [];
+  const gdpPayload = [
+    { page: 1, pages: 1, per_page: 1000, total: 2 },
+    [
+      { indicator: { id: 'NY.GDP.PCAP.PP.CD' }, country: { id: 'US', value: 'United States' }, date: '2025', value: 90026.5 },
+      { indicator: { id: 'NY.GDP.PCAP.PP.CD' }, country: { id: 'GB', value: 'United Kingdom' }, date: '2025', value: 64606.5 },
+    ],
+  ];
+  const loaded = await loadWorldBankCountryReference({
+    countryCodes: ['US', 'GB'],
+    cachePath,
+    startYear: 2024,
+    endYear: 2026,
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      const payload = String(url).includes('NY.GNP.PCAP.PP.CD') ? wbPayload : gdpPayload;
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(payload),
+      };
+    },
+  });
+  assert.equal(calls.length, 2);
+  assert.equal(loaded.rows.length, 2);
+  assert.equal(loaded.rows.find((row) => row.country_code === 'GB')?.purchasing_power_ppp, 64210);
+  assert.equal(loaded.rows.find((row) => row.country_code === 'GB')?.gdp_per_capita_ppp, 64606.5);
+
+  const cached = await loadWorldBankCountryReference({
+    countryCodes: ['US', 'GB'],
+    cachePath,
+    fetchImpl: async () => { throw new Error('network should not be used when World Bank cache is fresh'); },
+  });
+  assert.equal(cached.access, 'durable_cache');
+  assert.equal(cached.rows.length, 2);
+} finally {
+  fs.rmSync(wbTempDir, { recursive: true, force: true });
+}
+
 const analysis = buildCustomerSpendingPowerAnalysis({
   lifetimeSince: '2020-01-01',
   lifetimeUntil: '2026-09-03',
@@ -104,6 +173,36 @@ const analysis = buildCustomerSpendingPowerAnalysis({
     { postal_code: '10004', area_income_usd: 200000, households: 100 },
     { postal_code: '10005', area_income_usd: 250000, households: 100 },
   ],
+  countryReference: [
+    {
+      country_code: 'US',
+      country: 'United States',
+      purchasing_power_ppp: 89490,
+      purchasing_power_metric: 'GNI per capita, PPP',
+      purchasing_power_year: 2025,
+      gni_per_capita_ppp: 89490,
+      gni_year: 2025,
+      gdp_per_capita_ppp: 90026.5,
+      gdp_year: 2025,
+    },
+    {
+      country_code: 'GB',
+      country: 'United Kingdom',
+      purchasing_power_ppp: 64210,
+      purchasing_power_metric: 'GNI per capita, PPP',
+      purchasing_power_year: 2025,
+      gni_per_capita_ppp: 64210,
+      gni_year: 2025,
+      gdp_per_capita_ppp: 64606.5,
+      gdp_year: 2025,
+    },
+  ],
+  countrySource: {
+    provider: 'World Bank',
+    dataset: 'World Development Indicators',
+    access: 'test',
+    source_url: 'https://data.worldbank.org/',
+  },
   orders: [
     { order_id: '1', customer_id: 'a', created_at: '2021-01-01', country_code: 'US', postal_code: '10001', revenue: 50 },
     { order_id: '2', customer_id: 'a', created_at: '2022-01-01', country_code: 'US', postal_code: '10005', revenue: 75 },
@@ -129,6 +228,17 @@ assert.equal(analysis.coverage.supported_first_order_customers, 4);
 assert.equal(analysis.coverage.matched_customers, 4);
 assert.equal(analysis.coverage.supported_customer_match_rate, 1);
 assert.equal(analysis.points.length, 4);
+assert.equal(analysis.country_power.status, 'ready');
+assert.equal(analysis.country_power.summary.matched_countries, 2);
+assert.equal(analysis.country_power.summary.matched_customers, 6);
+const byCountry = new Map(analysis.country_power.rows.map((row) => [row.country_code, row]));
+assert.equal(byCountry.get('US')?.customers, 4);
+assert.equal(byCountry.get('US')?.lifetime_revenue, 505);
+assert.equal(byCountry.get('GB')?.customers, 2);
+assert.equal(byCountry.get('GB')?.lifetime_revenue, 190);
+assert.equal(Math.round(byCountry.get('US')?.market_power_percentile), 75);
+assert.equal(Math.round(byCountry.get('GB')?.market_power_percentile), 25);
+assert.equal(Object.hasOwn(byCountry.get('US') || {}, 'customer_spend'), false, 'country cohort payload does not expose customer-level arrays');
 
 const byIncome = new Map(analysis.points.map((point) => [point.area_income_usd, point]));
 assert.equal(byIncome.get(50000)?.lifetime_spend, 125, 'repeat spend stays on the first observed area');
