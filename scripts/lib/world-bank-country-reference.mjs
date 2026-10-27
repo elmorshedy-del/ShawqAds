@@ -79,9 +79,14 @@ function readCache(cachePath, countryCodes) {
     if (!Number.isFinite(fetchedAt) || Date.now() - fetchedAt > CACHE_MAX_AGE_MS) return null;
     const byCode = new Map((cached?.rows || []).map((row) => [String(row?.country_code || '').toUpperCase(), row]));
     const requested = cleanCountryCodes(countryCodes);
-    if (!requested.every((code) => byCode.has(code))) return null;
+    const checkedCodes = new Set(
+      Array.isArray(cached?.requested_codes)
+        ? cached.requested_codes.map((code) => String(code || '').toUpperCase())
+        : [...byCode.keys()],
+    );
+    if (!requested.every((code) => checkedCodes.has(code))) return null;
     return {
-      rows: requested.map((code) => byCode.get(code)),
+      rows: requested.map((code) => byCode.get(code)).filter(Boolean),
       provider: cached.provider || 'World Bank',
       dataset: cached.dataset || 'World Development Indicators',
       access: 'durable_cache',
@@ -152,6 +157,7 @@ export async function loadWorldBankCountryReference({
     access: 'world_bank_api',
     source_url: 'https://data.worldbank.org/',
     fetched_at: new Date().toISOString(),
+    requested_codes: requested,
     rows,
   };
   writeCache(cachePath, payload);
