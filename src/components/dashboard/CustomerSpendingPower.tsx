@@ -138,7 +138,7 @@ function CountryPowerSection({ data, currencyCode = "USD" }: { data: any; curren
             <tr>
               <th className="pb-2 pr-4 font-medium">Market</th>
               <th className="pb-2 pr-4 font-medium">Purchasing power</th>
-              <th className="pb-2 pr-4 font-medium">ShawQ-market rank</th>
+              <th className="pb-2 pr-4 font-medium">Peer percentile</th>
               <th className="pb-2 pr-4 text-right font-medium">Customers</th>
               <th className="pb-2 pr-4 text-right font-medium">Median lifetime spend</th>
               <th className="pb-2 text-right font-medium">Revenue index</th>
@@ -218,7 +218,7 @@ export function CustomerSpendingPower() {
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-soft text-brand">
             <BadgeDollarSign className="h-4 w-4" />
           </span>
-          <h2 className="font-display text-base font-semibold tracking-tight sm:text-lg">Customer Spending Power</h2>
+          <h2 className="font-display text-base font-semibold tracking-tight sm:text-lg">Customer & Market Spending Power</h2>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
           {data?.error
@@ -366,7 +366,9 @@ export function CustomerSpendingPower() {
 
       <div className="mt-4 flex flex-col gap-1.5 text-[0.68rem] leading-relaxed text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>
-          US local source: {source.provider} · {source.dataset} {source.vintage} · {source.geography}
+          {usReady
+            ? `US local source: ${source.provider || "U.S. Census Bureau"} · ${source.dataset || "American Community Survey"} ${source.vintage || ""} · ${source.geography || "ZCTA"}`
+            : `Country source: ${countryPower?.source?.provider || "World Bank"} · ${countryPower?.source?.dataset || "World Development Indicators"}`}
         </span>
         <span>
           Lifetime request {data.period?.since || "store opening"} → {data.period?.until || "latest refresh"}
