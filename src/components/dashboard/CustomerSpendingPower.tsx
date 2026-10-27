@@ -46,7 +46,7 @@ function ordinal(value: number | null | undefined) {
 function intlDollar(value: number | null | undefined) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
-  return `Intl${new Intl.NumberFormat("en-US", {
+  return `Intl$${new Intl.NumberFormat("en-US", {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(n)}`;
