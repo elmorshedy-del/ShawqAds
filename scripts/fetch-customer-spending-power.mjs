@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildCustomerSpendingPowerAnalysis } from '../src/lib/customerSpendingPower.js';
 import { loadUsAcsReference } from './lib/us-acs-reference.mjs';
+import { loadWorldBankCountryReference } from './lib/world-bank-country-reference.mjs';
 
 const envPaths = [process.env.ENV_FILE, path.resolve('.env')].filter(Boolean);
 for (const envPath of envPaths) {
@@ -31,6 +32,7 @@ const ACS_VINTAGE = process.env.SHAWQ_AFFLUENCE_ACS_VINTAGE || '2024';
 const ACS_PUBLIC_URL = `https://www.census.gov/data/developers/data-sets/acs-5year/${ACS_VINTAGE}.html`;
 const censusApiKey = process.env.SHAWQ_CENSUS_API_KEY || process.env.CENSUS_API_KEY || '';
 const censusCachePath = path.join(dataDir, `customer-spending-power-us-acs-${ACS_VINTAGE}.json`);
+const countryReferenceCachePath = path.join(dataDir, 'customer-spending-power-world-bank.json');
 const analysisCachePath = path.join(dataDir, 'customer-spending-power-analysis.json');
 const refreshHoursRaw = Number(process.env.SHAWQ_SPENDING_POWER_REFRESH_HOURS || 24);
 const analysisRefreshMs = Number.isFinite(refreshHoursRaw) && refreshHoursRaw > 0
@@ -176,7 +178,7 @@ async function loadUsReference() {
 function readAnalysisCache() {
   try {
     const cached = JSON.parse(fs.readFileSync(analysisCachePath, 'utf8'));
-    return cached?.methodology?.name === 'Customer Spending Power' ? cached : null;
+    return cached?.methodology?.name === 'Customer Spending Power' && cached?.country_power ? cached : null;
   } catch {
     return null;
   }
@@ -265,9 +267,34 @@ async function main() {
 
   const hasUsPostal = analysisOrders.some((order) => order.country_code === 'US' && order.postal_code);
   const usReference = hasUsPostal ? await loadUsReference() : [];
+
+  const countryCodes = [...new Set(
+    analysisOrders
+      .map((order) => String(order.country_code || '').trim().toUpperCase())
+      .filter((code) => /^[A-Z]{2}$/.test(code)),
+  )].sort();
+  let countryReferenceResult = {
+    rows: [],
+    provider: 'World Bank',
+    dataset: 'World Development Indicators',
+    access: 'unavailable',
+    source_url: 'https://data.worldbank.org/',
+    fetched_at: '',
+  };
+  try {
+    countryReferenceResult = await loadWorldBankCountryReference({
+      countryCodes,
+      cachePath: countryReferenceCachePath,
+    });
+  } catch (error) {
+    console.warn(`Country purchasing-power enrichment unavailable: ${error.message}`);
+    countryReferenceResult.error = error.message;
+  }
+
   const analysis = buildCustomerSpendingPowerAnalysis({
     orders: analysisOrders,
     usReference,
+    countryReference: countryReferenceResult.rows,
     shopCurrency: shop.currency || 'USD',
     lifetimeSince,
     lifetimeUntil,
@@ -280,7 +307,11 @@ async function main() {
       household_variable: 'B11001_001E — Total households',
       url: ACS_PUBLIC_URL,
     },
+    countrySource: countryReferenceResult,
   });
+  if (countryReferenceResult.error) {
+    analysis.country_power.refresh_error = countryReferenceResult.error;
+  }
   analysis.generated_at = new Date().toISOString();
   const earliestPulledOrderAt = rawOrders
     .map((order) => order.created_at || '')
