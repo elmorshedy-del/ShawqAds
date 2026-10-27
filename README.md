@@ -11,6 +11,7 @@ Standalone ShawQ advertising dashboard for the June 3 campaign launch window. It
 - Product leadership: Shopify product units sold and product revenue.
 - Ads leadership: one overall Meta rollup per ad across all countries with CTR (all), add to cart, initiated checkout, purchases, spend, and ROAS.
 - Country coverage: Meta country ROAS beside Shopify units sold, plus Shopify product mix by country.
+- Customer & market spending power: World Bank country purchasing-power context (GNI per capita PPP, GDP PPP fallback) across ShawQ acquisition markets, plus U.S. Census ZIP-level median-income analysis for the calibrated U.S. slice.
 - Behavior friction: Shopify abandoned checkouts, Meta AddPaymentInfo, and optional Shopify Customer Events session/pixel data for payment-submit, dwell, and journey views.
 
 ## Data Windows
