@@ -97,7 +97,9 @@ function isEarlierOrder(orderDate, currentFirstDate) {
 export function buildCustomerSpendingPowerAnalysis({
   orders = [],
   usReference = [],
+  countryReference = [],
   source = {},
+  countrySource = {},
   shopCurrency = 'USD',
   lifetimeSince = '',
   lifetimeUntil = '',
@@ -162,6 +164,73 @@ export function buildCustomerSpendingPowerAnalysis({
   });
 
   const customerRows = [...customers.values()];
+
+  // Country-level purchasing-power layer for every market with a defensible
+  // World Bank reference. This intentionally stays separate from the US ZCTA
+  // layer below: country PPP is useful macro context, but it must never be
+  // presented as if it were an individual customer's income or local wealth.
+  const countryReferenceByCode = new Map(
+    (countryReference || [])
+      .map((row) => [String(row?.country_code || '').trim().toUpperCase(), row])
+      .filter(([code, row]) => /^[A-Z]{2}$/.test(code) && Number(row?.purchasing_power_ppp) > 0),
+  );
+  const countryAggregates = new Map();
+  customerRows.forEach((customer) => {
+    const code = String(customer.country_code || '').trim().toUpperCase();
+    const ref = countryReferenceByCode.get(code);
+    if (!ref) return;
+    const row = countryAggregates.get(code) || {
+      country_code: code,
+      country: ref.country || code,
+      purchasing_power_ppp: Number(ref.purchasing_power_ppp),
+      purchasing_power_metric: ref.purchasing_power_metric || 'GNI per capita, PPP',
+      purchasing_power_year: Number(ref.purchasing_power_year) || null,
+      gni_per_capita_ppp: finiteNumber(ref.gni_per_capita_ppp),
+      gni_year: Number(ref.gni_year) || null,
+      gdp_per_capita_ppp: finiteNumber(ref.gdp_per_capita_ppp),
+      gdp_year: Number(ref.gdp_year) || null,
+      customers: 0,
+      orders: 0,
+      lifetime_revenue: 0,
+      customer_spend: [],
+    };
+    row.customers += 1;
+    row.orders += Number(customer.orders || 0);
+    row.lifetime_revenue += Number(customer.lifetime_spend || 0);
+    row.customer_spend.push(Number(customer.lifetime_spend || 0));
+    countryAggregates.set(code, row);
+  });
+
+  const countryRows = [...countryAggregates.values()];
+  const countryCustomerTotal = countryRows.reduce((sum, row) => sum + row.customers, 0);
+  const countryRevenueTotal = countryRows.reduce((sum, row) => sum + row.lifetime_revenue, 0);
+  const powerValues = countryRows
+    .map((row) => Number(row.purchasing_power_ppp))
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b);
+
+  const percentileAmongMarkets = (value) => {
+    if (!powerValues.length || !Number.isFinite(Number(value))) return null;
+    const v = Number(value);
+    const below = powerValues.filter((candidate) => candidate < v).length;
+    const equal = powerValues.filter((candidate) => candidate === v).length;
+    return ((below + equal / 2) / powerValues.length) * 100;
+  };
+
+  countryRows.forEach((row) => {
+    row.median_lifetime_spend = median(row.customer_spend);
+    row.customer_share = safeRatio(row.customers, countryCustomerTotal);
+    row.revenue_share = safeRatio(row.lifetime_revenue, countryRevenueTotal);
+    row.revenue_over_index = row.customer_share
+      ? row.revenue_share / row.customer_share
+      : null;
+    row.market_power_percentile = percentileAmongMarkets(row.purchasing_power_ppp);
+    delete row.customer_spend;
+  });
+  countryRows.sort((a, b) =>
+    Number(b.purchasing_power_ppp || 0) - Number(a.purchasing_power_ppp || 0)
+      || Number(b.lifetime_revenue || 0) - Number(a.lifetime_revenue || 0));
+
   const supportedFirstOrderCustomers = customerRows.filter(
     (customer) => customer.country_code === 'US' && customer.postal_code,
   );
@@ -211,7 +280,7 @@ export function buildCustomerSpendingPowerAnalysis({
     methodology: {
       name: 'Customer Spending Power',
       metric: 'Area-level household economic capacity',
-      note: 'Area-derived estimates describe the typical economics of a customer delivery area; they are not estimates of an individual customer’s income or wealth.',
+      note: 'Economic reference data is contextual, not personal: country PPP describes macro purchasing power and US ZCTA median income describes local-area economics. Neither estimates an individual customer’s income or wealth.',
       customer_unit: 'Unique Shopify customer ID where available; privacy-safe address HMAC fallback may be used for guest orders. Economic area is fixed at the earliest observed paid order.',
       privacy: 'No customer identifiers, address hashes, addresses, or postal codes are emitted to the dashboard payload.',
     },
@@ -251,6 +320,32 @@ export function buildCustomerSpendingPowerAnalysis({
     },
     distribution,
     points,
+    country_power: {
+      status: countryRows.length ? 'ready' : 'insufficient_data',
+      scope: 'lifetime-acquisition-country',
+      methodology: {
+        metric: 'Country purchasing-power context',
+        note: 'Uses per-capita purchasing-power-parity macro data as context for ShawQ customer cohorts. It is not household wealth and should not be used alone as a market-entry score.',
+        cohort: 'Customers are assigned to the country of their earliest observed paid order; later lifetime spend remains with that acquisition-country cohort.',
+        percentile: 'Percentile is relative only to ShawQ countries with matched World Bank data in this analysis, not a global country percentile.',
+      },
+      summary: {
+        matched_countries: countryRows.length,
+        matched_customers: countryCustomerTotal,
+        matched_customer_revenue: countryRevenueTotal,
+        median_market_purchasing_power_ppp: median(countryRows.map((row) => row.purchasing_power_ppp)),
+      },
+      rows: countryRows,
+      source: {
+        provider: countrySource.provider || 'World Bank',
+        dataset: countrySource.dataset || 'World Development Indicators',
+        access: countrySource.access || '',
+        source_url: countrySource.source_url || 'https://data.worldbank.org/',
+        fetched_at: countrySource.fetched_at || '',
+        primary_indicator: 'NY.GNP.PCAP.PP.CD — GNI per capita, PPP (current international $)',
+        fallback_indicator: 'NY.GDP.PCAP.PP.CD — GDP per capita, PPP (current international $)',
+      },
+    },
     source: {
       country_code: 'US',
       provider: source.provider || 'U.S. Census Bureau',

@@ -43,6 +43,21 @@ function ordinal(value: number | null | undefined) {
   return `${n}${suffix}`;
 }
 
+function intlDollar(value: number | null | undefined) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return `Intl$${new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(n)}`;
+}
+
+function countryFlag(code: string | null | undefined) {
+  const cc = String(code || "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(cc)) return "•";
+  return [...cc].map((ch) => String.fromCodePoint(127397 + ch.charCodeAt(0))).join("");
+}
+
 async function loadSpendingPower() {
   for (const target of ["/api/data/shopify-products.json", "/data/shopify-products.json"]) {
     try {
@@ -94,6 +109,76 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
   );
 }
 
+function CountryPowerSection({ data, currencyCode = "USD" }: { data: any; currencyCode?: string }) {
+  const rows = [...(data?.rows || [])]
+    .sort((a, b) => Number(b.purchasing_power_ppp || 0) - Number(a.purchasing_power_ppp || 0));
+  if (data?.status !== "ready" || !rows.length) return null;
+
+  const summary = data.summary || {};
+  return (
+    <div className="mt-5 rounded-xl border border-border bg-surface-2/20 p-3 sm:p-4">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold">Country purchasing power</p>
+          <p className="mt-0.5 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+            World Bank per-capita purchasing-power context for ShawQ acquisition countries, paired with actual lifetime customer value.
+            GNI PPP is preferred; GDP PPP is used only when GNI is unavailable.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[0.68rem] text-muted-foreground">
+          <span>{summary.matched_countries || rows.length} countries matched</span>
+          <span>{summary.matched_customers || 0} customers</span>
+          <span>Median market {intlDollar(summary.median_market_purchasing_power_ppp)}</span>
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[760px] text-left text-xs">
+          <thead className="border-b border-border text-[0.62rem] uppercase tracking-[0.09em] text-muted-foreground">
+            <tr>
+              <th className="pb-2 pr-4 font-medium">Market</th>
+              <th className="pb-2 pr-4 font-medium">Purchasing power</th>
+              <th className="pb-2 pr-4 font-medium">Peer percentile</th>
+              <th className="pb-2 pr-4 text-right font-medium">Customers</th>
+              <th className="pb-2 pr-4 text-right font-medium">Median lifetime spend</th>
+              <th className="pb-2 text-right font-medium">Revenue index</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.country_code} className="border-b border-border/60 last:border-0">
+                <td className="py-3 pr-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base leading-none">{countryFlag(row.country_code)}</span>
+                    <div>
+                      <p className="font-semibold text-foreground">{row.country || row.country_code}</p>
+                      <p className="text-[0.66rem] text-muted-foreground">
+                        {row.purchasing_power_metric || "PPP per capita"} · {row.purchasing_power_year || "latest"}
+                      </p>
+                    </div>
+                  </div>
+                </td>
+                <td className="py-3 pr-4 font-semibold tabular-nums text-foreground">{intlDollar(row.purchasing_power_ppp)}</td>
+                <td className="py-3 pr-4 tabular-nums text-muted-foreground">{ordinal(row.market_power_percentile)}</td>
+                <td className="py-3 pr-4 text-right tabular-nums">{row.customers || 0}</td>
+                <td className="py-3 pr-4 text-right font-semibold tabular-nums">{currency(row.median_lifetime_spend, currencyCode)}</td>
+                <td className="py-3 text-right font-semibold tabular-nums">
+                  {Number.isFinite(Number(row.revenue_over_index)) ? `${Number(row.revenue_over_index).toFixed(2)}×` : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-1 text-[0.66rem] leading-relaxed text-muted-foreground sm:flex-row sm:justify-between">
+        <span>Revenue index = lifetime revenue share ÷ customer share; 1.00× means average spend per customer for the matched-country set.</span>
+        <span>{data.source?.provider || "World Bank"} · {data.source?.dataset || "World Development Indicators"}</span>
+      </div>
+    </div>
+  );
+}
+
 export function CustomerSpendingPower() {
   const [data, setData] = useState<any>(null);
   const [loaded, setLoaded] = useState(false);
@@ -113,6 +198,10 @@ export function CustomerSpendingPower() {
     () => [...(data?.points || [])].sort((a, b) => Number(a.area_income_usd || 0) - Number(b.area_income_usd || 0)),
     [data],
   );
+  const countryPower = data?.country_power || {};
+  const countryRows = countryPower?.rows || [];
+  const usReady = data?.status === "ready" && points.length >= 2;
+  const countryReady = countryPower?.status === "ready" && countryRows.length > 0;
 
   if (!loaded) {
     return (
@@ -122,19 +211,19 @@ export function CustomerSpendingPower() {
     );
   }
 
-  if (!data || data.status !== "ready" || points.length < 2) {
+  if (!data || (!usReady && !countryReady)) {
     return (
       <div className="panel p-5 sm:p-6">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-soft text-brand">
             <BadgeDollarSign className="h-4 w-4" />
           </span>
-          <h2 className="font-display text-base font-semibold tracking-tight sm:text-lg">Customer Spending Power</h2>
+          <h2 className="font-display text-base font-semibold tracking-tight sm:text-lg">Customer & Market Spending Power</h2>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
           {data?.error
             ? "Economic enrichment is temporarily unavailable. The next Shopify refresh will retry it automatically."
-            : "Not enough customers are matched to a supported area-level economic source yet."}
+            : "Not enough customers are matched to a supported country or area-level economic source yet."}
         </p>
       </div>
     );
@@ -159,16 +248,16 @@ export function CustomerSpendingPower() {
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
               <BadgeDollarSign className="h-4 w-4" />
             </span>
-            <h2 className="font-display text-base font-semibold tracking-tight sm:text-lg">Customer Spending Power</h2>
+            <h2 className="font-display text-base font-semibold tracking-tight sm:text-lg">Customer & Market Spending Power</h2>
           </div>
           <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-            Lifetime customer economics · area-level spending-capacity proxy from delivery geography · fitted against actual ShawQ lifetime spend
+            Lifetime customer economics · global country purchasing-power context plus calibrated US local-area income · compared with actual ShawQ spend
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.68rem] text-muted-foreground">
           <span className="flex items-center gap-1.5" title={data.methodology?.note}>
             <Info className="h-3.5 w-3.5" />
-            Area estimate, not individual income
+            Economic context, not individual wealth
           </span>
           {historyScopeUnconfirmed ? (
             <span className="flex items-center gap-1.5 text-gold" title={data.shop?.history_access}>
@@ -179,35 +268,39 @@ export function CustomerSpendingPower() {
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-2.5 lg:grid-cols-5">
-        <Metric
-          label="Matched US customers"
-          value={String(coverage.matched_customers || 0)}
-          hint={`${percent(coverage.supported_customer_match_rate)} of US-postcode customers · ${percent(coverage.overall_customer_coverage)} of all identified`}
-        />
-        <Metric
-          label="Median area income"
-          value={currency(summary.median_area_income_usd, "USD", true)}
-          hint="US ZCTA household median"
-        />
-        <Metric
-          label="Median US area percentile"
-          value={ordinal(summary.median_spending_power_percentile)}
-          hint="Household-weighted national rank"
-        />
-        <Metric
-          label="Top-20% customer share"
-          value={percent(summary.top_20_customer_share)}
-          hint={`${number(summary.top_20_over_index, 2)}× US population expectation`}
-        />
-        <Metric
-          label="Regression R²"
-          value={number(regression.r2, 2)}
-          hint={relationship}
-        />
-      </div>
+      {countryReady ? <CountryPowerSection data={countryPower} currencyCode={shopCurrency} /> : null}
 
-      <div className="mt-5 rounded-xl border border-border bg-surface-2/20 p-3 sm:p-4">
+      {usReady ? (
+        <>
+          <div className="mt-5 grid grid-cols-2 gap-2.5 lg:grid-cols-5">
+            <Metric
+              label="Matched US customers"
+              value={String(coverage.matched_customers || 0)}
+              hint={`${percent(coverage.supported_customer_match_rate)} of US-postcode customers · ${percent(coverage.overall_customer_coverage)} of all identified`}
+            />
+            <Metric
+              label="Median area income"
+              value={currency(summary.median_area_income_usd, "USD", true)}
+              hint="US ZCTA household median"
+            />
+            <Metric
+              label="Median US area percentile"
+              value={ordinal(summary.median_spending_power_percentile)}
+              hint="Household-weighted national rank"
+            />
+            <Metric
+              label="Top-20% customer share"
+              value={percent(summary.top_20_customer_share)}
+              hint={`${number(summary.top_20_over_index, 2)}× US population expectation`}
+            />
+            <Metric
+              label="Regression R²"
+              value={number(regression.r2, 2)}
+              hint={relationship}
+            />
+          </div>
+
+          <div className="mt-5 rounded-xl border border-border bg-surface-2/20 p-3 sm:p-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-semibold">Spending power vs. customer spend</p>
@@ -263,11 +356,19 @@ export function CustomerSpendingPower() {
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-      </div>
+          </div>
+        </>
+      ) : (
+        <div className="mt-5 rounded-xl border border-dashed border-border bg-surface-2/30 px-4 py-5 text-xs text-muted-foreground">
+          Country-level purchasing power is available, but there are not yet enough US customers with matched ZIP-level Census data to estimate the local-income relationship.
+        </div>
+      )}
 
       <div className="mt-4 flex flex-col gap-1.5 text-[0.68rem] leading-relaxed text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>
-          Source: {source.provider} · {source.dataset} {source.vintage} · {source.geography}
+          {usReady
+            ? `US local source: ${source.provider || "U.S. Census Bureau"} · ${source.dataset || "American Community Survey"} ${source.vintage || ""} · ${source.geography || "ZCTA"}`
+            : `Country source: ${countryPower?.source?.provider || "World Bank"} · ${countryPower?.source?.dataset || "World Development Indicators"}`}
         </span>
         <span>
           Lifetime request {data.period?.since || "store opening"} → {data.period?.until || "latest refresh"}
